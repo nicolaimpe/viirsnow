@@ -1,0 +1,12 @@
+gdal_edit.py -a_srs "+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +R=6371007.181 +units=m +no_defs" -a_ullr 0 5559752 1111579.86949378 4448172.72884022 ndsi.tif 
+
+
+gdal_translate HDF5:"VNP10A1.A2017001.h18v04.002.2024010080043.h5"://HDFEOS/GRIDS/VIIRS_Grid_IMG_2D/Data_Fields/NDSI ndsi.tif
+
+gdalsrsinfo HDF4_EOS:EOS_GRID:"MYD10A1.A2023001.h18v04.061.2023006062520.hdf":MOD_Grid_Snow_500m:granule_pnt > modis.wkt
+
+ncdump -c ../data/V10A1/VNP10A1.A2023002.h08v05.002.2023093170258.h5  | grep "CharacteristicsBinSize"
+
+X0=$(ncdump -v XDim ../data/V10A1/VNP10A1.A2023002.h08v06.002.2023093170129.h5 | sed -n 's/.*XDim = \(.*\),.*/\1/p' | awk -F ',' '{print $1}')
+
+

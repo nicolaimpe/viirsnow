@@ -1,0 +1,22 @@
+[project]
+name = "viirsnow"
+version = "0.1.0"
+description = "Comparison between VIIRS snow product with S2 binary maps as ground truth"
+authors = [
+    {name = "Nicola Imperatore", email = "nicola.imperatore@univ-tlse3.fr"},
+]
+dependencies = ["ipykernel>=6.29.5", "xarray>=2023.1.0", "pyproj>=3.7.0", "netcdf4>=1.7.2", "numba>=0.60.0", "rioxarray>=0.17.0", "earthaccess>=0.11.0", "python-dateutil>=2.9.0.post0", "dask[diagnostics]>=2024.10.0", "geopandas>=1.0.1", "matplotlib>=3.9.2", "scipy>=1.14.1"]
+requires-python = ">=3.12"
+readme = "README.md"
+license = {text = "MIT"}
+
+[build-system]
+requires = ["pdm-backend"]
+build-backend = "pdm.backend"
+
+
+[tool.pdm]
+distribution = true
+
+[dependency-groups]
+test = ["pytest>=8.3.3"]
