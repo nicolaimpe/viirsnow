@@ -119,18 +119,33 @@ class SnowCoverProductCompleteness:
         self.check_projection()
 
     def check_projection(self):
-        if self.class_cover_area and not self.snow_cover_dataset.rio.crs.is_projected:
-            logger.info(f"Reprojecting to EPSG {REPROJECTION_CRS_EPSG} for allowing surface computations")
-            self.snow_cover_dataset = self.snow_cover_dataset.rio.reproject(
-                rasterio.crs.CRS.from_epsg(REPROJECTION_CRS_EPSG).to_wkt()
-            )
-        if not self.roi_mask.crs.is_projected:
-            self.roi_mask, _ = rasterio.warp.reproject(
-                self.roi_mask.read(),
-                src_transform=self.roi_mask.transform,
-                src_crs=self.roi_mask.crs,
-                dst_crs=rasterio.crs.CRS.from_epsg(REPROJECTION_CRS_EPSG),
-            )
+        if self.class_cover_area:
+            if not self.snow_cover_dataset.rio.crs.is_projected:
+                logger.info(f"Reprojecting to EPSG {REPROJECTION_CRS_EPSG} for allowing surface computations")
+                self.snow_cover_dataset = self.snow_cover_dataset.rio.reproject(
+                    rasterio.crs.CRS.from_epsg(REPROJECTION_CRS_EPSG).to_wkt()
+                )
+                self.snow_cover_dataset.to_netcdf("../output_folder/tests_area_cover/reprojected.nc")
+            if self.roi_mask and not self.roi_mask.crs.is_projected:
+                self.roi_mask, transform = rasterio.warp.reproject(
+                    self.roi_mask.read(1),
+                    src_transform=self.roi_mask.transform,
+                    src_crs=self.roi_mask.crs,
+                    dst_crs=rasterio.crs.CRS.from_epsg(REPROJECTION_CRS_EPSG),
+                )
+                self.roi_mask = np.astype(self.roi_mask, np.uint8)
+
+                with rasterio.open(
+                    "../output_folder/tests_area_cover/test_mask_reprojection.tif",
+                    "w",
+                    transform=transform,
+                    crs=rasterio.crs.CRS.from_epsg(REPROJECTION_CRS_EPSG),
+                    width=self.roi_mask.shape[2],
+                    height=self.roi_mask.shape[1],
+                    count=1,
+                    dtype=self.roi_mask.dtype,
+                ) as dst:
+                    dst.write(self.roi_mask)
 
     def to_rioxarray(self, dataset: xr.Dataset) -> xr.Dataset:
         return dataset.rio.write_crs(dataset.data_vars["spatial_ref"].attrs["spatial_ref"])
@@ -156,7 +171,7 @@ class SnowCoverProductCompleteness:
     def count_n_pixels(self, data_array: xr.DataArray) -> int:
         if self.roi_mask is None:
             sizes = data_array.sizes
-            return sizes["lon"] * sizes["lat"] * sizes["time"]
+            return sizes["y"] * sizes["x"] * sizes["time"]
         else:
             return data_array.count().values
 
@@ -193,7 +208,7 @@ class SnowCoverProductCompleteness:
         class_mask = self._compute_masks_of_class(class_name, dataset.data_vars["snow_cover"])
         if self.class_percentage_distribution:
             self.percentages_dict[class_name] = self._compute_percentage_of_mask(class_mask, n_pixels_tot)
-
+            print(class_name, self._compute_percentage_of_mask(class_mask, n_pixels_tot))
         if self.class_cover_area:
             class_mask = class_mask.rio.write_crs(dataset.rio.crs)
             self.area_dict[class_name] = self._compute_area_of_class_mask(class_mask)
@@ -251,13 +266,14 @@ class SnowCoverProductCompleteness:
             self.monthly_statics(month=month_str, exclude_nodata=exclude_nodata)
             month_datetime = Year.year_month_to_datetime(year=self.year.year, month=month_str)
 
-            year_data_array_percentage.loc[dict(time=month_datetime, class_name=list(self.percentages_dict.keys()))] = list(
-                self.percentages_dict.values()
-            )
-
-            year_data_array_area.loc[dict(time=month_datetime, class_name=list(self.area_dict.keys()))] = list(
-                self.area_dict.values()
-            )
+            if self.class_percentage_distribution:
+                year_data_array_percentage.loc[dict(time=month_datetime, class_name=list(self.percentages_dict.keys()))] = (
+                    list(self.percentages_dict.values())
+                )
+            if self.class_cover_area:
+                year_data_array_area.loc[dict(time=month_datetime, class_name=list(self.area_dict.keys()))] = list(
+                    self.area_dict.values()
+                )
 
         if self.class_percentage_distribution:
             year_dataset = year_dataset.assign({"class_distribution_percentage": year_data_array_percentage})
@@ -271,25 +287,6 @@ class SnowCoverProductCompleteness:
             year_dataset.to_netcdf(Path(netcdf_export_path))
 
         return year_dataset
-
-    def print_table(self, year_data_array: xr.DataArray, classes_to_print: List[str] | str = "all"):
-        year_data_frame = year_data_array.to_pandas()
-        pd.options.display.float_format = "{:.3f}".format
-        pd.options.display.precision = 3
-        if classes_to_print == "all":
-            classes_to_print = year_data_array.coords["stat_name"].values
-        print(year_data_frame.loc[classes_to_print])
-
-    def classes_bar_distribution(
-        self, year_data_array: xr.DataArray, classes_to_plot: List[str] | str = "all", ax: Axes | None = None
-    ) -> None:
-        year_data_frame = year_data_array.to_pandas()
-        if classes_to_plot == "all":
-            classes_to_plot = year_data_frame.index
-
-        year_data_frame = year_data_frame.transpose()
-        year_data_frame.index = year_data_frame.index.strftime("%B")
-        year_data_frame.loc[classes_to_plot].plot.bar(title=f"Class distribution for year {self.year.year}", ax=ax)
 
 
 class MeteoFranceSnowCoverProductCompleteness(SnowCoverProductCompleteness):
@@ -333,26 +330,26 @@ if __name__ == "__main__":
     nasa_time_series_name = "2023_SuomiNPP_nasa_time_series_fsc.nc"
     meteofrance_time_series_name = "2023_meteofrance_time_series.nc"
 
-    # meteofrance_time_series_path = Path(f"{time_series_folder}").joinpath(meteofrance_time_series_name)
-    # meteofrance_time_series = xr.open_dataset(meteofrance_time_series_path)
-    # mf_stats_calculator = MeteoFranceSnowCoverProductCompleteness(
-    #     meteofrance_time_series,
-    #     mask_file="../../data/vectorial/massifs_WGS84/massifs_WGS84/massifs_mask_eofr62.tiff",
-    #     class_percentage_distribution=True,
-    #     class_cover_area=True,
-    # )
-    # stats = mf_stats_calculator.year_statistics(
-    #     months=["january", "february"], exclude_nodata=False, netcdf_export_path="../output_folder/tests_area_cover/test_mf.nc"
-    # )
-
-    nasa_time_series_path = Path(f"{time_series_folder}").joinpath(nasa_time_series_name)
-    nasa_time_series = xr.open_dataset(nasa_time_series_path).isel(time=slice(1, 20))
-    mf_stats_calculator = NASASnowCoverProductCompleteness(
-        nasa_time_series,
-        mask_file="../../data/vectorial/massifs_WGS84/massifs_WGS84/massifs_mask_v10_epsg4326.tiff",
+    meteofrance_time_series_path = Path(f"{time_series_folder}").joinpath(meteofrance_time_series_name)
+    meteofrance_time_series = xr.open_dataset(meteofrance_time_series_path).isel(time=slice(1, 30))
+    mf_stats_calculator = MeteoFranceSnowCoverProductCompleteness(
+        meteofrance_time_series,
+        mask_file="../../data/vectorial/massifs_WGS84/massifs_WGS84/massifs_mask_eofr62.tiff",
         class_percentage_distribution=True,
         class_cover_area=True,
     )
     stats = mf_stats_calculator.year_statistics(
-        months=["january"], exclude_nodata=False, netcdf_export_path="../output_folder/tests_area_cover/test_nasa.nc"
+        months=["january"], exclude_nodata=False, netcdf_export_path="../output_folder/tests_area_cover/test_mf.nc"
     )
+
+    # nasa_time_series_path = Path(f"{time_series_folder}").joinpath(nasa_time_series_name)
+    # nasa_time_series = xr.open_dataset(nasa_time_series_path).isel(time=slice(1, 20))
+    # mf_stats_calculator = NASASnowCoverProductCompleteness(
+    #     nasa_time_series,
+    #     mask_file="../../data/vectorial/massifs_WGS84/massifs_WGS84/massifs_mask_v10_epsg4326.tiff",
+    #     class_percentage_distribution=True,
+    #     class_cover_area=True,
+    # )
+    # stats = mf_stats_calculator.year_statistics(
+    #     months=["january"], exclude_nodata=False, netcdf_export_path="../output_folder/tests_area_cover/test_nasa.nc"
+    # )
