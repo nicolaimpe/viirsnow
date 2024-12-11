@@ -127,25 +127,13 @@ class SnowCoverProductCompleteness:
                 )
                 self.snow_cover_dataset.to_netcdf("../output_folder/tests_area_cover/reprojected.nc")
             if self.roi_mask and not self.roi_mask.crs.is_projected:
-                self.roi_mask, transform = rasterio.warp.reproject(
+                self.roi_mask, _ = rasterio.warp.reproject(
                     self.roi_mask.read(1),
                     src_transform=self.roi_mask.transform,
                     src_crs=self.roi_mask.crs,
                     dst_crs=rasterio.crs.CRS.from_epsg(REPROJECTION_CRS_EPSG),
                 )
                 self.roi_mask = np.astype(self.roi_mask, np.uint8)
-
-                with rasterio.open(
-                    "../output_folder/tests_area_cover/test_mask_reprojection.tif",
-                    "w",
-                    transform=transform,
-                    crs=rasterio.crs.CRS.from_epsg(REPROJECTION_CRS_EPSG),
-                    width=self.roi_mask.shape[2],
-                    height=self.roi_mask.shape[1],
-                    count=1,
-                    dtype=self.roi_mask.dtype,
-                ) as dst:
-                    dst.write(self.roi_mask)
 
     def to_rioxarray(self, dataset: xr.Dataset) -> xr.Dataset:
         return dataset.rio.write_crs(dataset.data_vars["spatial_ref"].attrs["spatial_ref"])
@@ -181,7 +169,7 @@ class SnowCoverProductCompleteness:
     def _mask_of_pixels_in_range(self, range: range, data_array: xr.DataArray) -> xr.DataArray:
         return (data_array >= range[0]) * (data_array <= range[-1])
 
-    def _compute_masks_of_class(self, class_name: str, data_array: xr.DataArray) -> xr.DataArray:
+    def _compute_mask_of_class(self, class_name: str, data_array: xr.DataArray) -> xr.DataArray:
         if type(self.classes[class_name]) is range:
             return self._mask_of_pixels_in_range(self.classes[class_name], data_array)
         else:
@@ -205,7 +193,7 @@ class SnowCoverProductCompleteness:
         dataset: xr.Dataset,
         n_pixels_tot: int | None = None,
     ):
-        class_mask = self._compute_masks_of_class(class_name, dataset.data_vars["snow_cover"])
+        class_mask = self._compute_mask_of_class(class_name, dataset.data_vars["snow_cover"])
         if self.class_percentage_distribution:
             self.percentages_dict[class_name] = self._compute_percentage_of_mask(class_mask, n_pixels_tot)
             print(class_name, self._compute_percentage_of_mask(class_mask, n_pixels_tot))
@@ -218,7 +206,7 @@ class SnowCoverProductCompleteness:
         self.area_dict: Dict[str, float] = {} if self.class_cover_area else None
         data_array = dataset.data_vars["snow_cover"]
         if exclude_nodata:
-            nodata_pixels = self._compute_number_of_pixels_of_mask(self._compute_masks_of_class("nodata", data_array))
+            nodata_pixels = self._compute_number_of_pixels_of_mask(self._compute_mask_of_class("nodata", data_array))
             n_pixels_tot = self.count_n_pixels(data_array) - nodata_pixels
             for class_name in self.classes:
                 if class_name == "nodata":
@@ -325,21 +313,69 @@ class NASASnowCoverProductCompleteness(SnowCoverProductCompleteness):
         )
 
 
+class CrossComparisonSnowCoverExtent:
+    def __init__(
+        self, product_1_analyzer: SnowCoverProductCompleteness, product_2_analyzer: SnowCoverProductCompleteness
+    ) -> None:
+        self.product_1_analyzer = product_1_analyzer
+        self.product_2_analyzer = product_2_analyzer
+        self.product_1_analyzer.class_percentage_distribution = False
+        self.product_2_analyzer.class_percentage_distribution = False
+        self.product_1_analyzer.class_cover_area = True
+        self.product_2_analyzer.class_cover_area = True
+        self.check_resolution()
+
+    def check_resolution(self):
+        if (
+            self.product_1_analyzer.snow_cover_dataset.rio.resolution()
+            != self.product_2_analyzer.snow_cover_dataset.rio.resolution()
+        ):
+            raise NotImplementedError("The two time series to compare must have the same spatial resolution.")
+
+    def _compute_area(self, data_array: xr.DataArray, class_name: str):
+        return self.product_1_analyzer._compute_area_of_class_mask(
+            self.product_1_analyzer._compute_mask_of_class(class_name=class_name, data_array=data_array)
+        )
+
+    def new_monthly_statics(self, data_array: xr.DataArray):
+        data_array.groupby("time.month").map(self._compute_area("snow_cover"))
+
+    def compare_snow_extent(self, year_int: int, cloud_mask_union: bool = True):
+        year = Year(year_int)
+        product_1 = self.product_1_analyzer.snow_cover_dataset.data_vars["snow_cover"].groupby("time.month")
+        product_2 = self.product_2_analyzer.snow_cover_dataset.data_vars["snow_cover"].groupby("time.month")
+
+        for month_str, month_idx in year.month_dict.items():
+            if cloud_mask_union:
+                cloud_mask_1 = self.product_1_analyzer._compute_mask_of_class("clouds", product_1[month_idx])
+                cloud_mask_2 = self.product_1_analyzer._compute_mask_of_class("clouds", product_2[month_idx])
+
+                cloud_mask_union = xr.merge([cloud_mask_1, cloud_mask_2])
+
+                product_1 = product_1.where(cloud_mask_union, drop=True)
+                product_2 = product_2.where(cloud_mask_union, drop=True)
+
+            self.product_1_analyzer.monthly_statics(month=month_str, exclude_nodata=False)
+            self.product_1_analyzer.area_dict
+
+
 if __name__ == "__main__":
     time_series_folder = "../output_folder/completeness_analysis/"
     nasa_time_series_name = "2023_SuomiNPP_nasa_time_series_fsc.nc"
     meteofrance_time_series_name = "2023_meteofrance_time_series.nc"
 
     meteofrance_time_series_path = Path(f"{time_series_folder}").joinpath(meteofrance_time_series_name)
-    meteofrance_time_series = xr.open_dataset(meteofrance_time_series_path).isel(time=slice(1, 30))
+    meteofrance_time_series = xr.open_dataset(meteofrance_time_series_path)  # .isel(time=slice(1, 30))
     mf_stats_calculator = MeteoFranceSnowCoverProductCompleteness(
         meteofrance_time_series,
         mask_file="../../data/vectorial/massifs_WGS84/massifs_WGS84/massifs_mask_eofr62.tiff",
         class_percentage_distribution=True,
-        class_cover_area=True,
+        class_cover_area=False,
     )
     stats = mf_stats_calculator.year_statistics(
-        months=["january"], exclude_nodata=False, netcdf_export_path="../output_folder/tests_area_cover/test_mf.nc"
+        months=["january", "february"],
+        exclude_nodata=False,
+        netcdf_export_path="../output_folder/tests_area_cover/test_mf.nc",
     )
 
     # nasa_time_series_path = Path(f"{time_series_folder}").joinpath(nasa_time_series_name)
