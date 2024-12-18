@@ -70,6 +70,7 @@ def georef_data_array(data_array: xr.DataArray, data_array_name: str, crs: pypro
     crs_variable.attrs["spatial_ref"] = crs.to_wkt()
 
     georeferenced_dataset = xr.Dataset({data_array_name: data_array, "spatial_ref": crs_variable})
+
     return georeferenced_dataset
 
 
@@ -111,3 +112,22 @@ def reproject_dataset(
         .rio.reproject(dst_crs=new_crs, resolution=new_resolution, resampling=resampling)
         .rename({"x": dims[1], "y": dims[0]})
     )
+
+
+def to_rioxarray(dataset: xr.Dataset) -> xr.Dataset:
+    return dataset.rio.write_crs(dataset.data_vars["spatial_ref"].attrs["spatial_ref"])
+
+
+def find_nearest_bounds_for_selection(dataset: xr.Dataset, other: xr.Dataset) -> Tuple[str, str, str, str]:
+    """To be used very carefully."""
+    dataset, other = to_rioxarray(dataset), to_rioxarray(other)
+    if dataset.rio.crs != other.rio.crs or dataset.rio.crs is None:
+        raise ValueError("Expected both Data Arrays to be georeferenced in the same CRS")
+    dims_data_array = dim_name(dataset.rio.crs)
+    x, y = dims_data_array[1], dims_data_array[0]
+
+    xmin = dataset.coords[x].values[np.argmin(np.abs(dataset.coords[x].values - other.coords[x].min().values))]
+    xmax = dataset.coords[x].values[np.argmin(np.abs(dataset.coords[x].values - other.coords[x].max().values))]
+    ymin = dataset.coords[y].values[np.argmin(np.abs(dataset.coords[y].values - other.coords[y].min().values))]
+    ymax = dataset.coords[y].values[np.argmin(np.abs(dataset.coords[y].values - other.coords[y].max().values))]
+    return xmin, xmax, ymin, ymax

@@ -14,7 +14,7 @@ from matplotlib.axes import Axes
 import math
 import time
 import copy
-
+from products import METEOFRANCE_CLASSES, NASA_CLASSES, NODATA_NASA_CLASSES
 
 REPROJECTION_CRS_EPSG = "32631"
 
@@ -131,9 +131,6 @@ class SnowCoverProductCompleteness:
                     dst_crs=rasterio.crs.CRS.from_epsg(REPROJECTION_CRS_EPSG),
                 )
                 self.roi_mask = np.astype(self.roi_mask, np.uint8)
-
-    def to_rioxarray(self, dataset: xr.Dataset) -> xr.Dataset:
-        return dataset.rio.write_crs(dataset.data_vars["spatial_ref"].attrs["spatial_ref"])
 
     def setup_roi_mask(self, mask_file: str | None = None):
         if mask_file is not None:

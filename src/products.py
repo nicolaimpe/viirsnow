@@ -6,6 +6,7 @@ METEOFRANCE_CLASSES = {
     "forest_with_snow": (210,),
     "water": (220,),
     "nodata": (230,),
+    "fill": (254,),
 }
 NASA_CLASSES = {
     "snow_cover": range(1, 101),

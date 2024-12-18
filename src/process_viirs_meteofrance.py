@@ -7,26 +7,22 @@ from pathlib import Path
 
 
 import numpy as np
-import netCDF4 as nc
-import netCDF4 as nc
 import numpy.typing as npt
 from typing import Dict, List
 from datetime import datetime
 import os
-import logging
 import geopandas as gpd
 import rasterio
 from products import METEOFRANCE_CLASSES
-from geotools import georef_data_array,gdf_to_binary_mask, reproject_dataset
-
-# Module configuration
-logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO)
+from geotools import georef_data_array, gdf_to_binary_mask, reproject_dataset, dim_name, find_nearest_bounds_for_selection
+from logger_setup import default_logger as logger
+import pyproj
 
 platforms_products_dict = {"SuomiNPP": "SNPP"}
 OUT_GRID_CRS = 32631
 OUT_GRID_RES = 250  # m
-
+RESAMPLING_METHOD = rasterio.enums.Resampling.nearest
+FILL_VALUE = METEOFRANCE_CLASSES["fill"][0]
 # def extract_netcdf_latlon_from_gdal_raster(gdal_dataset_object: gdal.Dataset) -> Dict[str, npt.NDArray]:
 #     transform = gdal_dataset_object.GetGeoTransform()
 #     x_off, x_scale, _, y_off, _, y_scale = transform
@@ -38,15 +34,17 @@ OUT_GRID_RES = 250  # m
 #     return {LAT: latitudes, LON: longitudes}
 
 
-def extract_netcdf_latlon_from_rasterio_raster(rasterio_dataset) -> Dict[str, npt.NDArray]:
-    transform = rasterio_dataset.window_transform
-    x_off, x_scale, _, y_off, _, y_scale = transform
-    n_cols, n_rows = gdal_raster.RasterXSize, gdal_dataset_object.RasterYSize
+def extract_netcdf_coords_from_rasterio_raster(raster: rasterio.DatasetReader) -> Dict[str, npt.NDArray]:
+    transform = raster.transform
+
+    x_scale, x_off, y_scale, y_off = transform.a, transform.c, transform.e, transform.f
+    n_cols, n_rows = raster.width, raster.height
     # for GDAL the UL corener is the UL corner of the image while for xarray is the center of the upper left pixel
     # Compensate for it
-    longitudes = np.arange(n_cols) * x_scale + x_off + x_scale / 2
-    latitudes = np.arange(n_rows) * y_scale + y_off + y_scale / 2
-    return {LAT: latitudes, LON: longitudes}
+    x_coord = np.arange(n_cols) * x_scale + x_off
+    y_coord = np.arange(n_rows) * y_scale + y_off
+    dims = dim_name(raster.crs)
+    return {dims[0]: y_coord, dims[1]: x_coord}
 
 
 def timestamp_to_datetime(observation_timestamp: str) -> datetime:
@@ -67,22 +65,46 @@ def get_daily_filenames_per_platform(platform: str, day: datetime, viirs_data_fo
 
 def create_composite_meteofrance(daily_files: List[str], roi_file: str | None = None) -> xr.Dataset:
     first_image_raster = rasterio.open(daily_files[0])
-    day_data = first_image_raster.read()
+    day_data = first_image_raster.read(1)
 
     for day_file in daily_files[1:]:
-        no_data_mask = day_data == METEOFRANCE_CLASSES["nodata"]
-        clouds_mask = day_data == METEOFRANCE_CLASSES["clouds"]
+        logger.info(f"Reading file {day_file}")
+        new_acquisition = rasterio.open(day_file).read(1)
 
-        day_data[no_data_mask or clouds_mask] = rasterio.open(day_file).read()
+        no_data_mask = day_data == METEOFRANCE_CLASSES["nodata"]
+        day_data = np.where(no_data_mask, new_acquisition, day_data)
+
+        cloud_mask_old = day_data == METEOFRANCE_CLASSES["clouds"]
+
+        cloud_mask_new = new_acquisition == METEOFRANCE_CLASSES["clouds"]
+        nodata_mask_new = new_acquisition == METEOFRANCE_CLASSES["nodata"]
+        no_observation_mask_new = cloud_mask_new | nodata_mask_new
+        observation_mask_new = no_observation_mask_new == False
+        new_observations_mask = cloud_mask_old & observation_mask_new
+        day_data = np.where(new_observations_mask, new_acquisition, day_data)
 
     if roi_file is not None:
-        gdf_to_binary_mask()
-        
-    
-    day_data_array = xr.DataArray(day_data, coords=extract_netcdf_latlon_from_rasterio_raster(first_image_raster))
-    day_dataset = georef_data_array(day_data_array)
-    reproject_dataset()
-    return 
+        roi_mask = gdf_to_binary_mask(
+            gdf=gpd.read_file(roi_file), out_resolution=first_image_raster.transform.a, out_crs=first_image_raster.crs
+        )
+
+    day_dataset = georef_data_array(
+        xr.DataArray(day_data.astype(np.uint8), coords=extract_netcdf_coords_from_rasterio_raster(first_image_raster)),
+        data_array_name="snow_cover",
+        crs=first_image_raster.crs,
+    )
+
+    xmin, xmax, ymin, ymax = find_nearest_bounds_for_selection(dataset=day_dataset, other=roi_mask)
+    dims = dim_name(pyproj.CRS(day_dataset.data_vars["spatial_ref"].attrs["spatial_ref"]))
+    masked_dataset = day_dataset.sel({dims[1]: slice(xmin, xmax), dims[0]: slice(ymax, ymin)})
+    masked = masked_dataset.data_vars["snow_cover"].values * roi_mask.data_vars["binary_mask"].values
+    masked[roi_mask.data_vars["binary_mask"].values == 0] = FILL_VALUE
+    masked_dataset.data_vars["snow_cover"][:] = masked
+
+    day_dataset_reprojected = reproject_dataset(
+        dataset=masked_dataset, new_crs=pyproj.CRS(OUT_GRID_CRS), new_resolution=OUT_GRID_RES, resampling=RESAMPLING_METHOD
+    )
+    return day_dataset_reprojected
 
 
 def create_meteofrance_time_series(
@@ -94,6 +116,9 @@ def create_meteofrance_time_series(
 ):
     outpaths = []
     for day in year.iterate_days():
+        logger.info(f"Processing day {day}")
+        # if day.day > 5:
+        #     break
         daily_files = get_daily_filenames_per_platform(platform=platform, day=day, viirs_data_folder=viirs_data_folder)
         meteofrance_composite = create_composite_meteofrance(daily_files=daily_files, roi_file=roi_shapefile)
         meteofrance_composite = meteofrance_composite.expand_dims(time=[day])
@@ -134,13 +159,15 @@ def create_meteofrance_time_series(
 
 if __name__ == "__main__":
     # User inputs
-    year = WinterYear(2023,2024)
+    year = WinterYear(2023, 2024)
     month = "*"  # regex
     folder = "/home/imperatoren/work/VIIRS_S2_comparison/data/EOFR62"
-    output_folder = "./output_folder/completeness_analysis"
-    roi_shapefile = 
+    output_folder = "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/snow_cover_extent_analysis"
+    roi_shapefile = "/home/imperatoren/work/VIIRS_S2_comparison/data/vectorial/massifs/massifs.shp"
 
-    create_meteofrance_time_series(year=year,viirs_data_folder=folder,output_folder=output_folder, roi_shapefile=)
+    create_meteofrance_time_series(
+        year=year, viirs_data_folder=folder, output_folder=output_folder, roi_shapefile=roi_shapefile
+    )
     # # Loop over all the files to populate the time series
     # for count, filepath in enumerate(viirs_data_filepaths):
     #     logger.info(

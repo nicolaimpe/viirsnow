@@ -4,19 +4,15 @@ from typing import List
 import xarray as xr
 import numpy as np
 from datetime import datetime
-import logging
 import re
 import geopandas as gpd
 from pathlib import Path
 from metrics import WinterYear
-from geotools import georef_data_array, gdf_to_binary_mask, reproject_dataset, dim_name
+from geotools import georef_data_array, gdf_to_binary_mask, reproject_dataset, dim_name, find_nearest_bounds_for_selection
 import pyproj
 import rasterio
 import os
-
-# Module configuration
-logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO)
+from logger_setup import default_logger as logger
 
 
 # Hardcode some parameters
@@ -52,7 +48,7 @@ def get_daily_filenames_per_platform(platform: str, year: int, day: int, viirs_d
     platform_files = [path for path in viirs_data_filepaths if re.search(platforms_products_dict[platform], path)]
     day_files = [path for path in platform_files if re.search(f"A{int_to_year_day(year=year, day=day)}", path)]
     if len(day_files) != 4:
-        logging.info(
+        logger.info(
             f"Unexpected number of tiles corresponding to platform {platform} and day of the year {day} found. Expected 4, found: {len(day_files)}"
         )
         if len(day_files) == 0:
@@ -92,12 +88,8 @@ def create_nasa_composite(day_files: List[str], roi_file: str | None = None) -> 
             out_crs=pyproj.CRS.from_wkt(merged.data_vars["spatial_ref"].attrs["spatial_ref"]),
         )
 
-        x, y = dims[1], dims[0]
-        xmin = merged.coords[x].values[np.argmin(np.abs(merged.coords[x].values - roi_mask.coords[x][0].values))]
-        xmax = merged.coords[x].values[np.argmin(np.abs(merged.coords[x].values - roi_mask.coords[x][-1].values))]
-        ymax = merged.coords[y].values[np.argmin(np.abs(merged.coords[y].values - roi_mask.coords[y][-1].values))]
-        ymin = merged.coords[y].values[np.argmin(np.abs(merged.coords[y].values - roi_mask.coords[y][0].values))]
-
+        xmin, xmax, ymin, ymax = find_nearest_bounds_for_selection(data_array=merged, other=roi_mask)
+        dims = dim_name(merged)
         data_to_reproject = merged.sel({dims[1]: slice(xmin, xmax), dims[0]: slice(ymin, ymax)})
         masked = data_to_reproject.data_vars["snow_cover"].values * roi_mask.data_vars["binary_mask"].values
         masked[masked == 0] = FILL_VALUE
@@ -133,8 +125,7 @@ def create_v10_time_series(
 
     outpaths = []
     for day in winter_year.iterate_days():
-        print("DAY", day)
-        print(day.year)
+        logger.info(f"Processing day {day}")
         day_files = get_daily_filenames_per_platform(
             platform=platform, year=day.year, day=day.day_of_year, viirs_data_filepaths=viirs_data_filepaths
         )
