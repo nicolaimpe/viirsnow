@@ -83,26 +83,33 @@ def create_composite_meteofrance(daily_files: List[str], roi_file: str | None = 
         new_observations_mask = cloud_mask_old & observation_mask_new
         day_data = np.where(new_observations_mask, new_acquisition, day_data)
 
-    if roi_file is not None:
-        roi_mask = gdf_to_binary_mask(
-            gdf=gpd.read_file(roi_file), out_resolution=first_image_raster.transform.a, out_crs=first_image_raster.crs
-        )
-
     day_dataset = georef_data_array(
         xr.DataArray(day_data.astype(np.uint8), coords=extract_netcdf_coords_from_rasterio_raster(first_image_raster)),
         data_array_name="snow_cover",
         crs=first_image_raster.crs,
     )
 
-    xmin, xmax, ymin, ymax = find_nearest_bounds_for_selection(dataset=day_dataset, other=roi_mask)
-    dims = dim_name(pyproj.CRS(day_dataset.data_vars["spatial_ref"].attrs["spatial_ref"]))
-    masked_dataset = day_dataset.sel({dims[1]: slice(xmin, xmax), dims[0]: slice(ymax, ymin)})
-    masked = masked_dataset.data_vars["snow_cover"].values * roi_mask.data_vars["binary_mask"].values
-    masked[roi_mask.data_vars["binary_mask"].values == 0] = FILL_VALUE
-    masked_dataset.data_vars["snow_cover"][:] = masked
+    if roi_file is not None:
+        roi_mask = gdf_to_binary_mask(
+            gdf=gpd.read_file(roi_file), out_resolution=first_image_raster.transform.a, out_crs=first_image_raster.crs
+        )
+
+        xmin, xmax, ymin, ymax = find_nearest_bounds_for_selection(dataset=day_dataset, other=roi_mask)
+        dims = dim_name(pyproj.CRS(day_dataset.data_vars["spatial_ref"].attrs["spatial_ref"]))
+        masked_dataset = day_dataset.sel({dims[1]: slice(xmin, xmax), dims[0]: slice(ymax, ymin)})
+        masked = masked_dataset.data_vars["snow_cover"].values * roi_mask.data_vars["binary_mask"].values
+        masked[roi_mask.data_vars["binary_mask"].values == 0] = FILL_VALUE
+        masked_dataset.data_vars["snow_cover"][:] = masked
+        data_to_reproject = masked_dataset
+    else:
+        data_to_reproject = day_dataset
 
     day_dataset_reprojected = reproject_dataset(
-        dataset=masked_dataset, new_crs=pyproj.CRS(OUT_GRID_CRS), new_resolution=OUT_GRID_RES, resampling=RESAMPLING_METHOD
+        dataset=data_to_reproject,
+        new_crs=pyproj.CRS(OUT_GRID_CRS),
+        new_resolution=OUT_GRID_RES,
+        resampling=RESAMPLING_METHOD,
+        fill_value=FILL_VALUE,
     )
     return day_dataset_reprojected
 
@@ -120,6 +127,9 @@ def create_meteofrance_time_series(
         # if day.day > 5:
         #     break
         daily_files = get_daily_filenames_per_platform(platform=platform, day=day, viirs_data_folder=viirs_data_folder)
+        if len(daily_files) == 0:
+            logger.warning(f"No data fuond in date {day}")
+            continue
         meteofrance_composite = create_composite_meteofrance(daily_files=daily_files, roi_file=roi_shapefile)
         meteofrance_composite = meteofrance_composite.expand_dims(time=[day])
         outpath = f"{output_folder}/{day.strftime("%Y%m%d")}.nc"

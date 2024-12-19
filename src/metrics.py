@@ -15,6 +15,7 @@ import math
 import time
 import copy
 from products import METEOFRANCE_CLASSES, NASA_CLASSES, NODATA_NASA_CLASSES
+from geotools import to_rioxarray
 
 REPROJECTION_CRS_EPSG = "32631"
 
@@ -85,6 +86,21 @@ class WinterYear:
         for day in pd.date_range(start=f"{self.from_year}/10/01", end=f"{self.to_year}/09/30", freq="D"):
             yield day
 
+    def to_datetime(self):
+        a = [
+            Year.year_month_to_datetime(self.from_year, month)
+            for month in self.month_dict
+            if month in ("october", "november", "december")
+        ]
+        a.extend(
+            [
+                Year.year_month_to_datetime(self.from_year, month)
+                for month in self.month_dict
+                if month in ("january", "february", "march", "april", "may", "june", "july", "august", "september")
+            ]
+        )
+        return a
+
     def to_tuple(self) -> Tuple[int, int]:
         return (self.from_year, self.to_year)
 
@@ -104,11 +120,9 @@ class SnowCoverProductCompleteness:
         if nodata_mapping is not None:
             self.setup_nodata_classes(nodata_mapping=nodata_mapping)
 
-        self.snow_cover_dataset = self.to_rioxarray(snow_cover_time_series)
-        self.year = Year(self.snow_cover_dataset.coords["time"][0].dt.year.values)
-        no_valid_time_mask = self.snow_cover_dataset.coords["time"].dt.year != self.year.year
-        if no_valid_time_mask.sum() > 0:
-            raise NotImplementedError
+        self.snow_cover_dataset = to_rioxarray(snow_cover_time_series)
+        from_year = self.snow_cover_dataset.coords["time"][0].dt.year.values
+        self.year = WinterYear(from_year, from_year + 1)
         self.class_percentage_distribution = class_percentage_distribution
         self.class_cover_area = class_cover_area
         if not self.class_percentage_distribution and not self.class_cover_area:
@@ -321,7 +335,6 @@ class CrossComparisonSnowCoverExtent:
         self.product_1_analyzer.class_cover_area = True
         self.product_2_analyzer.class_cover_area = True
         self.cloud_mask_union = cloud_mask_union
-
         # self.check_resolution()
 
     def check_resolution(self):
@@ -332,52 +345,77 @@ class CrossComparisonSnowCoverExtent:
             raise NotImplementedError("The two time series to compare must have the same spatial resolution.")
 
     def _compute_area(self, dataset: xr.Dataset, class_name: str):
+        import matplotlib.pyplot as plt
+
+        # dataset.data_vars["product_1"].compute().isel(time=0).plot.imshow()
+        # plt.show()
+        # dataset.data_vars["product_2"].compute().isel(time=0).plot.imshow()
+        # plt.show()
         if self.cloud_mask_union:
             print("computing cloud masks")
+            dataset.data_vars["product_1"].values = np.where(
+                np.isnan(dataset.data_vars["product_1"].values), 255, dataset.data_vars["product_1"].values
+            ).astype(np.uint8)
+
             cloud_mask_1 = self.product_1_analyzer._compute_mask_of_class("clouds", dataset.data_vars["product_1"])
             cloud_mask_2 = self.product_2_analyzer._compute_mask_of_class("clouds", dataset.data_vars["product_2"])
-            cloud_mask_union = cloud_mask_1 * cloud_mask_2
-            dataset = dataset.where(cloud_mask_union == False, drop=True)
+            cloud_mask_union = cloud_mask_1.compute() | cloud_mask_2.compute()
+            dataset.data_vars["product_1"].values = np.where(cloud_mask_union, 255, dataset.data_vars["product_1"].values)
+            dataset.data_vars["product_2"].values = np.where(cloud_mask_union, 250, dataset.data_vars["product_2"].values)
 
         def _separate_analyzers(data_array: xr.DataArray):
             print("computing SCE")
             if data_array.name == "product_1":
-                return self.product_1_analyzer._compute_area_of_class_mask(
-                    self.product_1_analyzer._compute_mask_of_class(class_name=class_name, data_array=data_array)
-                )
+                snow_mask = self.product_1_analyzer._compute_mask_of_class(class_name=class_name, data_array=data_array)
+                snow_fraction = data_array.where(snow_mask, 0) / 200
+                area = self.product_1_analyzer._compute_area_of_class_mask(snow_fraction)
+                # area = self.product_1_analyzer._compute_area_of_class_mask(
+                #     self.product_1_analyzer._compute_mask_of_class(class_name, data_array)
+                # )
+                print("1", area.values)
+                return area
 
             elif data_array.name == "product_2":
-                return self.product_2_analyzer._compute_area_of_class_mask(
-                    self.product_2_analyzer._compute_mask_of_class(class_name=class_name, data_array=data_array)
+                snow_mask = self.product_2_analyzer._compute_mask_of_class(class_name=class_name, data_array=data_array)
+                data_array.values = np.where(snow_mask, np.clip(data_array.values / 100 * 1.45 - 0.01, a_min=0, a_max=1), 0)
+                area = self.product_2_analyzer._compute_area_of_class_mask(
+                    self.product_2_analyzer._compute_mask_of_class(class_name, data_array)
                 )
+                # print("2", area.values)
+                return area
 
         return dataset.map(lambda da: _separate_analyzers(data_array=da))
 
     def compare_snow_extent(self):
         both_products_dataset = xr.Dataset(
             {
-                "product_1": self.product_1_analyzer.snow_cover_dataset["snow_cover"],
-                "product_2": self.product_2_analyzer.snow_cover_dataset["snow_cover"],
-            }
+                "product_1": self.product_1_analyzer.snow_cover_dataset["snow_cover"].chunk({"time": 1}),
+                "product_2": self.product_2_analyzer.snow_cover_dataset["snow_cover"].chunk({"time": 1}),
+            },
         )
+
         # both_products_dataset.groupby("time.day", "massif").map(self._compute_area("snow_cover"))
         snow_cover_extent = both_products_dataset.groupby("time.month").map(self._compute_area, class_name="snow_cover")
-        print(snow_cover_extent)
+        sce = snow_cover_extent.compute()
+        return sce
+        print(sce)
+        print(sce.data_vars["product_1"].values)
+        print(sce.data_vars["product_2"].values)
 
 
 if __name__ == "__main__":
-    time_series_folder = "../output_folder/completeness_analysis/"
-    nasa_time_series_name = "2023_SuomiNPP_nasa_time_series_fsc.nc"
-    meteofrance_time_series_name = "2023_meteofrance_time_series.nc"
+    time_series_folder = "../output_folder/snow_cover_extent_analysis/"
+    nasa_time_series_name = "WY_2023_2024_SuomiNPP_nasa_time_series_aligned.nc"
+    meteofrance_time_series_name = "WY_2023_2024_SuomiNPP_meteofrance_time_series_aligned.nc"
 
     meteofrance_time_series_path = Path(f"{time_series_folder}").joinpath(meteofrance_time_series_name)
-    meteofrance_time_series = xr.open_dataset(meteofrance_time_series_path).isel(time=slice(1, 200))
-    # mf_stats_calculator = MeteoFranceSnowCoverProductCompleteness(
-    #     meteofrance_time_series,
-    #     mask_file="../../data/vectorial/massifs_OLD_WGS84/massifs_WGS84/massifs_OLD_EOFR62.tiff",
-    #     class_percentage_distribution=True,
-    #     class_cover_area=True,
-    # )
+    meteofrance_time_series = xr.open_dataset(meteofrance_time_series_path)  # .isel(time=slice(1, 40))
+    mf_stats_calculator = MeteoFranceSnowCoverProductCompleteness(
+        meteofrance_time_series,
+        mask_file=None,
+        class_percentage_distribution=True,
+        class_cover_area=True,
+    )
     # stats = mf_stats_calculator.year_statistics(
     #     months=["january", "february"],
     #     exclude_nodata=False,
@@ -385,21 +423,23 @@ if __name__ == "__main__":
     # )
 
     nasa_time_series_path = Path(f"{time_series_folder}").joinpath(nasa_time_series_name)
-    nasa_time_series = xr.open_dataset(nasa_time_series_path)  # .isel(time=slice(1, 10))
+    nasa_time_series = xr.open_dataset(nasa_time_series_path)  # .isel(time=slice(1, 40))
     nasa_stats_calculator = NASASnowCoverProductCompleteness(
         nasa_time_series,
-        mask_file="../../data/vectorial/massifs_OLD_WGS84/massifs_WGS84/massifs_OLD_v10_epsg4326.tiff",
+        mask_file=None,
         class_percentage_distribution=True,
-        class_cover_area=False,
+        class_cover_area=True,
     )
-    nasa_time_series_2 = xr.open_dataset(Path(f"{time_series_folder}").joinpath("2022_SuomiNPP_nasa_time_series_fsc.nc"))
+    # print("TRU openmf_dataset")
+    # xr.open_mfdataset([meteofrance_time_series_path, nasa_time_series_path], combine="nested")
+    # nasa_time_series_2 = xr.open_dataset(Path(f"{time_series_folder}").joinpath(nasa_time_series_name)).isel(time=slice(1, 40))
 
-    nasa_stats_calculator_2 = NASASnowCoverProductCompleteness(
-        nasa_time_series_2,
-        mask_file="../../data/vectorial/massifs_OLD_WGS84/massifs_WGS84/massifs_OLD_v10_epsg4326.tiff",
-        class_percentage_distribution=True,
-        class_cover_area=False,
-    )
+    # nasa_stats_calculator_2 = NASASnowCoverProductCompleteness(
+    #     nasa_time_series_2,
+    #     mask_file=None,
+    #     class_percentage_distribution=True,
+    #     class_cover_area=True,
+    # )
     # stats = nasa_stats_calculator.year_statistics(
     #     months=["january"], exclude_nodata=False, netcdf_export_path="../output_folder/tests_area_cover/test_nasa.nc"
     # )
@@ -409,6 +449,7 @@ if __name__ == "__main__":
     # ds = nasa_time_series.assign({"product_2": meteofrance_time_series})
 
     sca_cross_comparator = CrossComparisonSnowCoverExtent(
-        product_1_analyzer=nasa_stats_calculator, product_2_analyzer=nasa_stats_calculator_2
+        product_1_analyzer=mf_stats_calculator, product_2_analyzer=nasa_stats_calculator, cloud_mask_union=True
     )
-    sca_cross_comparator.compare_snow_extent()
+    sce = sca_cross_comparator.compare_snow_extent()
+    sce.to_netcdf("../output_folder/snow_cover_extent_analysis/WY_2023_2024_snow_cover_area_from_fsc.nc")

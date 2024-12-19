@@ -104,12 +104,19 @@ def reproject_dataset(
     new_crs: pyproj.CRS,
     new_resolution: float | None = None,
     resampling: rasterio.enums.Resampling | None = None,
+    fill_value: int | float = None,
 ) -> xr.Dataset:
     # Rioxarray reproject nearest by default
     dims = dim_name(new_crs)
+    # rioxarray_dataset = dataset.rio.write_crs(dataset.data_vars["spatial_ref"].attrs["spatial_ref"])
     return (
         dataset.rio.write_crs(dataset.data_vars["spatial_ref"].attrs["spatial_ref"])
-        .rio.reproject(dst_crs=new_crs, resolution=new_resolution, resampling=resampling)
+        .rio.reproject(
+            dst_crs=new_crs,
+            resolution=new_resolution,
+            resampling=resampling,
+            nodata=fill_value,
+        )
         .rename({"x": dims[1], "y": dims[0]})
     )
 

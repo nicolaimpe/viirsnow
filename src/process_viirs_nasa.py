@@ -80,7 +80,9 @@ def create_nasa_composite(day_files: List[str], roi_file: str | None = None) -> 
         )
 
         day_data_arrays.append(georef_data_array(data_array=ndsi_snow_cover, data_array_name="snow_cover", crs=modis_crs))
-    merged = xr.combine_by_coords(day_data_arrays, data_vars="minimal")
+
+    merged = xr.combine_by_coords(day_data_arrays, data_vars="minimal").astype(np.uint8)
+
     if roi_file is not None:
         roi_mask = gdf_to_binary_mask(
             gdf=gpd.read_file(roi_file),
@@ -88,11 +90,12 @@ def create_nasa_composite(day_files: List[str], roi_file: str | None = None) -> 
             out_crs=pyproj.CRS.from_wkt(merged.data_vars["spatial_ref"].attrs["spatial_ref"]),
         )
 
-        xmin, xmax, ymin, ymax = find_nearest_bounds_for_selection(data_array=merged, other=roi_mask)
-        dims = dim_name(merged)
-        data_to_reproject = merged.sel({dims[1]: slice(xmin, xmax), dims[0]: slice(ymin, ymax)})
+        xmin, xmax, ymin, ymax = find_nearest_bounds_for_selection(dataset=merged, other=roi_mask)
+
+        dims = dim_name(pyproj.CRS(merged.data_vars["spatial_ref"].attrs["spatial_ref"]))
+        data_to_reproject = merged.sel({dims[1]: slice(xmin, xmax), dims[0]: slice(ymax, ymin)})
         masked = data_to_reproject.data_vars["snow_cover"].values * roi_mask.data_vars["binary_mask"].values
-        masked[masked == 0] = FILL_VALUE
+        masked[roi_mask.data_vars["binary_mask"].values == 0] = FILL_VALUE
         data_to_reproject.data_vars["snow_cover"][:] = masked
     else:
         data_to_reproject = merged
@@ -102,7 +105,12 @@ def create_nasa_composite(day_files: List[str], roi_file: str | None = None) -> 
         new_resolution=OUT_GRID_RES,
         new_crs=pyproj.CRS.from_epsg(OUT_GRID_CRS),
         resampling=RESAMPLING_METHOD,
+        fill_value=FILL_VALUE,
     )
+    # Apparently need to pop this attribute for correct encoding...not like it took me two hours to understand this :')
+    reprojected.data_vars["snow_cover"].attrs.pop("valid_range")
+    # We also pop _FillValue because we don't want to encode this like nodata
+    reprojected.data_vars["snow_cover"].attrs.pop("_FillValue")
 
     return reprojected
 
@@ -115,7 +123,6 @@ def create_v10_time_series(
     platform: str = "SuomiNPP",
 ):
     # Treat user inputs
-    roi = gpd.read_file(Path(roi_shapefile))
     viirs_data_filepaths = glob(
         str(Path(f"{viirs_data_folder}/V*10*{str(year.from_year)}*.{TILE_PATTERN}.00{VIIRS_COLLECTION}.*h5"))
     )
@@ -125,15 +132,18 @@ def create_v10_time_series(
 
     outpaths = []
     for day in winter_year.iterate_days():
+        # if day.day > 5:
+        #     break
         logger.info(f"Processing day {day}")
         day_files = get_daily_filenames_per_platform(
             platform=platform, year=day.year, day=day.day_of_year, viirs_data_filepaths=viirs_data_filepaths
         )
         if day_files is None:
             continue
-        nasa_composite = create_nasa_composite(day_files=day_files, roi=roi)
+        nasa_composite = create_nasa_composite(day_files=day_files, roi_file=roi_shapefile)
         if nasa_composite is None:
             continue
+
         nasa_composite = nasa_composite.expand_dims(time=[day])
         outpath = f"{output_folder}/{day.strftime("%Y%j")}.nc"
         outpaths.append(outpath)
@@ -142,7 +152,10 @@ def create_v10_time_series(
     time_series = xr.open_mfdataset(outpaths)
     output_name = Path(f"{output_folder}/WY_{year.from_year}_{year.to_year}_{platform}_nasa_time_series.nc")
     time_series.to_netcdf(
-        output_name, encoding={"time": {"calendar": "gregorian", "units": f"days since {str(year.from_year)}-10-01"}}
+        output_name,
+        encoding={
+            "time": {"calendar": "gregorian", "units": f"days since {str(year.from_year)}-10-01"},
+        },
     )
     [os.remove(file) for file in outpaths]
 
