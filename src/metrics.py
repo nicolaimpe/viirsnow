@@ -377,7 +377,8 @@ class CrossComparisonSnowCoverExtent:
 
             elif data_array.name == "product_2":
                 snow_mask = self.product_2_analyzer._compute_mask_of_class(class_name=class_name, data_array=data_array)
-                data_array.values = np.where(snow_mask, np.clip(data_array.values / 100 * 1.45 - 0.01, a_min=0, a_max=1), 0)
+                # data_array.values = np.where(snow_mask, np.clip(data_array.values / 100 * 1.45 - 0.01, a_min=0, a_max=1), 0)
+                data_array.values = np.where(snow_mask, data_array.values / 100, 0)
                 area = self.product_2_analyzer._compute_area_of_class_mask(
                     self.product_2_analyzer._compute_mask_of_class(class_name, data_array)
                 )
@@ -452,4 +453,4 @@ if __name__ == "__main__":
         product_1_analyzer=mf_stats_calculator, product_2_analyzer=nasa_stats_calculator, cloud_mask_union=True
     )
     sce = sca_cross_comparator.compare_snow_extent()
-    sce.to_netcdf("../output_folder/snow_cover_extent_analysis/WY_2023_2024_snow_cover_area_from_fsc.nc")
+    sce.to_netcdf("../output_folder/snow_cover_extent_analysis/WY_2023_2024_snow_cover_area_nasa_from_ndsi.nc")
