@@ -1,4 +1,5 @@
-from typing import Tuple
+from typing import Dict, Tuple
+from affine import Affine
 import rasterio.enums
 import xarray as xr
 import numpy as np
@@ -7,44 +8,37 @@ import rasterio
 import geopandas as gpd
 import rasterio
 from rasterio.features import rasterize
-from rasterio.transform import from_origin
 import numpy as np
 import pyproj
+from grids import DefaultGrid
+import numpy.typing as npt
 
 
-def gdf_to_binary_mask(gdf: gpd.GeoDataFrame, out_resolution: float, out_crs: pyproj.CRS) -> xr.Dataset:
-    gdf = gdf.to_crs(out_crs)
-    # Define the output raster properties
-    bounds = gdf.total_bounds  # Get the bounds of the shapefile
-    minx, miny, maxx, maxy = bounds
+def gdf_to_binary_mask(gdf: gpd.GeoDataFrame, grid: DefaultGrid) -> xr.Dataset:
+    gdf = gdf.to_crs(grid.crs)
+    transform = grid.affine
 
-    coord_x = np.arange(minx, maxx + out_resolution, out_resolution)
-    coord_y = np.arange(miny, maxy + out_resolution, out_resolution)
-    # Compute the raster shape
-    width = len(coord_x)
-    height = len(coord_y)
-
-    # Define the transform
-    transform = from_origin(minx, maxy, out_resolution, out_resolution)
     # Prepare geometries for rasterization
     shapes = [(geom, 1) for geom in gdf.geometry]  # Assign a value of 1 to all polygons
 
     # Rasterize
     binary_mask = rasterize(
         shapes,
-        out_shape=(height, width),
+        out_shape=(grid.height, grid.width),
         transform=transform,
         fill=0,  # Background value
         dtype="uint8",
     )
 
-    dims = dim_name(out_crs)
+    dims = dim_name(grid.crs)
     binary_mask_data_array = xr.DataArray(
         data=binary_mask,
         dims=(dims[0], dims[1]),
-        coords={dims[0]: (dims[0], np.flip(coord_y)), dims[1]: (dims[1], coord_x)},
+        coords={dims[0]: (dims[0], np.flip(grid.ycoords)), dims[1]: (dims[1], grid.xcoords)},
     )
-    return georef_data_array(binary_mask_data_array, "binary_mask", crs=out_crs)
+    out = georef_data_array(binary_mask_data_array, "binary_mask", crs=grid.crs)
+
+    return out
 
 
 def dim_name(crs: pyproj.CRS) -> Tuple[str, str]:
@@ -70,7 +64,6 @@ def georef_data_array(data_array: xr.DataArray, data_array_name: str, crs: pypro
     crs_variable.attrs["spatial_ref"] = crs.to_wkt()
 
     georeferenced_dataset = xr.Dataset({data_array_name: data_array, "spatial_ref": crs_variable})
-
     return georeferenced_dataset
 
 
@@ -105,36 +98,40 @@ def reproject_dataset(
     new_resolution: float | None = None,
     resampling: rasterio.enums.Resampling | None = None,
     fill_value: int | float = None,
+    transform: Affine | None = None,
+    shape: Tuple[int, int] | None = None,
 ) -> xr.Dataset:
     # Rioxarray reproject nearest by default
     dims = dim_name(new_crs)
-    # rioxarray_dataset = dataset.rio.write_crs(dataset.data_vars["spatial_ref"].attrs["spatial_ref"])
     return (
-        dataset.rio.write_crs(dataset.data_vars["spatial_ref"].attrs["spatial_ref"])
+        to_rioxarray(dataset)
         .rio.reproject(
             dst_crs=new_crs,
             resolution=new_resolution,
             resampling=resampling,
+            transform=transform,
             nodata=fill_value,
+            shape=shape,
         )
         .rename({"x": dims[1], "y": dims[0]})
     )
 
 
+def extract_netcdf_coords_from_rasterio_raster(raster: rasterio.DatasetReader) -> Dict[str, npt.NDArray]:
+    transform = raster.transform
+
+    x_scale, x_off, y_scale, y_off = transform.a, transform.c, transform.e, transform.f
+    # transform origin is half pixel away from first pixel point
+    x0, y0 = x_off + x_scale / 2, y_off + y_scale / 2
+
+    n_cols, n_rows = raster.width, raster.height
+    # for GDAL the UL corener is the UL corner of the image while for xarray is the center of the upper left pixel
+    # Compensate for it
+    x_coord = np.arange(n_cols) * x_scale + x0
+    y_coord = np.arange(n_rows) * y_scale + y0
+    dims = dim_name(raster.crs)
+    return {dims[0]: y_coord, dims[1]: x_coord}
+
+
 def to_rioxarray(dataset: xr.Dataset) -> xr.Dataset:
     return dataset.rio.write_crs(dataset.data_vars["spatial_ref"].attrs["spatial_ref"])
-
-
-def find_nearest_bounds_for_selection(dataset: xr.Dataset, other: xr.Dataset) -> Tuple[str, str, str, str]:
-    """To be used very carefully."""
-    dataset, other = to_rioxarray(dataset), to_rioxarray(other)
-    if dataset.rio.crs != other.rio.crs or dataset.rio.crs is None:
-        raise ValueError("Expected both Data Arrays to be georeferenced in the same CRS")
-    dims_data_array = dim_name(dataset.rio.crs)
-    x, y = dims_data_array[1], dims_data_array[0]
-
-    xmin = dataset.coords[x].values[np.argmin(np.abs(dataset.coords[x].values - other.coords[x].min().values))]
-    xmax = dataset.coords[x].values[np.argmin(np.abs(dataset.coords[x].values - other.coords[x].max().values))]
-    ymin = dataset.coords[y].values[np.argmin(np.abs(dataset.coords[y].values - other.coords[y].min().values))]
-    ymax = dataset.coords[y].values[np.argmin(np.abs(dataset.coords[y].values - other.coords[y].max().values))]
-    return xmin, xmax, ymin, ymax
