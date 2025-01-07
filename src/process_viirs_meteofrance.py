@@ -65,9 +65,9 @@ def create_composite_meteofrance(daily_files: List[str], roi_file: str | None = 
     )
 
     day_dataset_reprojected = reproject_dataset(
+        dataset=day_dataset,
         shape=GRID.shape,
         transform=GRID.affine,
-        dataset=day_dataset,
         new_crs=pyproj.CRS(GRID.crs),
         resampling=RESAMPLING,
         fill_value=METEOFRANCE_CLASSES["fill"][0],
@@ -78,12 +78,8 @@ def create_composite_meteofrance(daily_files: List[str], roi_file: str | None = 
         masked = day_dataset_reprojected.data_vars["snow_cover"].values * roi_mask.data_vars["binary_mask"].values
         masked[roi_mask.data_vars["binary_mask"].values == 0] = METEOFRANCE_CLASSES["fill"]
         day_dataset_reprojected.data_vars["snow_cover"][:] = masked
-        out_data = day_dataset_reprojected
 
-    else:
-        out_data = day_dataset_reprojected
-
-    return out_data
+    return day_dataset_reprojected
 
 
 def create_meteofrance_time_series(
