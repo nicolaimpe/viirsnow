@@ -16,6 +16,9 @@ class AbstractYear(abc.ABC):
     def year_month_to_datetime(year: int, month: str):
         return datetime.strptime(f"{str(year)} {month}", "%Y %B")
 
+    def __len__(self) -> int:
+        return len(self.month_dict)
+
     def select_months(self, months: List[str]):
         self.month_dict = {k: self.month_dict[k] for k in months}
 
@@ -44,9 +47,6 @@ class Year(AbstractYear):
 
     def __repr__(self) -> str:
         return "Year " + str(self.year)
-
-    def __len__(self) -> int:
-        return len(self.month_dict)
 
     def as_dict(self):
         return {f"{str(self.year)}": self.month_dict}

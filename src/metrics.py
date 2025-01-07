@@ -86,19 +86,19 @@ class SnowCoverProductCompleteness:
     def compute_percentage_of_mask(self, mask: xr.DataArray, n_pixels_tot: int) -> float:
         return mask.sum().values / n_pixels_tot * 100
 
-    def _compute_area_of_class_mask(self, mask: xr.Dataset) -> float:
-        return mask.sum() * np.abs(math.prod(mask.rio.resolution())) / mask.sizes["time"]
+    def compute_area_of_class_mask(self, mask: xr.Dataset) -> float:
+        return mask.sum() * np.abs(math.prod(mask.rio.resolution()))
 
     def compute_area_of_class(self, class_name: str, data_array: xr.DataArray):
-        return self._compute_area_of_class_mask(self.compute_mask_of_class(class_name=class_name, data_array=data_array))
+        return self.compute_area_of_class_mask(self.compute_mask_of_class(class_name=class_name, data_array=data_array))
 
     def compute_snow_area(self, snow_cover_data_array: xr.DataArray, consider_fraction: bool = True) -> float:
         snow_mask = self.compute_mask_of_class("snow_cover", snow_cover_data_array)
         if consider_fraction:
             snow_cover_data_array = snow_cover_data_array / self.classes["snow_cover"][-1]
-            snow_cover_extent = self._compute_area_of_class_mask(snow_cover_data_array.where(snow_mask, 0))
+            snow_cover_extent = self.compute_area_of_class_mask(snow_cover_data_array.where(snow_mask, 0))
         else:
-            snow_cover_extent = self._compute_area_of_class_mask(snow_mask)
+            snow_cover_extent = self.compute_area_of_class_mask(snow_mask)
         return snow_cover_extent
 
     def _statistics_core(
@@ -111,7 +111,7 @@ class SnowCoverProductCompleteness:
         if self.class_percentage_distribution:
             self.percentages_dict[class_name] = self.compute_percentage_of_mask(class_mask, n_pixels_tot)
         if self.class_cover_area:
-            self.area_dict[class_name] = self._compute_area_of_class_mask(class_mask)
+            self.area_dict[class_name] = self.compute_area_of_class_mask(class_mask)
 
     def _all_statistics(self, dataset: xr.Dataset, exclude_nodata: bool = False) -> Dict[str, float]:
         self.percentages_dict: Dict[str, float] = {} if self.class_percentage_distribution else None
@@ -148,22 +148,25 @@ class SnowCoverProductCompleteness:
     ) -> xr.Dataset:
         from_year = snow_cover_dataset.coords["time"][0].dt.year.values
         winter_year = WinterYear(from_year, from_year + 1)
-        winter_year.select_months(months=months)
+        if months != "all":
+            winter_year.select_months(months=months)
         logger.info(f"Start processing time series of year {str(winter_year)}")
 
         year_data_array_sample = xr.DataArray(
-            data=np.empty(shape=(len(self.classes), len(months))),
+            data=np.empty(shape=(len(self.classes), len(winter_year))),
             coords={
                 "class_name": [*self.classes],
                 "time": winter_year.to_datetime(),
             },
         )
-        year_dataset = xr.Dataset(data_vars={"to_remove": year_data_array_sample})
+        n_days_with_observation = xr.DataArray(0, dims=("time",), coords={"time": winter_year.to_datetime()})
+        year_dataset = xr.Dataset(data_vars={"to_remove": year_data_array_sample, "n_observed_days": n_days_with_observation})
 
         if self.class_percentage_distribution:
             year_data_array_percentage = year_data_array_sample.copy(deep=True)
         if self.class_cover_area:
             year_data_array_area = year_data_array_sample.copy(deep=True)
+
         for month_datetime in winter_year.to_datetime():
             logger.info(f"Processing month {month_datetime}")
             self.monthly_statics(snow_cover_dataset=snow_cover_dataset, month=month_datetime, exclude_nodata=exclude_nodata)
@@ -176,6 +179,10 @@ class SnowCoverProductCompleteness:
                 year_data_array_area.loc[dict(time=month_datetime, class_name=list(self.area_dict.keys()))] = list(
                     self.area_dict.values()
                 )
+
+            year_dataset.data_vars["n_observed_days"].loc[dict(time=month_datetime)] = len(
+                snow_cover_dataset.groupby("time.month")[month_datetime.month].coords["time"]
+            )
 
         if self.class_percentage_distribution:
             year_dataset = year_dataset.assign({"class_distribution_percentage": year_data_array_percentage})
@@ -297,36 +304,34 @@ class CrossComparisonSnowCoverExtent:
 
 
 if __name__ == "__main__":
-    time_series_folder = "../output_folder/snow_cover_extent_analysis/"
-    nasa_time_series_name = "WY_2023_2024_SuomiNPP_nasa_time_series_aligned.nc"
-    meteofrance_time_series_name = "WY_2023_2024_SuomiNPP_meteofrance_time_series_aligned.nc"
+    working_folder = "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/cms_workshop/"
+    nasa_time_series_name = "WY_2023_2024_SuomiNPP_nasa_time_series.nc"
+    meteofrance_time_series_name = "WY_2023_2024_SuomiNPP_meteofrance_time_series.nc"
 
-    meteofrance_time_series_path = Path(f"{time_series_folder}").joinpath(meteofrance_time_series_name)
+    meteofrance_time_series_path = Path(f"{working_folder}").joinpath(meteofrance_time_series_name)
     meteofrance_time_series = xr.open_dataset(meteofrance_time_series_path)  # .isel(time=slice(1, 40))
     mf_stats_calculator = MeteoFranceSnowCoverProductCompleteness(
-        mask_file=None,
         class_percentage_distribution=True,
         class_cover_area=True,
     )
-    stats = mf_stats_calculator.year_statistics(
+    mf_stats_calculator.year_statistics(
         snow_cover_dataset=meteofrance_time_series,
-        months=["november", "december"],
-        exclude_nodata=True,
-        netcdf_export_path="../output_folder/tests_area_cover/test_mf.nc",
+        months="all",
+        exclude_nodata=False,
+        netcdf_export_path=Path(f"{working_folder}").joinpath("WY_2023_2024_SuomiNPP_meteofrance_class_distribution.nc"),
     )
 
-    nasa_time_series_path = Path(f"{time_series_folder}").joinpath(nasa_time_series_name)
+    nasa_time_series_path = Path(f"{working_folder}").joinpath(nasa_time_series_name)
     nasa_time_series = xr.open_dataset(nasa_time_series_path)  # .isel(time=slice(1, 40))
     nasa_stats_calculator = NASASnowCoverProductCompleteness(
-        mask_file=None,
         class_percentage_distribution=True,
         class_cover_area=True,
     )
-    stats = nasa_stats_calculator.year_statistics(
+    nasa_stats_calculator.year_statistics(
         snow_cover_dataset=nasa_time_series,
-        months=["november", "december"],
-        exclude_nodata=True,
-        netcdf_export_path="../output_folder/tests_area_cover/test_nasa.nc",
+        months="all",
+        exclude_nodata=False,
+        netcdf_export_path=Path(f"{working_folder}").joinpath("WY_2023_2024_SuomiNPP_nasa_class_distribution.nc"),
     )
     # print("TRU openmf_dataset")
     # xr.open_mfdataset([meteofrance_time_series_path, nasa_time_series_path], combine="nested")
