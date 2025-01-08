@@ -5,7 +5,7 @@
 groups = ["default", "test"]
 strategy = ["inherit_metadata"]
 lock_version = "4.5.0"
-content_hash = "sha256:492a19e564a801cfde88b7332023f41985a73540e3d4215a46da595183b0a247"
+content_hash = "sha256:d918b8d9fc775c2942fdb3603d857cd7329ee07351498eead749752de5b4700b"
 
 [[metadata.targets]]
 requires_python = ">=3.12"
@@ -980,6 +980,20 @@ dependencies = [
 files = [
     {file = "matplotlib_inline-0.1.7-py3-none-any.whl", hash = "sha256:df192d39a4ff8f21b1895d72e6a13f5fcc5099f00fa84384e0ea28c2cc0653ca"},
     {file = "matplotlib_inline-0.1.7.tar.gz", hash = "sha256:8423b23ec666be3d16e16b60bdd8ac4e86e840ebd1dd11a30b9f117f2fa0ab90"},
+]
+
+[[package]]
+name = "modis-sinusoidal-tile-converter"
+version = "1.0.0"
+requires_python = ">=3.6"
+summary = "A simple Python tool for converting geographic coordinates into MODIS (Moderate-Resolution Imaging Spectroradiometer) tile numbers."
+groups = ["default"]
+dependencies = [
+    "pyproj",
+]
+files = [
+    {file = "modis_sinusoidal_tile_converter-1.0.0-py3-none-any.whl", hash = "sha256:ec46d7dfad9ece48fc2e595c725762bd217598b4dc1c3633465b9bc591ae8b95"},
+    {file = "modis_sinusoidal_tile_converter-1.0.0.tar.gz", hash = "sha256:86ed276c1b39165a60b46bad91790b3979247a823a2cc7988f9f6e93b5c7de5a"},
 ]
 
 [[package]]
