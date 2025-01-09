@@ -15,7 +15,13 @@ import os
 import geopandas as gpd
 import rasterio
 from products import METEOFRANCE_CLASSES
-from geotools import extract_netcdf_coords_from_rasterio_raster, georef_data_array, gdf_to_binary_mask, reproject_dataset
+from geotools import (
+    extract_netcdf_coords_from_rasterio_raster,
+    georef_data_array,
+    gdf_to_binary_mask,
+    reproject_dataset,
+    to_rioxarray,
+)
 from logger_setup import default_logger as logger
 import pyproj
 from grids import RESAMPLING, DefaultGrid
@@ -65,7 +71,7 @@ def create_composite_meteofrance(daily_files: List[str], roi_file: str | None = 
     )
 
     day_dataset_reprojected = reproject_dataset(
-        dataset=day_dataset,
+        dataset=to_rioxarray(day_dataset),
         shape=GRID.shape,
         transform=GRID.affine,
         new_crs=pyproj.CRS(GRID.crs),

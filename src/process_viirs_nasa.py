@@ -7,7 +7,7 @@ from datetime import datetime
 import re
 import geopandas as gpd
 from metrics import WinterYear
-from geotools import georef_data_array, gdf_to_binary_mask, reproject_dataset, dim_name
+from geotools import georef_data_array, gdf_to_binary_mask, reproject_dataset, dim_name, to_rioxarray
 import pyproj
 import os
 from logger_setup import default_logger as logger
@@ -70,7 +70,7 @@ def create_nasa_composite(day_files: List[str], roi_file: str | None = None) -> 
     merged_day_dataset = xr.combine_by_coords(day_data_arrays, data_vars="minimal").astype(np.uint8)
 
     day_dataset_reprojected = reproject_dataset(
-        dataset=merged_day_dataset,
+        dataset=to_rioxarray(merged_day_dataset),
         shape=GRID.shape,
         transform=GRID.affine,
         new_crs=pyproj.CRS(GRID.crs),
