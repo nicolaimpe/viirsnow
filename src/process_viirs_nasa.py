@@ -13,6 +13,7 @@ import os
 from logger_setup import default_logger as logger
 from grids import DefaultGrid, RESAMPLING
 from products import NASA_CLASSES
+from fractional_snow_cover import nasa_ndsi_snow_cover_to_fraction
 
 # Hardcode some parameters
 PROJ4_MODIS = "+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +R=6371007.181 +units=m +no_defs"
@@ -52,7 +53,6 @@ def create_nasa_composite(day_files: List[str], roi_file: str | None = None) -> 
     for filepath in day_files:
         # try:
         logger.info(f"Processing product {Path(filepath).name}")
-        xr.open_dataset(filepath, group="HDFEOS/GRIDS/VIIRS_Grid_IMG_2D/Data Fields", engine="netcdf4")
 
         dataset_grid = xr.open_dataset(filepath, group="HDFEOS/GRIDS/VIIRS_Grid_IMG_2D", engine="netcdf4")
         ndsi_snow_cover = xr.open_dataset(
@@ -106,6 +106,7 @@ def create_v10a1_time_series(
     output_folder: str,
     roi_shapefile: str | None = None,
     platform: str = "SuomiNPP",
+    convert_to_fsc: bool = False,
 ):
     # Treat user inputs
     viirs_data_filepaths = glob(
@@ -129,13 +130,23 @@ def create_v10a1_time_series(
         except OSError as e:
             logger.warning(f"Error {e} occured while reading VIIRS files. Skipping day {day.date()}.")
             continue
+        if convert_to_fsc:
+            nasa_composite.data_vars["snow_cover"][:] = nasa_ndsi_snow_cover_to_fraction(
+                nasa_composite.data_vars["snow_cover"].values
+            )
+
         nasa_composite = nasa_composite.expand_dims(time=[day])
         outpath = f"{output_folder}/{day.strftime("%Y%j")}.nc"
         outpaths.append(outpath)
         nasa_composite.to_netcdf(outpath)
 
     time_series = xr.open_mfdataset(outpaths)
-    output_name = Path(f"{output_folder}/WY_{year.from_year}_{year.to_year}_{platform}_nasa_time_series.nc")
+    outfile_name = (
+        f"WY_{year.from_year}_{year.to_year}_{platform}_nasa_time_series.nc"
+        if not convert_to_fsc
+        else f"WY_{year.from_year}_{year.to_year}_{platform}_nasa_fsc_time_series.nc"
+    )
+    output_name = Path(f"{output_folder}/{outfile_name}")
     time_series.to_netcdf(
         output_name,
         encoding={
@@ -153,4 +164,6 @@ if __name__ == "__main__":
     output_folder = "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/cms_workshop"
     roi_file = "/home/imperatoren/work/VIIRS_S2_comparison/data/vectorial/massifs/massifs.shp"
 
-    create_v10a1_time_series(winter_year=year, viirs_data_folder=folder, output_folder=output_folder, roi_shapefile=roi_file)
+    create_v10a1_time_series(
+        winter_year=year, viirs_data_folder=folder, output_folder=output_folder, roi_shapefile=roi_file, convert_to_fsc=False
+    )

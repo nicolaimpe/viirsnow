@@ -308,11 +308,11 @@ class CrossComparisonSnowCoverExtent:
 
 if __name__ == "__main__":
     working_folder = "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/cms_workshop/"
-    nasa_time_series_name = "WY_2023_2024_SuomiNPP_nasa_time_series.nc"
+    nasa_time_series_name = "WY_2023_2024_SuomiNPP_nasa_fsc_time_series.nc"
     meteofrance_time_series_name = "WY_2023_2024_SuomiNPP_meteofrance_time_series.nc"
-
+    outfile_name = "WY_2023_2024_SuomiNPP_meteofrance_nasa_sce_cross_comparison_snow_cover_fraction.nc"
     mode = "snow_cover_extent_cross_comparion"  # 'class_distribution', 'snow_cover_extent_cross_comparion'
-    consider_fsc = False
+    consider_fsc = True
 
     meteofrance_time_series_path = Path(f"{working_folder}").joinpath(meteofrance_time_series_name)
     meteofrance_time_series = xr.open_dataset(meteofrance_time_series_path)
@@ -347,7 +347,5 @@ if __name__ == "__main__":
             meteofrance_time_series=meteofrance_time_series,
             nasa_time_series=nasa_time_series,
             consider_fraction=consider_fsc,
-            netcdf_export_path=Path(f"{working_folder}").joinpath(
-                "WY_2023_2024_SuomiNPP_meteofrance_nasa_sce_cross_comparison.nc"
-            ),
+            netcdf_export_path=Path(f"{working_folder}").joinpath(outfile_name),
         )
