@@ -9,7 +9,7 @@ from datetime import datetime
 import os
 import geopandas as gpd
 import rasterio
-from products import METEOFRANCE_CLASSES
+from products.classes import METEOFRANCE_CLASSES
 from geotools import (
     extract_netcdf_coords_from_rasterio_raster,
     georef_data_array,
@@ -22,20 +22,7 @@ import pyproj
 from grids import RESAMPLING, DefaultGrid
 
 
-PLATFORMS_PRODUCT_DICT = {"SuomiNPP": "SNPP"}
 GRID = DefaultGrid()
-
-
-def get_datetime_from_viirs_filepath(filepath: str) -> str:
-    # This function is not use for the moment...to see whether to take it out
-    def timestamp_to_datetime(observation_timestamp: str) -> datetime:
-        return datetime.strptime(observation_timestamp, "%Y%m%d%H%M%S")
-
-    return timestamp_to_datetime(Path(filepath).name.split(".")[1].split("_")[0])
-
-
-def get_daily_filenames_per_platform(platform: str, day: datetime, viirs_data_folder: str) -> List[str] | None:
-    return glob(f"{viirs_data_folder}/VIIRS{day.year}/*_{PLATFORMS_PRODUCT_DICT[platform]}_*{day.strftime('%Y%m%d')}*.LT")
 
 
 def create_composite_meteofrance(daily_files: List[str], roi_file: str | None = None) -> xr.Dataset:

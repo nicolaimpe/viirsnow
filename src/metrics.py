@@ -11,7 +11,7 @@ from logger_setup import default_logger as logger
 from pathlib import Path
 
 import copy
-from products import METEOFRANCE_CLASSES, NASA_CLASSES, NODATA_NASA_CLASSES
+from viirsnow.products.classes import METEOFRANCE_CLASSES, NASA_CLASSES, NODATA_NASA_CLASSES
 from winter_year import WinterYear
 from pyproj import CRS
 from grids import DEFAULT_CRS_PROJ

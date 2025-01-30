@@ -11,7 +11,7 @@ import numpy as np
 from geotools import gdf_to_binary_mask, reproject_dataset, georef_data_array
 from grids import DefaultGrid
 from rasterio.enums import Resampling
-from products import S2_CLASSES
+from viirsnow.products.classes import S2_CLASSES
 from logger_setup import default_logger as logger
 
 GRID = DefaultGrid()
@@ -87,7 +87,7 @@ def create_s2_time_series(s2_folder: str, winter_year: WinterYear, output_folder
                 s2_resampled_image.data_vars["snow_cover"] == S2_CLASSES["nodata"][0], s2_resampled_image
             )
 
-        out_path = f'{str(output_folder)}/{day.strftime("%Y%m%d")}.nc'
+        out_path = f"{str(output_folder)}/{day.strftime('%Y%m%d')}.nc"
         day_data = day_data.expand_dims(time=[day])
         if roi_shapefile is not None:
             day_data = day_data.where(roi_mask.data_vars["binary_mask"], other=S2_CLASSES["nodata"][0])

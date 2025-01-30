@@ -3,8 +3,6 @@ from pathlib import Path
 from typing import List
 import xarray as xr
 import numpy as np
-from datetime import datetime
-import re
 import geopandas as gpd
 from metrics import WinterYear
 from geotools import georef_data_array, gdf_to_binary_mask, reproject_dataset, dim_name, to_rioxarray
@@ -12,38 +10,13 @@ import pyproj
 import os
 from logger_setup import default_logger as logger
 from grids import DefaultGrid, RESAMPLING
-from products import NASA_CLASSES
+from products.classes import NASA_CLASSES
 from fractional_snow_cover import nasa_ndsi_snow_cover_to_fraction
 
 # Hardcode some parameters
 PROJ4_MODIS = "+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +R=6371007.181 +units=m +no_defs"
-VIIRS_COLLECTION = 2
-TILE_PATTERN = "h1[7-8]v0[3-4]"
-platforms_products_dict = {"SuomiNPP": "VNP", "JPSS-1": "VJ1"}
 
 GRID = DefaultGrid()
-
-
-def get_datetime_from_viirs_filepath(filepath: str) -> str:
-    def timestamp_to_datetime(observation_timestamp: str) -> datetime:
-        return datetime.strptime(observation_timestamp, f"%Y%j")
-
-    return timestamp_to_datetime(Path(filepath).name.split(".")[1][1:])
-
-
-def int_to_year_day(year: int, day: int) -> str:
-    return str(year) + "{:03d}".format(day)
-
-
-def get_daily_filenames_per_platform(platform: str, year: int, day: int, viirs_data_filepaths: List[str]) -> List[str] | None:
-    platform_files = [path for path in viirs_data_filepaths if re.search(platforms_products_dict[platform], path)]
-    day_files = [path for path in platform_files if re.search(f"A{int_to_year_day(year=year, day=day)}", path)]
-    n_day_files = len(day_files)
-    if n_day_files != 4:
-        logger.info(
-            f"Unexpected number of tiles corresponding to platform {platform} and day of the year {day} found. Expected 4, found: {n_day_files}"
-        )
-    return day_files, n_day_files
 
 
 def create_nasa_composite(day_files: List[str], roi_file: str | None = None) -> xr.Dataset | None:
