@@ -9,17 +9,72 @@ from geotools import georef_data_array, gdf_to_binary_mask, reproject_dataset, d
 import pyproj
 import os
 from logger_setup import default_logger as logger
-from grids import DefaultGrid, RESAMPLING
+from grids import DefaultGrid, Grid, DefaultGrid_1km
 from products.classes import NASA_CLASSES
+from products.filenames import VIIRS_COLLECTION, get_daily_nasa_filenames_per_platform
 from fractional_snow_cover import nasa_ndsi_snow_cover_to_fraction
+from rasterio.enums import Resampling
 
 # Hardcode some parameters
 PROJ4_MODIS = "+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +R=6371007.181 +units=m +no_defs"
 
-GRID = DefaultGrid()
+
+def reprojection_module(nasa_dataset: xr.Dataset, output_grid: Grid) -> xr.Dataset:
+    # Validity "zombie mask": wherever there is at least one non valid pixel, the output grid pixel is set as invalid (<-> cloud)
+    nasa_dataset = to_rioxarray(nasa_dataset)
+    nasa_orig_resampled = reproject_dataset(
+        nasa_dataset,
+        new_crs=output_grid.crs,
+        resampling=Resampling.max,
+        fill_value=NASA_CLASSES["fill"][0],
+        transform=output_grid.affine,
+        shape=output_grid.shape,
+    )
+    nasa_dataset = nasa_dataset.where(nasa_dataset <= NASA_CLASSES["snow_cover"][-1], NASA_CLASSES["fill"][0])
+
+    data_array_name = [name for name in nasa_dataset]
+
+    if len(data_array_name) == 1:
+        data_array_name = data_array_name[0]
+    else:
+        raise NotImplementedError
+
+    nasa_validity_mask = reproject_dataset(
+        nasa_dataset,
+        new_crs=output_grid.crs,
+        resampling=Resampling.max,
+        fill_value=NASA_CLASSES["fill"][0],
+        transform=output_grid.affine,
+        shape=output_grid.shape,
+    )
+
+    nasa_resampled = reproject_dataset(
+        nasa_dataset.astype(np.float32),
+        new_crs=output_grid.crs,
+        resampling=Resampling.average,
+        fill_value=NASA_CLASSES["fill"][0],
+        transform=output_grid.affine,
+        shape=output_grid.shape,
+    )
+    nasa_resampled.rio.to_raster("test_resampling_3.tif")
+    # Compose the mask
+
+    nasa_out_image = xr.where(
+        nasa_validity_mask <= NASA_CLASSES["snow_cover"][-1], nasa_resampled.astype("u1"), nasa_orig_resampled
+    )
+    nasa_out_image.data_vars[data_array_name].attrs = nasa_dataset.data_vars[data_array_name].attrs
+    print(nasa_out_image)
+    nasa_out_image.data_vars[data_array_name].rio.write_nodata(NASA_CLASSES["fill"][0], inplace=True)
+    nasa_out_image = nasa_out_image.drop_vars("spatial_ref")
+    nasa_out_image = georef_data_array(
+        nasa_out_image.data_vars[data_array_name], data_array_name=data_array_name, crs=output_grid.crs
+    )
+    return nasa_out_image
 
 
-def create_nasa_composite(day_files: List[str], roi_file: str | None = None) -> xr.Dataset | None:
+def create_nasa_composite(
+    day_files: List[str], output_grid: Grid | None = None, roi_file: str | None = None
+) -> xr.Dataset | None:
     day_data_arrays = []
     modis_crs = pyproj.CRS.from_proj4(PROJ4_MODIS)
     dims = dim_name(crs=modis_crs)
@@ -38,35 +93,31 @@ def create_nasa_composite(day_files: List[str], roi_file: str | None = None) -> 
             coords={dims[0]: y_coords, dims[1]: x_coords}
         )
 
-        day_data_arrays.append(georef_data_array(data_array=ndsi_snow_cover, data_array_name="snow_cover", crs=modis_crs))
+        day_data_arrays.append(georef_data_array(data_array=ndsi_snow_cover, data_array_name="NDSI_Snow_Cover", crs=modis_crs))
 
     merged_day_dataset = xr.combine_by_coords(day_data_arrays, data_vars="minimal").astype(np.uint8)
 
-    day_dataset_reprojected = reproject_dataset(
-        dataset=to_rioxarray(merged_day_dataset),
-        shape=GRID.shape,
-        transform=GRID.affine,
-        new_crs=pyproj.CRS(GRID.crs),
-        resampling=RESAMPLING,
-        fill_value=NASA_CLASSES["fill"][0],
-    )
+    if output_grid is None:
+        output_grid = Grid.extract_from_dataset(merged_day_dataset)
+
+    day_dataset_reprojected = reprojection_module(nasa_dataset=merged_day_dataset, output_grid=output_grid)
 
     if roi_file is not None:
         roi_mask = gdf_to_binary_mask(
             gdf=gpd.read_file(roi_file),
-            grid=GRID,
+            grid=output_grid,
         )
 
-        masked = day_dataset_reprojected.data_vars["snow_cover"].values * roi_mask.data_vars["binary_mask"].values
+        masked = day_dataset_reprojected.data_vars["NDSI_Snow_Cover"].values * roi_mask.data_vars["binary_mask"].values
         masked[roi_mask.data_vars["binary_mask"].values == 0] = NASA_CLASSES["fill"][0]
-        day_dataset_reprojected.data_vars["snow_cover"][:] = masked
+        day_dataset_reprojected.data_vars["NDSI_Snow_Cover"][:] = masked
 
     # Apparently need to pop this attribute for correct encoding...not like it took me two hours to understand this :')
     # In practice, when a valid range attribute is encoded, a GDal driver reading the NetCDF will set all values outside this
     # range to NaN.
     # Since valid range in the V10A1 collection is {0,100}, i.e. the NDSI range, all other pixels (clouds, lakes etc.) are set to NaN
     # and that's not useful for the anamysis
-    day_dataset_reprojected.data_vars["snow_cover"].attrs.pop("valid_range")
+    day_dataset_reprojected.data_vars["NDSI_Snow_Cover"].attrs.pop("valid_range")
     # If we want not to encode the fill value like nodata
     # reprojected.data_vars["snow_cover"].attrs.pop("_FillValue")
 
@@ -75,38 +126,43 @@ def create_nasa_composite(day_files: List[str], roi_file: str | None = None) -> 
 
 def create_v10a1_time_series(
     winter_year: WinterYear,
+    output_grid: Grid,
     viirs_data_folder: str,
     output_folder: str,
+    output_name: str,
     roi_shapefile: str | None = None,
     platform: str = "SuomiNPP",
-    convert_to_fsc: bool = False,
+    ndsi_to_fsc_regression: str | None = None,
 ):
     # Treat user inputs
-    viirs_data_filepaths = glob(
-        str(Path(f"{viirs_data_folder}/V*10*{str(year.from_year)}*.{TILE_PATTERN}.00{VIIRS_COLLECTION}.*h5"))
-    )
-    viirs_data_filepaths.extend(
-        glob(str(Path(f"{viirs_data_folder}/V*10*{str(year.to_year)}*.{TILE_PATTERN}.00{VIIRS_COLLECTION}.*h5")))
-    )
+    viirs_data_filepaths = glob(str(Path(f"{viirs_data_folder}/V*10*{str(year.from_year)}*.00{VIIRS_COLLECTION}.*h5")))
+    viirs_data_filepaths.extend(glob(str(Path(f"{viirs_data_folder}/V*10*{str(year.to_year)}*.00{VIIRS_COLLECTION}.*h5"))))
 
     outpaths = []
     for day in winter_year.iterate_days():
+        if day.day > 2:
+            break
         logger.info(f"Processing day {day}")
-        day_files, n_day_files = get_daily_filenames_per_platform(
+        day_files, n_day_files = get_daily_nasa_filenames_per_platform(
             platform=platform, year=day.year, day=day.day_of_year, viirs_data_filepaths=viirs_data_filepaths
         )
         if n_day_files == 0:
             logger.info(f"Skip day {day.date()} because 0 files were found on this day")
             continue
         try:
-            nasa_composite = create_nasa_composite(day_files=day_files, roi_file=roi_shapefile)
+            nasa_composite = create_nasa_composite(day_files=day_files, output_grid=output_grid, roi_file=roi_shapefile)
         except OSError as e:
             logger.warning(f"Error {e} occured while reading VIIRS files. Skipping day {day.date()}.")
             continue
-        if convert_to_fsc:
-            nasa_composite.data_vars["snow_cover"][:] = nasa_ndsi_snow_cover_to_fraction(
-                nasa_composite.data_vars["snow_cover"].values
+
+        if ndsi_to_fsc_regression is not None:
+            snow_cover_fraction = nasa_ndsi_snow_cover_to_fraction(
+                nasa_composite.data_vars["NDSI_Snow_Cover"].values, method=ndsi_to_fsc_regression
             )
+            snow_cover_fraction_data_array = xr.zeros_like(nasa_composite.data_vars["NDSI_Snow_Cover"])
+            snow_cover_fraction_data_array[:] = snow_cover_fraction
+            nasa_composite = nasa_composite.assign({"snow_cover_fraction": snow_cover_fraction_data_array})
+            nasa_composite.data_vars["snow_cover_fraction"].attrs["NDSI_to_FSC_conversion"] = ndsi_to_fsc_regression
 
         nasa_composite = nasa_composite.expand_dims(time=[day])
         outpath = f"{output_folder}/{day.strftime('%Y%j')}.nc"
@@ -114,12 +170,7 @@ def create_v10a1_time_series(
         nasa_composite.to_netcdf(outpath)
 
     time_series = xr.open_mfdataset(outpaths)
-    outfile_name = (
-        f"WY_{year.from_year}_{year.to_year}_{platform}_nasa_time_series.nc"
-        if not convert_to_fsc
-        else f"WY_{year.from_year}_{year.to_year}_{platform}_nasa_fsc_time_series.nc"
-    )
-    output_name = Path(f"{output_folder}/{outfile_name}")
+    output_name = Path(f"{output_folder}/{output_name}")
     time_series.to_netcdf(
         output_name,
         encoding={
@@ -132,11 +183,22 @@ def create_v10a1_time_series(
 if __name__ == "__main__":
     # User inputs
     year = WinterYear(2023, 2024)
+    grid_375m = DefaultGrid()
+    grid_1km = DefaultGrid_1km()
+    grid = grid_1km
+
     platform = "SuomiNPP"
     folder = "/home/imperatoren/work/VIIRS_S2_comparison/data/V10A1/VNP10A1"
-    output_folder = "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/cms_workshop"
+    output_folder = "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_3"
+    output_name = f"WY_{year.from_year}_{year.to_year}_{platform}_nasa_time_series_res_{grid.resolution}m.nc"
     roi_file = "/home/imperatoren/work/VIIRS_S2_comparison/data/vectorial/massifs/massifs.shp"
 
     create_v10a1_time_series(
-        winter_year=year, viirs_data_folder=folder, output_folder=output_folder, roi_shapefile=roi_file, convert_to_fsc=False
+        winter_year=year,
+        output_grid=grid,
+        viirs_data_folder=folder,
+        output_folder=output_folder,
+        output_name=output_name,
+        roi_shapefile=roi_file,
+        ndsi_to_fsc_regression="salomonson_appel",
     )

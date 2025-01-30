@@ -10,11 +10,11 @@ import rasterio
 from rasterio.features import rasterize
 import numpy as np
 import pyproj
-from grids import DefaultGrid
+from grids import Grid
 import numpy.typing as npt
 
 
-def gdf_to_binary_mask(gdf: gpd.GeoDataFrame, grid: DefaultGrid) -> xr.Dataset:
+def gdf_to_binary_mask(gdf: gpd.GeoDataFrame, grid: Grid) -> xr.Dataset:
     gdf = gdf.to_crs(grid.crs)
     transform = grid.affine
 
