@@ -37,3 +37,6 @@ pdm
 output_folder
 data
 *credentials*
+
+# Drafts
+notebooks/drafts.ipynb

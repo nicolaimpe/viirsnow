@@ -136,7 +136,7 @@ def create_v10a1_time_series(
             )
 
         nasa_composite = nasa_composite.expand_dims(time=[day])
-        outpath = f"{output_folder}/{day.strftime("%Y%j")}.nc"
+        outpath = f"{output_folder}/{day.strftime('%Y%j')}.nc"
         outpaths.append(outpath)
         nasa_composite.to_netcdf(outpath)
 
