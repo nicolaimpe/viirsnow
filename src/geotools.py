@@ -100,21 +100,19 @@ def reproject_dataset(
     fill_value: int | float = None,
     transform: Affine | None = None,
     shape: Tuple[int, int] | None = None,
-) -> xr.Dataset:
+) -> xr.DataArray:
+    # Wrap rioxarray reproject_dataset so that it's typed
+
     # Rioxarray reproject nearest by default
     dims = dim_name(new_crs)
-    return (
-        to_rioxarray(dataset)
-        .rio.reproject(
-            dst_crs=new_crs,
-            resolution=new_resolution,
-            resampling=resampling,
-            transform=transform,
-            nodata=fill_value,
-            shape=shape,
-        )
-        .rename({"x": dims[1], "y": dims[0]})
-    )
+    return dataset.rio.reproject(
+        dst_crs=new_crs,
+        resolution=new_resolution,
+        resampling=resampling,
+        transform=transform,
+        nodata=fill_value,
+        shape=shape,
+    ).rename({"x": dims[1], "y": dims[0]})
 
 
 def extract_netcdf_coords_from_rasterio_raster(raster: rasterio.DatasetReader) -> Dict[str, npt.NDArray]:
@@ -133,5 +131,5 @@ def extract_netcdf_coords_from_rasterio_raster(raster: rasterio.DatasetReader) -
     return {dims[0]: y_coord, dims[1]: x_coord}
 
 
-def to_rioxarray(dataset: xr.Dataset) -> xr.Dataset:
+def to_rioxarray(dataset: xr.Dataset) -> xr.DataArray:
     return dataset.rio.write_crs(dataset.data_vars["spatial_ref"].attrs["spatial_ref"])

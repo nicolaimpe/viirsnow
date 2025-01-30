@@ -1,21 +1,22 @@
-import re
-
-from affine import Affine
 from metrics import WinterYear
 from glob import glob
 import xarray as xr
 import numpy as np
 from pathlib import Path
 
-import numpy as np
-import numpy.typing as npt
-from typing import Dict, List
+from typing import List
 from datetime import datetime
 import os
 import geopandas as gpd
 import rasterio
 from products import METEOFRANCE_CLASSES
-from geotools import extract_netcdf_coords_from_rasterio_raster, georef_data_array, gdf_to_binary_mask, reproject_dataset
+from geotools import (
+    extract_netcdf_coords_from_rasterio_raster,
+    georef_data_array,
+    gdf_to_binary_mask,
+    reproject_dataset,
+    to_rioxarray,
+)
 from logger_setup import default_logger as logger
 import pyproj
 from grids import RESAMPLING, DefaultGrid
@@ -34,7 +35,7 @@ def get_datetime_from_viirs_filepath(filepath: str) -> str:
 
 
 def get_daily_filenames_per_platform(platform: str, day: datetime, viirs_data_folder: str) -> List[str] | None:
-    return glob(f"{viirs_data_folder}/VIIRS{day.year}/*_{PLATFORMS_PRODUCT_DICT[platform]}_*{day.strftime("%Y%m%d")}*.LT")
+    return glob(f"{viirs_data_folder}/VIIRS{day.year}/*_{PLATFORMS_PRODUCT_DICT[platform]}_*{day.strftime('%Y%m%d')}*.LT")
 
 
 def create_composite_meteofrance(daily_files: List[str], roi_file: str | None = None) -> xr.Dataset:
@@ -65,7 +66,7 @@ def create_composite_meteofrance(daily_files: List[str], roi_file: str | None = 
     )
 
     day_dataset_reprojected = reproject_dataset(
-        dataset=day_dataset,
+        dataset=to_rioxarray(day_dataset),
         shape=GRID.shape,
         transform=GRID.affine,
         new_crs=pyproj.CRS(GRID.crs),
@@ -98,7 +99,7 @@ def create_meteofrance_time_series(
             continue
         meteofrance_composite = create_composite_meteofrance(daily_files=daily_files, roi_file=roi_shapefile)
         meteofrance_composite = meteofrance_composite.expand_dims(time=[day])
-        outpath = f"{output_folder}/{day.strftime("%Y%m%d")}.nc"
+        outpath = f"{output_folder}/{day.strftime('%Y%m%d')}.nc"
         outpaths.append(outpath)
         meteofrance_composite.to_netcdf(outpath)
 

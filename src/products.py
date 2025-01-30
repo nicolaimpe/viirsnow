@@ -31,3 +31,10 @@ NODATA_NASA_CLASSES = (
     "L1B_fill",
     "fill",
 )
+
+S2_CLASSES = {
+    "snow_cover": range(1, 101),
+    "no_snow": (0,),
+    "clouds": (205,),
+    "nodata": (255,),
+}
