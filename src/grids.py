@@ -17,7 +17,7 @@ RESAMPLING = Resampling.nearest
 
 
 class Grid:
-    def __init__(self, crs: CRS, resolution: float, x0: float, y0: float, width: int, height: int) -> None:
+    def __init__(self, resolution: float, x0: float, y0: float, width: int, height: int, crs: CRS | None = None) -> None:
         self.crs = crs
         self.resolution = resolution
         self.x0 = x0
@@ -43,11 +43,11 @@ class Grid:
 
     @property
     def xend(self):
-        return self.xmax + self.width * self.resolution
+        return self.x0 + self.width * self.resolution
 
     @property
     def yend(self):
-        return self.ymin - self.height * self.resolution
+        return self.y0 - self.height * self.resolution
 
     @property
     def extent_llx_lly_urx_ury(self):
@@ -55,11 +55,11 @@ class Grid:
 
     @property
     def xcoords(self) -> np.array:
-        return np.arange(self.xmin, self.xmax + self.resolution, self.resolution)
+        return np.linspace(self.xmin, self.xmax, self.width)
 
     @property
     def ycoords(self) -> np.array:
-        return np.arange(self.ymin, self.ymax + self.resolution, self.resolution)
+        return np.linspace(self.ymax, self.ymin, self.height)
 
     @property
     def affine(self) -> Affine:
@@ -69,21 +69,22 @@ class Grid:
     def shape(self) -> Tuple[int, int]:
         return (self.height, self.width)
 
-    @classmethod
-    def extract_from_dataset(cls, dataset: xr.Dataset) -> Self:
-        ds_crs = dataset.data_vars["spatial_ref"].attrs["spatial_ref"]
-        dims = ("lat", "lon") if ds_crs.is_geographic else ("y", "x") if ds_crs.is_projected else None
-        y_coords, x_coords = dataset.coords[dims[0]], dataset.coords[dims[1]]
-        width, height = len(x_coords), len(y_coords)
-        resolution = np.abs(x_coords[-1] - x_coords[0]) / (width - 1)
-        return cls(
-            crs=ds_crs,
-            resolution=resolution,
-            x0=x_coords[0] - resolution / 2,
-            y0=y_coords[0] + resolution / 2,
-            width=width,
-            height=height,
-        )
+    # @classmethod
+    # def extract_from_dataset(cls, dataset: xr.Dataset) -> Self:
+    #     """Be very careful"""
+    #     ds_crs = dataset.data_vars["spatial_ref"].attrs["spatial_ref"]
+    #     dims = ("lat", "lon") if ds_crs.is_geographic else ("y", "x") if ds_crs.is_projected else None
+    #     y_coords, x_coords = dataset.coords[dims[0]], dataset.coords[dims[1]]
+    #     width, height = len(x_coords), len(y_coords)
+    #     resolution = np.abs(x_coords[-1] - x_coords[0]) / (width - 1)
+    #     return cls(
+    #         crs=ds_crs,
+    #         resolution=resolution,
+    #         x0=x_coords[0] - resolution / 2,
+    #         y0=y_coords[0] + resolution / 2,
+    #         width=width,
+    #         height=height,
+    #     )
 
 
 class DefaultGrid(Grid):
