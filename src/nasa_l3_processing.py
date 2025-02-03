@@ -6,17 +6,14 @@ import numpy as np
 import geopandas as gpd
 from metrics import WinterYear
 from geotools import georef_data_array, gdf_to_binary_mask, reproject_dataset, dim_name, to_rioxarray
-import pyproj
 import os
 from logger_setup import default_logger as logger
 from grids import DefaultGrid, Grid, DefaultGrid_1km
 from products.classes import NASA_CLASSES
+from products.georef import modis_crs
 from products.filenames import VIIRS_COLLECTION, get_daily_nasa_filenames_per_platform
 from fractional_snow_cover import nasa_ndsi_snow_cover_to_fraction
 from rasterio.enums import Resampling
-
-# Hardcode some parameters
-PROJ4_MODIS = "+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +R=6371007.181 +units=m +no_defs"
 
 
 def reprojection_module(nasa_dataset: xr.Dataset, output_grid: Grid) -> xr.Dataset:
@@ -90,7 +87,6 @@ def create_nasa_composite(
     day_files: List[str], output_grid: Grid | None = None, roi_file: str | None = None
 ) -> xr.Dataset | None:
     day_data_arrays = []
-    modis_crs = pyproj.CRS.from_proj4(PROJ4_MODIS)
     dims = dim_name(crs=modis_crs)
     for filepath in day_files:
         # try:
@@ -164,6 +160,8 @@ def create_v10a1_time_series(
 
     outpaths = []
     for day in winter_year.iterate_days():
+        if day.year == 2024:
+            continue
         logger.info(f"Processing day {day}")
         day_files, n_day_files = get_daily_nasa_filenames_per_platform(
             platform=platform, year=day.year, day=day.day_of_year, viirs_data_filepaths=viirs_data_filepaths
@@ -204,7 +202,7 @@ def create_v10a1_time_series(
 
 if __name__ == "__main__":
     # User inputs
-    year = WinterYear(2023, 2024)
+    year = WinterYear(2024, 2025)
     grid_375m = DefaultGrid()
     grid_1km = DefaultGrid_1km()
     grid = grid_375m
