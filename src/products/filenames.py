@@ -1,12 +1,35 @@
+import re
 from datetime import datetime
 from glob import glob
 from pathlib import Path
-import re
 from typing import List
+
 from logger_setup import default_logger as logger
 
-PLATFORMS_PRODUCT_DICT_NASA = {"SuomiNPP": "VNP10A1"}
-PLATFORMS_PRODUCT_DICT_METEOFRANCE = {"SuomiNPP": "SNPP"}
+NASA_L2_SNOW_PRODUCTS_IDS = ["VNP10", "VJ110", "VNP10_NRT", "VJ110_NRT"]
+NASA_L3_SNOW_PRODUCTS_IDS = ["VNP10A1", "VJ110A1"]
+NASA_L2_GEOMETRY_PRODUCTS_IDS = ["VNP03IMG", "VJ103IMG", "VNP03IMG_NRT", "VJ103IMG_NRT"]
+NASA_L2_SNOW_PRODUCTS = {
+    "Standard": {"Suomi-NPP": NASA_L2_SNOW_PRODUCTS_IDS[0], "JPSS1": NASA_L2_SNOW_PRODUCTS_IDS[1]},
+    "NRT": {"Suomi-NPP": NASA_L2_SNOW_PRODUCTS_IDS[2], "JPSS1": NASA_L2_SNOW_PRODUCTS_IDS[3]},
+}
+NASA_L3_SNOW_PRODUCTS = {
+    "Standard": {"Suomi-NPP": NASA_L3_SNOW_PRODUCTS_IDS[0], "JPSS1": NASA_L3_SNOW_PRODUCTS_IDS[1]},
+}
+
+NASA_L2_GEOM_PRODUCTS = {
+    "Standard": {"Suomi-NPP": NASA_L2_GEOMETRY_PRODUCTS_IDS[0], "JPSS1": NASA_L2_GEOMETRY_PRODUCTS_IDS[1]},
+    "NRT": {"Suomi-NPP": NASA_L2_GEOMETRY_PRODUCTS_IDS[2], "JPSS1": NASA_L2_GEOMETRY_PRODUCTS_IDS[3]},
+}
+METEOFRANCE_L2 = {"Suomi-NPP": "EOFR62_SNPP"}
+KNOWN_COLLECTIONS = {
+    "V10": NASA_L2_SNOW_PRODUCTS,
+    "V10A1": NASA_L3_SNOW_PRODUCTS,
+    "V03IMG": NASA_L2_GEOM_PRODUCTS,
+    "Meteo-France": METEOFRANCE_L2,
+    "S2": "FSC",
+}
+
 VIIRS_COLLECTION = 2
 
 
@@ -14,7 +37,7 @@ def timestamp_viirs_to_datetime(observation_timestamp: str) -> datetime:
     return datetime.strptime(observation_timestamp, f"%Y%j")
 
 
-def get_datetime_from_viirs_nasa_filepath(filepath: str) -> str:
+def get_datetime_from_viirs_nasa_filepath(filepath: str) -> datetime:
     return timestamp_viirs_to_datetime(Path(filepath).name.split(".")[1][1:])
 
 
@@ -23,9 +46,9 @@ def int_to_year_day(year: int, day: int) -> str:
 
 
 def get_daily_nasa_filenames_per_platform(
-    platform: str, year: int, day: int, viirs_data_filepaths: List[str]
+    product_id: str, year: int, day: int, viirs_data_filepaths: List[str]
 ) -> List[str] | None:
-    platform_files = [path for path in viirs_data_filepaths if re.search(PLATFORMS_PRODUCT_DICT_NASA[platform], path)]
+    platform_files = [path for path in viirs_data_filepaths if re.search(product_id, path)]
     day_files = [path for path in platform_files if re.search(f"A{int_to_year_day(year=year, day=day)}", path)]
     n_day_files = len(day_files)
     if n_day_files != 4:
@@ -44,6 +67,4 @@ def get_datetime_from_viirs_meteofrance_filepath(filepath: str) -> str:
 
 
 def get_daily_meteofrance_filenames_per_platform(platform: str, day: datetime, viirs_data_folder: str) -> List[str] | None:
-    return glob(
-        f"{viirs_data_folder}/VIIRS{day.year}/*_{PLATFORMS_PRODUCT_DICT_METEOFRANCE[platform]}_*{day.strftime('%Y%m%d')}*.LT"
-    )
+    return glob(f"{viirs_data_folder}/VIIRS{day.year}/*_{METEOFRANCE_L2[platform]}_*{day.strftime('%Y%m%d')}*.LT")

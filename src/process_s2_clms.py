@@ -11,7 +11,7 @@ import numpy as np
 from geotools import gdf_to_binary_mask, reproject_dataset, georef_data_array
 from grids import DefaultGrid
 from rasterio.enums import Resampling
-from viirsnow.products.classes import S2_CLASSES
+from products.classes import S2_CLASSES
 from logger_setup import default_logger as logger
 
 GRID = DefaultGrid()

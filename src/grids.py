@@ -1,12 +1,10 @@
-from typing import Self, Tuple
-from affine import Affine
-import numpy as np
-from rasterio.enums import Resampling
-from pyproj import CRS
-from rasterio.transform import from_origin
-from dataclasses import dataclass
-import xarray as xr
+from typing import Tuple
 
+import numpy as np
+from affine import Affine
+from pyproj import CRS, Transformer
+from rasterio.enums import Resampling
+from rasterio.transform import from_origin
 
 DEFAULT_CRS_PROJ = 32631
 DEFAULT_CRS = DEFAULT_CRS_PROJ
@@ -17,13 +15,16 @@ RESAMPLING = Resampling.nearest
 
 
 class Grid:
-    def __init__(self, resolution: float, x0: float, y0: float, width: int, height: int, crs: CRS | None = None) -> None:
+    def __init__(
+        self, resolution: float, x0: float, y0: float, width: int, height: int, crs: CRS | None = None, name: str | None = None
+    ) -> None:
         self.crs = crs
         self.resolution = resolution
         self.x0 = x0
         self.y0 = y0
         self.width = width
         self.height = height
+        self.name = name
 
     @property
     def xmin(self):
@@ -69,6 +70,10 @@ class Grid:
     def shape(self) -> Tuple[int, int]:
         return (self.height, self.width)
 
+    def bounds_projected_to_epsg(self, to_epsg: int | str):
+        transformer = Transformer.from_crs(crs_from=self.crs, crs_to=CRS.from_epsg(to_epsg), always_xy=True)
+        return transformer.transform_bounds(*self.extent_llx_lly_urx_ury)
+
     # @classmethod
     # def extract_from_dataset(cls, dataset: xr.Dataset) -> Self:
     #     """Be very careful"""
@@ -87,7 +92,7 @@ class Grid:
     #     )
 
 
-class DefaultGrid(Grid):
+class UTM375mGrid(Grid):
     def __init__(self) -> None:
         super().__init__(
             crs=CRS.from_epsg(DEFAULT_CRS),
@@ -96,10 +101,11 @@ class DefaultGrid(Grid):
             y0=OUTPUT_GRID_Y0,
             width=OUPUT_GRID_X_SIZE,
             height=OUPUT_GRID_Y_SIZE,
+            name="UTM_375m",
         )
 
 
-class DefaultGrid_1km(Grid):
+class UTM1kmGrid(Grid):
     def __init__(self) -> None:
         super().__init__(
             crs=CRS.from_epsg(DEFAULT_CRS),
@@ -108,4 +114,5 @@ class DefaultGrid_1km(Grid):
             y0=OUTPUT_GRID_Y0,
             width=1050,
             height=825,
+            name="UTM_1km",
         )
