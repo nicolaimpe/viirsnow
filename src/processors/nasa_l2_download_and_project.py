@@ -45,7 +45,7 @@ def download_daily_products_from_home(
 
 
 def download_daily_products_from_sxcen(day: datetime, download_urls_list: List[str], output_folder: str):
-    logger.info(f"Process url {day.strftime('%Y-%m-%d')}")
+    logger.info(f"Process day {day.strftime('%Y-%m-%d')}")
     fs = earthaccess.get_fsspec_https_session()
     daily_urls = [path for path in download_urls_list if re.search(f"A{day.strftime('%Y%j')}", path)]
 
@@ -53,11 +53,13 @@ def download_daily_products_from_sxcen(day: datetime, download_urls_list: List[s
     for url in daily_urls:
         product_filename = url.split("/")[-1]
         output_filepath = f"{output_folder}/{product_filename}"
-        print(output_filepath)
+        print("OUTPUT", output_filepath)
         output_filepaths.append(output_filepath)
         with fs.open(url) as f:
+            print("Reading granule")
             data = f.read()
         with open(output_filepath, "wb") as f:
+            print(f"Exporting to {output_filepath}")
             f.write(data)
     return output_filepaths
 
@@ -129,7 +131,7 @@ def reproject_daily_products(
 
 if __name__ == "__main__":
     download_from = "office"  # "office", "home"
-    data_folder = "/home/imperatoren/work/VIIRS_S2_comparison/data"
+    data_folder = "/home/imperatoren/work/VIIRS_S2_comparison/data" if download_from=="home" else "/home/imperatoren/work/viirsnow/data"
     product_collection = "V10"  # V10 V03IMG
     product_type = "Standard"  # Standard, NRT (Near Real Time)
     platform = "Suomi-NPP"  # Suomi-NPP, JPSS1
@@ -138,7 +140,7 @@ if __name__ == "__main__":
 
     # If download from office
     granule_list_filepath = (
-        f"/home/imperatoren/work/VIIRS_S2_comparison/data/{product_collection}/vnp10_wy_2023_2024_granules_list.txt"
+        f"/home/imperatoren/work/viirsnow/data/{product_collection}/vnp10_wy_2023_2024_granules_list.txt"
     )
 
     year = WinterYear(2023, 2024)
