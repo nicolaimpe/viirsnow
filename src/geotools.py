@@ -1,17 +1,16 @@
 from typing import Dict, Tuple
-from affine import Affine
+
+import geopandas as gpd
+import numpy as np
+import numpy.typing as npt
+import pyproj
+import rasterio
 import rasterio.enums
 import xarray as xr
-import numpy as np
-import geopandas as gpd
-import rasterio
-import geopandas as gpd
-import rasterio
+from affine import Affine
 from rasterio.features import rasterize
-import numpy as np
-import pyproj
+
 from grids import Grid
-import numpy.typing as npt
 
 
 def gdf_to_binary_mask(gdf: gpd.GeoDataFrame, grid: Grid) -> xr.Dataset:
@@ -97,7 +96,7 @@ def reproject_dataset(
     new_crs: pyproj.CRS,
     new_resolution: float | None = None,
     resampling: rasterio.enums.Resampling | None = None,
-    nodata: int | float = None,
+    nodata: int | float | None = None,
     transform: Affine | None = None,
     shape: Tuple[int, int] | None = None,
 ) -> xr.DataArray:
@@ -113,6 +112,23 @@ def reproject_dataset(
         nodata=nodata,
         shape=shape,
     ).rename({"x": dims[1], "y": dims[0]})
+
+
+def reproject_using_grid(
+    dataset: xr.Dataset,
+    output_grid: Grid,
+    nodata: int | float | None = None,
+    resampling_method: rasterio.enums.Resampling | None = None,
+) -> xr.Dataset:
+    dataset_reprojected = reproject_dataset(
+        dataset=to_rioxarray(dataset),
+        shape=output_grid.shape,
+        transform=output_grid.affine,
+        new_crs=output_grid.crs,
+        resampling=resampling_method,
+        nodata=nodata,
+    )
+    return dataset_reprojected
 
 
 def extract_netcdf_coords_from_rasterio_raster(raster: rasterio.DatasetReader) -> Dict[str, npt.NDArray]:
@@ -133,6 +149,14 @@ def extract_netcdf_coords_from_rasterio_raster(raster: rasterio.DatasetReader) -
 
 def to_rioxarray(dataset: xr.Dataset) -> xr.DataArray:
     return dataset.rio.write_crs(dataset.data_vars["spatial_ref"].attrs["spatial_ref"])
+
+
+def mask_dataarray_with_vector_file(data_array: xr.DataArray, roi_file: str, output_grid: Grid, fill_value: int = 255):
+    roi_mask = gdf_to_binary_mask(gdf=gpd.read_file(roi_file), grid=output_grid)
+    masked = data_array.values * roi_mask.data_vars["binary_mask"].values
+    masked[roi_mask.data_vars["binary_mask"].values == 0] = fill_value
+    data_array[:] = masked
+    return data_array
 
 
 """Some functions in drafts.ipynb to push before bad stuff happens

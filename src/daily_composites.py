@@ -3,16 +3,18 @@ from typing import List
 
 import geopandas as gpd
 import numpy as np
+import rasterio
 import xarray as xr
 
-from geotools import dim_name, gdf_to_binary_mask, georef_data_array
+from geotools import dim_name, extract_netcdf_coords_from_rasterio_raster, gdf_to_binary_mask, georef_data_array
 from grids import Grid
 from logger_setup import default_logger as logger
-from products.classes import NASA_CLASSES
+from products.classes import METEOFRANCE_CLASSES, NASA_CLASSES
 from products.georef import modis_crs
+from reprojections import reprojection_l3_nasa_to_grid
 
 
-def create_nasa_composite(
+def create_spatial_l3_nasa_composite(
     day_files: List[str], output_grid: Grid | None = None, roi_file: str | None = None
 ) -> xr.Dataset | None:
     day_data_arrays = []
@@ -49,7 +51,7 @@ def create_nasa_composite(
             "Output grid must be specified or a way to extract the output grid from the NASA products has to be implemented."
         )
 
-    day_dataset_reprojected = reprojection_module(nasa_dataset=merged_day_dataset, output_grid=output_grid)
+    day_dataset_reprojected = reprojection_l3_nasa_to_grid(nasa_dataset=merged_day_dataset, output_grid=output_grid)
 
     if roi_file is not None:
         roi_mask = gdf_to_binary_mask(
@@ -71,3 +73,35 @@ def create_nasa_composite(
     # reprojected.data_vars["snow_cover"].attrs.pop("_FillValue")
 
     return day_dataset_reprojected
+
+
+def create_temporal_l2_composite_meteofrance(
+    daily_files: List[str],
+) -> xr.Dataset:
+    logger.info(f"Reading file {daily_files[0]}")
+    first_image_raster = rasterio.open(daily_files[0])
+    day_data = first_image_raster.read(1)
+
+    for day_file in daily_files[1:]:
+        logger.info(f"Reading file {day_file}")
+        new_acquisition = rasterio.open(day_file).read(1)
+
+        no_data_mask = day_data == METEOFRANCE_CLASSES["nodata"]
+        day_data = np.where(no_data_mask, new_acquisition, day_data)
+
+        cloud_mask_old = day_data == METEOFRANCE_CLASSES["clouds"]
+
+        cloud_mask_new = new_acquisition == METEOFRANCE_CLASSES["clouds"]
+        nodata_mask_new = new_acquisition == METEOFRANCE_CLASSES["nodata"]
+        no_observation_mask_new = cloud_mask_new | nodata_mask_new
+        observation_mask_new = no_observation_mask_new == False
+        new_observations_mask = cloud_mask_old & observation_mask_new
+        day_data = np.where(new_observations_mask, new_acquisition, day_data)
+
+    day_dataset = georef_data_array(
+        xr.DataArray(day_data.astype(np.uint8), coords=extract_netcdf_coords_from_rasterio_raster(first_image_raster)),
+        data_array_name="snow_cover",
+        crs=first_image_raster.crs,
+    )
+
+    return day_dataset

@@ -1,20 +1,15 @@
+import os
 from glob import glob
 from pathlib import Path
-from typing import List
+
 import xarray as xr
-import numpy as np
-import geopandas as gpd
-from daily_composites import create_nasa_composite
-from metrics import WinterYear
-from geotools import georef_data_array, gdf_to_binary_mask, reproject_dataset, dim_name, to_rioxarray
-import os
-from logger_setup import default_logger as logger
-from grids import DefaultGrid, Grid, DefaultGrid_1km
-from products.classes import NASA_CLASSES
-from products.georef import modis_crs
-from products.filenames import VIIRS_COLLECTION, get_daily_nasa_filenames_per_platform
+
+from daily_composites import create_spatial_l3_nasa_composite
 from fractional_snow_cover import nasa_ndsi_snow_cover_to_fraction
-from rasterio.enums import Resampling
+from grids import Grid, UTM1kmGrid, UTM375mGrid
+from logger_setup import default_logger as logger
+from metrics import WinterYear
+from products.filenames import VIIRS_COLLECTION, get_daily_nasa_filenames_per_platform
 
 
 def create_v10a1_time_series(
@@ -43,7 +38,9 @@ def create_v10a1_time_series(
             logger.info(f"Skip day {day.date()} because 0 files were found on this day")
             continue
         try:
-            nasa_composite = create_nasa_composite(day_files=day_files, output_grid=output_grid, roi_file=roi_shapefile)
+            nasa_composite = create_spatial_l3_nasa_composite(
+                day_files=day_files, output_grid=output_grid, roi_file=roi_shapefile
+            )
         except OSError as e:
             logger.warning(f"Error {e} occured while reading VIIRS files. Skipping day {day.date()}.")
             continue
@@ -76,11 +73,11 @@ def create_v10a1_time_series(
 if __name__ == "__main__":
     # User inputs
     year = WinterYear(2024, 2025)
-    grid_375m = DefaultGrid()
-    grid_1km = DefaultGrid_1km()
+    grid_375m = UTM375mGrid()
+    grid_1km = UTM1kmGrid()
     grid = grid_375m
 
-    platform = "SuomiNPP"
+    platform = "Suomi-NPP"
     folder = "/home/imperatoren/work/VIIRS_S2_comparison/data/V10A1/VNP10A1"
     output_folder = "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_3"
     output_name = f"WY_{year.from_year}_{year.to_year}_{platform}_nasa_l3_time_series_res_{grid.resolution}m.nc"

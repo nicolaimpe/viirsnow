@@ -1,90 +1,48 @@
-from metrics import WinterYear
-from glob import glob
-import xarray as xr
-import numpy as np
+import os
 from pathlib import Path
 
-from typing import List
-from datetime import datetime
-import os
-import geopandas as gpd
-import rasterio
-from products.classes import METEOFRANCE_CLASSES
-from geotools import (
-    extract_netcdf_coords_from_rasterio_raster,
-    georef_data_array,
-    gdf_to_binary_mask,
-    reproject_dataset,
-    to_rioxarray,
-)
+import xarray as xr
+
+from daily_composites import create_temporal_l2_composite_meteofrance
+from geotools import mask_dataarray_with_vector_file
+from grids import Grid
 from logger_setup import default_logger as logger
-import pyproj
-from grids import RESAMPLING, DefaultGrid
-
-
-GRID = DefaultGrid()
-
-
-def create_composite_meteofrance(daily_files: List[str], roi_file: str | None = None) -> xr.Dataset:
-    logger.info(f"Reading file {daily_files[0]}")
-    first_image_raster = rasterio.open(daily_files[0])
-    day_data = first_image_raster.read(1)
-
-    for day_file in daily_files[1:]:
-        logger.info(f"Reading file {day_file}")
-        new_acquisition = rasterio.open(day_file).read(1)
-
-        no_data_mask = day_data == METEOFRANCE_CLASSES["nodata"]
-        day_data = np.where(no_data_mask, new_acquisition, day_data)
-
-        cloud_mask_old = day_data == METEOFRANCE_CLASSES["clouds"]
-
-        cloud_mask_new = new_acquisition == METEOFRANCE_CLASSES["clouds"]
-        nodata_mask_new = new_acquisition == METEOFRANCE_CLASSES["nodata"]
-        no_observation_mask_new = cloud_mask_new | nodata_mask_new
-        observation_mask_new = no_observation_mask_new == False
-        new_observations_mask = cloud_mask_old & observation_mask_new
-        day_data = np.where(new_observations_mask, new_acquisition, day_data)
-
-    day_dataset = georef_data_array(
-        xr.DataArray(day_data.astype(np.uint8), coords=extract_netcdf_coords_from_rasterio_raster(first_image_raster)),
-        data_array_name="snow_cover",
-        crs=first_image_raster.crs,
-    )
-
-    day_dataset_reprojected = reproject_dataset(
-        dataset=to_rioxarray(day_dataset),
-        shape=GRID.shape,
-        transform=GRID.affine,
-        new_crs=pyproj.CRS(GRID.crs),
-        resampling=RESAMPLING,
-        fill_value=METEOFRANCE_CLASSES["fill"][0],
-    )
-
-    if roi_file is not None:
-        roi_mask = gdf_to_binary_mask(gdf=gpd.read_file(roi_file), grid=GRID)
-        masked = day_dataset_reprojected.data_vars["snow_cover"].values * roi_mask.data_vars["binary_mask"].values
-        masked[roi_mask.data_vars["binary_mask"].values == 0] = METEOFRANCE_CLASSES["fill"]
-        day_dataset_reprojected.data_vars["snow_cover"][:] = masked
-
-    return day_dataset_reprojected
+from metrics import WinterYear
+from products.classes import METEOFRANCE_CLASSES
+from products.filenames import get_daily_meteofrance_filenames_per_platform
+from reprojections import reprojection_l3_meteofrance_to_grid
 
 
 def create_meteofrance_time_series(
     year: WinterYear,
     viirs_data_folder: str,
     output_folder: str,
+    output_grid: Grid | None = None,
     roi_shapefile: str | None = None,
-    platform: str = "SuomiNPP",
+    platform: str = "Suomi-NPP",
 ):
     outpaths = []
     for day in year.iterate_days():
         logger.info(f"Processing day {day}")
-        daily_files = get_daily_filenames_per_platform(platform=platform, day=day, viirs_data_folder=viirs_data_folder)
+        daily_files = get_daily_meteofrance_filenames_per_platform(
+            platform=platform, day=day, viirs_data_folder=viirs_data_folder
+        )
         if len(daily_files) == 0:
             logger.warning(f"No data fuond in date {day}")
             continue
-        meteofrance_composite = create_composite_meteofrance(daily_files=daily_files, roi_file=roi_shapefile)
+        meteofrance_composite = create_temporal_l2_composite_meteofrance(daily_files=daily_files, roi_file=roi_shapefile)
+
+        if output_grid is not None:
+            meteofrance_composite = reprojection_l3_meteofrance_to_grid(
+                meteofrance_dataset=meteofrance_composite, output_grid=output_grid
+            )
+        if roi_shapefile is not None:
+            meteofrance_composite.data_vars["snow_cover"] = mask_dataarray_with_vector_file(
+                data_array=meteofrance_composite.data_vars["snow_cover"],
+                roi_file=roi_shapefile,
+                fill_value=METEOFRANCE_CLASSES["fill"],
+            )
+
         meteofrance_composite = meteofrance_composite.expand_dims(time=[day])
         outpath = f"{output_folder}/{day.strftime('%Y%m%d')}.nc"
         outpaths.append(outpath)
@@ -103,7 +61,7 @@ if __name__ == "__main__":
     # User inputs
     year = WinterYear(2023, 2024)
     folder = "/home/imperatoren/work/VIIRS_S2_comparison/data/EOFR62"
-    output_folder = "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/cms_workshop"
+    output_folder = "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_3"
     roi_shapefile = "/home/imperatoren/work/VIIRS_S2_comparison/data/vectorial/massifs/massifs.shp"
 
     create_meteofrance_time_series(

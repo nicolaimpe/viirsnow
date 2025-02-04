@@ -5,9 +5,9 @@ from pyresample.geometry import AreaDefinition, SwathDefinition
 from rasterio.enums import Resampling
 
 from compression import generate_xarray_compression_encodings
-from geotools import georef_data_array, reproject_dataset, to_rioxarray
+from geotools import georef_data_array, reproject_using_grid, to_rioxarray
 from grids import Grid
-from products.classes import NASA_CLASSES
+from products.classes import METEOFRANCE_CLASSES, NASA_CLASSES
 
 
 def extract_swath_lon_lats(
@@ -101,35 +101,17 @@ def reprojection_l3_nasa_to_grid(nasa_dataset: xr.Dataset, output_grid: Grid) ->
 
     nasa_without_water = xr.where(nasa_water_mask == 0, nasa_dataset, 0, keep_attrs=True)
 
-    nasa_validity_mask = reproject_dataset(
-        nasa_without_water,
-        new_crs=output_grid.crs,
-        resampling=Resampling.max,
-        transform=output_grid.affine,
-        shape=output_grid.shape,
+    nasa_validity_mask = reproject_using_grid(nasa_without_water, output_grid=output_grid, resampling=Resampling.max)
+
+    nasa_resampled = reproject_using_grid(
+        nasa_without_water.astype(np.float32), output_grid=output_grid, resampling=Resampling.average
     )
 
-    nasa_resampled = reproject_dataset(
-        nasa_without_water.astype(np.float32),
-        new_crs=output_grid.crs,
-        resampling=Resampling.average,
-        transform=output_grid.affine,
-        shape=output_grid.shape,
+    nasa_oceans_mask_nearest = reproject_using_grid(
+        nasa_oceans_mask.astype("u1"), output_grid=output_grid, resampling=Resampling.nearest
     )
-
-    nasa_oceans_mask_nearest = reproject_dataset(
-        nasa_oceans_mask.astype("u1"),
-        new_crs=output_grid.crs,
-        resampling=Resampling.nearest,
-        transform=output_grid.affine,
-        shape=output_grid.shape,
-    )
-    nasa_lakes_mask_nearest = reproject_dataset(
-        nasa_lakes_mask.astype("u1"),
-        new_crs=output_grid.crs,
-        resampling=Resampling.nearest,
-        transform=output_grid.affine,
-        shape=output_grid.shape,
+    nasa_lakes_mask_nearest = reproject_using_grid(
+        nasa_lakes_mask.astype("u1"), output_grid=output_grid, resampling=Resampling.nearest
     )
     # Compose the mask
     nasa_out_image = xr.where(
@@ -149,3 +131,67 @@ def reprojection_l3_nasa_to_grid(nasa_dataset: xr.Dataset, output_grid: Grid) ->
         crs=output_grid.crs,
     )
     return nasa_out_image
+
+
+def reprojection_l3_meteofrance_to_grid(meteofrance_dataset: xr.Dataset, output_grid: Grid) -> xr.Dataset:
+    # Validity "zombie mask": wherever there is at least one non valid pixel, the output grid pixel is set as invalid (<-> cloud)
+    meteofrance_dataset = to_rioxarray(meteofrance_dataset)
+
+    # nasa_dataset = nasa_dataset.where(nasa_dataset <= NASA_CLASSES["snow_cover"][-1], NASA_CLASSES["fill"][0])
+
+    data_array_name = [name for name in meteofrance_dataset]
+
+    # Verify that we reproject one Data Array at time
+    if len(data_array_name) == 1:
+        data_array_name = data_array_name[0]
+    else:
+        raise NotImplementedError
+
+    meteofrance_water_mask = meteofrance_dataset == METEOFRANCE_CLASSES["water"][0]
+    meteofrance_forest_without_snow_mask = meteofrance_dataset == METEOFRANCE_CLASSES["forest_without_snow"][0]
+    meteofrance_forest_with_snow_mask = meteofrance_dataset == METEOFRANCE_CLASSES["forest_with_snow"][0]
+
+    meteofrance_valid_qualitative_mask = (
+        meteofrance_water_mask | meteofrance_forest_without_snow_mask | meteofrance_forest_with_snow_mask
+    )
+    meteofrance_valid_quantitative = xr.where(meteofrance_valid_qualitative_mask == 0, meteofrance_dataset, 0, keep_attrs=True)
+
+    meteofrance_validity_mask = reproject_using_grid(
+        meteofrance_valid_quantitative, output_grid=output_grid.crs, resampling=Resampling.max
+    )
+
+    meteofrance_resampled = reproject_using_grid(
+        meteofrance_valid_quantitative.astype(np.float32), output_grid=output_grid.crs, resampling=Resampling.average
+    )
+
+    meteofrance_water_mask_nearest = reproject_using_grid(
+        meteofrance_water_mask.astype("u1"), output_grid=output_grid.crs, resampling=Resampling.nearest
+    )
+    meteofrance_forest_without_snow_mask_nearest = reproject_using_grid(
+        meteofrance_forest_without_snow_mask.astype("u1"), output_grid=output_grid.crs, resampling=Resampling.nearest
+    )
+    meteofrance_forest_with_snow_mask_nearest = reproject_using_grid(
+        meteofrance_forest_with_snow_mask.astype("u1"), output_grid=output_grid.crs, resampling=Resampling.nearest
+    )
+    # Compose the mask
+    meteofrance_out_image = xr.where(
+        meteofrance_validity_mask <= METEOFRANCE_CLASSES["snow_cover"][-1],
+        meteofrance_resampled.astype("u1"),
+        meteofrance_validity_mask.astype("u1"),
+    )
+    meteofrance_out_image = xr.where(meteofrance_water_mask_nearest, METEOFRANCE_CLASSES["water"][0], meteofrance_out_image)
+    meteofrance_out_image = xr.where(
+        meteofrance_forest_without_snow_mask_nearest, METEOFRANCE_CLASSES["forest_without_snow"][0], meteofrance_out_image
+    )
+    meteofrance_out_image = xr.where(
+        meteofrance_forest_with_snow_mask_nearest, METEOFRANCE_CLASSES["forest_with_snow"][0], meteofrance_out_image
+    )
+    meteofrance_out_image.data_vars[data_array_name].attrs = meteofrance_dataset.data_vars[data_array_name].attrs
+    meteofrance_out_image.data_vars[data_array_name].rio.write_nodata(METEOFRANCE_CLASSES["fill"][0], inplace=True)
+    meteofrance_out_image = meteofrance_out_image.drop_vars("spatial_ref")
+    meteofrance_out_image = georef_data_array(
+        meteofrance_out_image.data_vars[data_array_name],
+        data_array_name=data_array_name,
+        crs=output_grid.crs,
+    )
+    return meteofrance_out_image
