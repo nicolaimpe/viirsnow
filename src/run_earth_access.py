@@ -1,6 +1,6 @@
 import earthaccess
 
-product_name = "VNP10A1"
+product_name = "VNP10"
 data_folder = "/home/imperatoren/work/VIIRS_S2_comparison/data/V10A1"
 # 1. Login
 earthaccess.login()
