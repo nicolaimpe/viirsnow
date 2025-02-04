@@ -39,6 +39,7 @@ def download_daily_products(
         results = [result for result in results if result["umm"]["DataGranule"]["DayNightFlag"] != "Night"]
     # 3. Access
     files = earthaccess.download(results, f"{output_folder}")
+
     return files
 
 
@@ -119,19 +120,33 @@ if __name__ == "__main__":
     year = WinterYear(2023, 2024)
     output_grid = UTM375mGrid()
 
-    earthaccess.login()
+    # earthaccess.login()
 
+    bad_days_count = []
     for day in year.iterate_days():
-        daily_products_filenames = download_daily_products(
-            day=day,
-            product_name=product_id,
-            output_folder=output_folder,
-            bounding_box=output_grid.bounds_projected_to_epsg(4326),
-        )
-        reproject_daily_products(
-            daily_l2_filenames=daily_products_filenames,
-            output_folder=output_folder,
-            output_grid=output_grid,
-            product_id=product_id,
-            delete_downloaded_swath_files=True,
-        )
+        # try:
+        #     daily_products_filenames = download_daily_products(
+        #         day=day,
+        #         product_name=product_id,
+        #         output_folder=output_folder,
+        #         bounding_box=output_grid.bounds_projected_to_epsg(4326),
+        #     )
+        # except Exception as e:
+        #     logger.warning(f"Error {e} during download. Skipping day {day}.")
+        #     bad_days_count.append(day)
+        #     continue
+
+        try:
+            reproject_daily_products(
+                daily_l2_filenames=daily_products_filenames,
+                output_folder=output_folder,
+                output_grid=output_grid,
+                product_id=product_id,
+                delete_downloaded_swath_files=False,
+            )
+        except Exception as e:
+            logger.warning(f"Error {e} during reprojection. Skipping day {day}.")
+            bad_days_count.append(day)
+            continue
+
+    print("Unsuccessfull days", bad_days_count)
