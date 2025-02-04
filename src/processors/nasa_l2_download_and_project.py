@@ -1,4 +1,5 @@
 import os
+import re
 from datetime import datetime
 from pathlib import Path
 from typing import List, Tuple
@@ -17,7 +18,7 @@ from reprojections import reproject_l2_nasa_to_grid
 from winter_year import WinterYear
 
 
-def download_daily_products(
+def download_daily_products_from_home(
     day: datetime, product_name: str, output_folder: str, bounding_box: Tuple[float, float, float, float]
 ):
     logger.info(f"Process day {day.strftime('%Y-%m-%d')}")
@@ -41,6 +42,24 @@ def download_daily_products(
     files = earthaccess.download(results, f"{output_folder}")
 
     return files
+
+
+def download_daily_products_from_sxcen(day: datetime, download_urls_list: List[str], output_folder: str):
+    logger.info(f"Process url {day.strftime('%Y-%m-%d')}")
+    fs = earthaccess.get_fsspec_https_session()
+    daily_urls = [path for path in download_urls_list if re.search(f"A{day.strftime('%Y%j')}", path)]
+
+    output_filepaths = []
+    for url in daily_urls:
+        product_filename = url.split("/")[-1]
+        output_filepath = f"{output_folder}/{product_filename}"
+        print(output_filepath)
+        output_filepaths.append(output_filepath)
+        with fs.open(url) as f:
+            data = f.read()
+        with open(output_filepath, "wb") as f:
+            f.write(data)
+    return output_filepaths
 
 
 def reproject_l2_snow_cover_product(l2_nasa_filename: str, output_path: str, output_grid: Grid):
@@ -109,32 +128,48 @@ def reproject_daily_products(
 
 
 if __name__ == "__main__":
-    product_collection = "V03IMG"  # V10 V03IMG
+    download_from = "office"  # "office", "home"
+    data_folder = "/home/imperatoren/work/VIIRS_S2_comparison/data"
+    product_collection = "V10"  # V10 V03IMG
     product_type = "Standard"  # Standard, NRT (Near Real Time)
     platform = "Suomi-NPP"  # Suomi-NPP, JPSS1
-    data_folder = "/home/imperatoren/work/VIIRS_S2_comparison/data"
-
     product_id = KNOWN_COLLECTIONS[product_collection][product_type][platform]
     output_folder = f"{data_folder}/{product_collection}/{product_id}/"
+
+    # If download from office
+    granule_list_filepath = (
+        f"/home/imperatoren/work/VIIRS_S2_comparison/data/{product_collection}/vnp10_wy_2023_2024_granules_list.txt"
+    )
 
     year = WinterYear(2023, 2024)
     output_grid = UTM375mGrid()
 
-    # earthaccess.login()
+    if download_from == "office":
+        with open(granule_list_filepath) as f:
+            list_product_urls = [line.strip() for line in f.readlines()]
+
+    earthaccess.login(strategy="interactive")
 
     bad_days_count = []
     for day in year.iterate_days():
-        # try:
-        #     daily_products_filenames = download_daily_products(
-        #         day=day,
-        #         product_name=product_id,
-        #         output_folder=output_folder,
-        #         bounding_box=output_grid.bounds_projected_to_epsg(4326),
-        #     )
-        # except Exception as e:
-        #     logger.warning(f"Error {e} during download. Skipping day {day}.")
-        #     bad_days_count.append(day)
-        #     continue
+        try:
+            if download_from == "home":
+                daily_products_filenames = download_daily_products_from_home(
+                    day=day,
+                    product_name=product_id,
+                    output_folder=output_folder,
+                    bounding_box=output_grid.bounds_projected_to_epsg(4326),
+                )
+            elif download_from == "office":
+                daily_products_filenames = download_daily_products_from_sxcen(
+                    day=day,
+                    download_urls_list=list_product_urls,
+                    output_folder=output_folder,
+                )
+        except Exception as e:
+            logger.warning(f"Error {e} during download. Skipping day {day}.")
+            bad_days_count.append(day)
+            continue
 
         try:
             reproject_daily_products(
