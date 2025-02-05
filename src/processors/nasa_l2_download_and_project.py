@@ -13,7 +13,7 @@ from geotools import georef_data_array
 from grids import Grid, UTM375mGrid
 from logger_setup import default_logger as logger
 from products.classes import NASA_CLASSES
-from products.filenames import KNOWN_COLLECTIONS, NASA_L2_GEOMETRY_PRODUCTS_IDS, NASA_L2_SNOW_PRODUCTS_IDS
+from products.filenames import KNOWN_COLLECTIONS, NASA_L2_GEOMETRY_PRODUCTS_IDS, NASA_L2_SNOW_PRODUCTS_IDS, get_datetime_from_viirs_nasa_filepath
 from reprojections import reproject_l2_nasa_to_grid
 from winter_year import WinterYear
 
@@ -44,22 +44,21 @@ def download_daily_products_from_home(
     return files
 
 
-def download_daily_products_from_sxcen(day: datetime, download_urls_list: List[str], output_folder: str):
+def download_daily_products_from_sxcen(day: datetime,product_name:str, download_urls_list: List[str], output_folder: str):
     logger.info(f"Process day {day.strftime('%Y-%m-%d')}")
     fs = earthaccess.get_fsspec_https_session()
     daily_urls = [path for path in download_urls_list if re.search(f"A{day.strftime('%Y%j')}", path)]
-
     output_filepaths = []
     for url in daily_urls:
         product_filename = url.split("/")[-1]
+
         output_filepath = f"{output_folder}/{product_filename}"
-        print("OUTPUT", output_filepath)
         output_filepaths.append(output_filepath)
         with fs.open(url) as f:
-            print("Reading granule")
+            logger.info("Reading granule")
             data = f.read()
         with open(output_filepath, "wb") as f:
-            print(f"Exporting to {output_filepath}")
+            logger.info(f"Exporting to {output_filepath}")
             f.write(data)
     return output_filepaths
 
@@ -132,7 +131,7 @@ def reproject_daily_products(
 if __name__ == "__main__":
     download_from = "office"  # "office", "home"
     data_folder = "/home/imperatoren/work/VIIRS_S2_comparison/data" if download_from=="home" else "/home/imperatoren/work/viirsnow/data"
-    product_collection = "V10"  # V10 V03IMG
+    product_collection = "V03IMG"  # V10 V03IMG
     product_type = "Standard"  # Standard, NRT (Near Real Time)
     platform = "Suomi-NPP"  # Suomi-NPP, JPSS1
     product_id = KNOWN_COLLECTIONS[product_collection][product_type][platform]
@@ -140,7 +139,7 @@ if __name__ == "__main__":
 
     # If download from office
     granule_list_filepath = (
-        f"/home/imperatoren/work/viirsnow/data/{product_collection}/vnp10_wy_2023_2024_granules_list.txt"
+        f"/home/imperatoren/work/viirsnow/data/{product_collection}/vnp03img_wy_2023_2024_granules_list.txt"
     )
 
     year = WinterYear(2023, 2024)
@@ -149,11 +148,14 @@ if __name__ == "__main__":
     if download_from == "office":
         with open(granule_list_filepath) as f:
             list_product_urls = [line.strip() for line in f.readlines()]
-
     earthaccess.login(strategy="interactive")
 
     bad_days_count = []
     for day in year.iterate_days():
+        if day.year==2023:
+            continue
+        if day.day_of_year <212:
+            continue
         try:
             if download_from == "home":
                 daily_products_filenames = download_daily_products_from_home(
@@ -165,21 +167,22 @@ if __name__ == "__main__":
             elif download_from == "office":
                 daily_products_filenames = download_daily_products_from_sxcen(
                     day=day,
+                    product_name=product_id,
                     download_urls_list=list_product_urls,
                     output_folder=output_folder,
                 )
+        
         except Exception as e:
             logger.warning(f"Error {e} during download. Skipping day {day}.")
             bad_days_count.append(day)
             continue
-
         try:
             reproject_daily_products(
                 daily_l2_filenames=daily_products_filenames,
                 output_folder=output_folder,
                 output_grid=output_grid,
                 product_id=product_id,
-                delete_downloaded_swath_files=False,
+                delete_downloaded_swath_files=True,
             )
         except Exception as e:
             logger.warning(f"Error {e} during reprojection. Skipping day {day}.")

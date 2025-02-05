@@ -34,7 +34,7 @@ VIIRS_COLLECTION = 2
 
 
 def timestamp_viirs_to_datetime(observation_timestamp: str) -> datetime:
-    return datetime.strptime(observation_timestamp, f"%Y%j")
+    return datetime.strptime(observation_timestamp, f"%Y%j%")
 
 
 def get_datetime_from_viirs_nasa_filepath(filepath: str) -> datetime:
