@@ -5,7 +5,7 @@ import xarray as xr
 
 from daily_composites import create_temporal_l2_composite_meteofrance
 from geotools import mask_dataarray_with_vector_file
-from grids import Grid
+from grids import Grid, UTM375mGrid
 from logger_setup import default_logger as logger
 from metrics import WinterYear
 from products.classes import METEOFRANCE_CLASSES
@@ -60,8 +60,13 @@ def create_meteofrance_time_series(
 if __name__ == "__main__":
     # User inputs
     year = WinterYear(2023, 2024)
+    platform = "Suomi-NPP"
+    grid = UTM375mGrid()
+    # from grids import  UTM1kmGrid
+    # grid = UTM1kmGrid()
     folder = "/home/imperatoren/work/VIIRS_S2_comparison/data/EOFR62"
     output_folder = "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_3"
+    output_name = f"WY_{year.from_year}_{year.to_year}_{platform}_meteofrance_time_series_res_{grid.resolution}m.nc"
     roi_shapefile = "/home/imperatoren/work/VIIRS_S2_comparison/data/vectorial/massifs/massifs.shp"
 
     create_meteofrance_time_series(

@@ -33,6 +33,7 @@ def reproject_l2_nasa_to_grid(
     area_name: str = "France",
     area_description: str = "France CMS bounding box",
     radius_of_influence: float = 1000,
+    fill_value: int | float = 255,
 ):
     swath_def = extract_swath_lon_lats(l2_geolocation_data_group=l2_geolocation_dataset, bowtie_trim_mask=bowtie_trim_mask)
     area_def = AreaDefinition(
@@ -52,7 +53,7 @@ def reproject_l2_nasa_to_grid(
             data=data_var.values,
             target_geo_def=area_def,
             radius_of_influence=radius_of_influence,
-            fill_value=NASA_CLASSES["fill"][0],
+            fill_value=fill_value,
             nprocs=8,
         )
         # That's ugly sorry me of the future. Basically we need to force the data array georeferecing with its attributes
@@ -71,11 +72,12 @@ def reproject_l2_nasa_to_grid(
         )
 
     output_dataset = xr.Dataset(reprojected_data_vars)
-
+    output_dataset_encoding = generate_xarray_compression_encodings(output_dataset)
+    output_dataset_encoding = {k: v.update(_FillValue=fill_value) for k, v in output_dataset_encoding.items()}
     if output_filename is not None:
         output_dataset.to_netcdf(
             output_filename,
-            encoding=generate_xarray_compression_encodings(output_dataset),
+            encoding=output_dataset_encoding,
         )
     return output_dataset
 

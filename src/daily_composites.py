@@ -75,9 +75,17 @@ def create_spatial_l3_nasa_composite(
     return day_dataset_reprojected
 
 
-def create_temporal_l2_composite_meteofrance(
-    daily_files: List[str],
-) -> xr.Dataset:
+def create_temporal_l2_composite_meteofrance(daily_files: List[str]) -> xr.Dataset:
+    day_dataset = georef_data_array(
+        xr.DataArray(day_data.astype(np.uint8), coords=extract_netcdf_coords_from_rasterio_raster(first_image_raster)),
+        data_array_name="snow_cover",
+        crs=first_image_raster.crs,
+    )
+
+    return day_dataset
+
+
+def create_temporal_l2_composite_meteofrance(daily_files: List[str]) -> xr.Dataset:
     logger.info(f"Reading file {daily_files[0]}")
     first_image_raster = rasterio.open(daily_files[0])
     day_data = first_image_raster.read(1)

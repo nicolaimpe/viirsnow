@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import List, Tuple
 
 import earthaccess
+import numpy as np
 import xarray as xr
 
 from compression import generate_xarray_compression_encodings
@@ -13,7 +14,7 @@ from geotools import georef_data_array
 from grids import Grid, UTM375mGrid
 from logger_setup import default_logger as logger
 from products.classes import NASA_CLASSES
-from products.filenames import KNOWN_COLLECTIONS, NASA_L2_GEOMETRY_PRODUCTS_IDS, NASA_L2_SNOW_PRODUCTS_IDS, get_datetime_from_viirs_nasa_filepath
+from products.filenames import KNOWN_COLLECTIONS, NASA_L2_GEOMETRY_PRODUCTS_IDS, NASA_L2_SNOW_PRODUCTS_IDS
 from reprojections import reproject_l2_nasa_to_grid
 from winter_year import WinterYear
 
@@ -44,7 +45,7 @@ def download_daily_products_from_home(
     return files
 
 
-def download_daily_products_from_sxcen(day: datetime,product_name:str, download_urls_list: List[str], output_folder: str):
+def download_daily_products_from_sxcen(day: datetime, product_name: str, download_urls_list: List[str], output_folder: str):
     logger.info(f"Process day {day.strftime('%Y-%m-%d')}")
     fs = earthaccess.get_fsspec_https_session()
     daily_urls = [path for path in download_urls_list if re.search(f"A{day.strftime('%Y%j')}", path)]
@@ -73,6 +74,7 @@ def reproject_l2_snow_cover_product(l2_nasa_filename: str, output_path: str, out
         output_grid=output_grid,
         bowtie_trim_mask=selected,
         output_filename=None,
+        fill_value=NASA_CLASSES["fill"][0],
     )
     fractional_snow_cover = nasa_ndsi_snow_cover_to_fraction(
         reprojected_dataset["NDSI_Snow_Cover"].values, method="salomonson_appel"
@@ -102,6 +104,7 @@ def reproject_l2_geometry_product(l2_nasa_filename: str, output_path: str, outpu
         l2_dataset=l2_dataset,
         output_grid=output_grid,
         output_filename=output_path,
+        fill_value=np.nan,
     )
 
 
@@ -130,7 +133,11 @@ def reproject_daily_products(
 
 if __name__ == "__main__":
     download_from = "office"  # "office", "home"
-    data_folder = "/home/imperatoren/work/VIIRS_S2_comparison/data" if download_from=="home" else "/home/imperatoren/work/viirsnow/data"
+    data_folder = (
+        "/home/imperatoren/work/VIIRS_S2_comparison/data"
+        if download_from == "home"
+        else "/home/imperatoren/work/viirsnow/data"
+    )
     product_collection = "V03IMG"  # V10 V03IMG
     product_type = "Standard"  # Standard, NRT (Near Real Time)
     platform = "Suomi-NPP"  # Suomi-NPP, JPSS1
@@ -152,9 +159,9 @@ if __name__ == "__main__":
 
     bad_days_count = []
     for day in year.iterate_days():
-        if day.year==2023:
+        if day.year == 2023:
             continue
-        if day.day_of_year <212:
+        if day.day_of_year < 212:
             continue
         try:
             if download_from == "home":
@@ -171,7 +178,7 @@ if __name__ == "__main__":
                     download_urls_list=list_product_urls,
                     output_folder=output_folder,
                 )
-        
+
         except Exception as e:
             logger.warning(f"Error {e} during download. Skipping day {day}.")
             bad_days_count.append(day)

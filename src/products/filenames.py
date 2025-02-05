@@ -33,12 +33,13 @@ KNOWN_COLLECTIONS = {
 VIIRS_COLLECTION = 2
 
 
-def timestamp_viirs_to_datetime(observation_timestamp: str) -> datetime:
-    return datetime.strptime(observation_timestamp, f"%Y%j%")
+def timestamp_nasa_to_datetime(observation_timestamp: str) -> datetime:
+    return datetime.strptime(observation_timestamp, "A%Y%j%H%M")
 
 
 def get_datetime_from_viirs_nasa_filepath(filepath: str) -> datetime:
-    return timestamp_viirs_to_datetime(Path(filepath).name.split(".")[1][1:])
+    _, obs_year_day, obs_hour_minute, _, __, _ = Path(filepath).name.split(".")
+    return timestamp_nasa_to_datetime(obs_year_day + obs_hour_minute)
 
 
 def int_to_year_day(year: int, day: int) -> str:
