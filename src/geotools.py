@@ -121,13 +121,14 @@ def reproject_using_grid(
     resampling_method: rasterio.enums.Resampling | None = None,
 ) -> xr.Dataset:
     dataset_reprojected = reproject_dataset(
-        dataset=to_rioxarray(dataset),
+        dataset=dataset,
         shape=output_grid.shape,
         transform=output_grid.affine,
         new_crs=output_grid.crs,
         resampling=resampling_method,
         nodata=nodata,
     )
+
     return dataset_reprojected
 
 
@@ -156,6 +157,7 @@ def mask_dataarray_with_vector_file(data_array: xr.DataArray, roi_file: str, out
     masked = data_array.values * roi_mask.data_vars["binary_mask"].values
     masked[roi_mask.data_vars["binary_mask"].values == 0] = fill_value
     data_array[:] = masked
+    data_array.rio.write_nodata(fill_value, inplace=True)
     return data_array
 
 

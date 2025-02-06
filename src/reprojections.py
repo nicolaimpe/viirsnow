@@ -103,17 +103,17 @@ def reprojection_l3_nasa_to_grid(nasa_dataset: xr.Dataset, output_grid: Grid) ->
 
     nasa_without_water = xr.where(nasa_water_mask == 0, nasa_dataset, 0, keep_attrs=True)
 
-    nasa_validity_mask = reproject_using_grid(nasa_without_water, output_grid=output_grid, resampling=Resampling.max)
+    nasa_validity_mask = reproject_using_grid(nasa_without_water, output_grid=output_grid, resampling_method=Resampling.max)
 
     nasa_resampled = reproject_using_grid(
-        nasa_without_water.astype(np.float32), output_grid=output_grid, resampling=Resampling.average
+        nasa_without_water.astype(np.float32), output_grid=output_grid, resampling_method=Resampling.average
     )
 
     nasa_oceans_mask_nearest = reproject_using_grid(
-        nasa_oceans_mask.astype("u1"), output_grid=output_grid, resampling=Resampling.nearest
+        nasa_oceans_mask.astype("u1"), output_grid=output_grid, resampling_method=Resampling.nearest
     )
     nasa_lakes_mask_nearest = reproject_using_grid(
-        nasa_lakes_mask.astype("u1"), output_grid=output_grid, resampling=Resampling.nearest
+        nasa_lakes_mask.astype("u1"), output_grid=output_grid, resampling_method=Resampling.nearest
     )
     # Compose the mask
     nasa_out_image = xr.where(
@@ -138,7 +138,6 @@ def reprojection_l3_nasa_to_grid(nasa_dataset: xr.Dataset, output_grid: Grid) ->
 def reprojection_l3_meteofrance_to_grid(meteofrance_dataset: xr.Dataset, output_grid: Grid) -> xr.Dataset:
     # Validity "zombie mask": wherever there is at least one non valid pixel, the output grid pixel is set as invalid (<-> cloud)
     meteofrance_dataset = to_rioxarray(meteofrance_dataset)
-
     # nasa_dataset = nasa_dataset.where(nasa_dataset <= NASA_CLASSES["snow_cover"][-1], NASA_CLASSES["fill"][0])
 
     data_array_name = [name for name in meteofrance_dataset]
@@ -149,38 +148,50 @@ def reprojection_l3_meteofrance_to_grid(meteofrance_dataset: xr.Dataset, output_
     else:
         raise NotImplementedError
 
+    # These classes are quantitative but we want to keep them
+    # They will be resmapled with nearest
     meteofrance_water_mask = meteofrance_dataset == METEOFRANCE_CLASSES["water"][0]
     meteofrance_forest_without_snow_mask = meteofrance_dataset == METEOFRANCE_CLASSES["forest_without_snow"][0]
     meteofrance_forest_with_snow_mask = meteofrance_dataset == METEOFRANCE_CLASSES["forest_with_snow"][0]
 
+    # We exclude these values from the next resampling operations
     meteofrance_valid_qualitative_mask = (
         meteofrance_water_mask | meteofrance_forest_without_snow_mask | meteofrance_forest_with_snow_mask
     )
-    meteofrance_valid_quantitative = xr.where(meteofrance_valid_qualitative_mask == 0, meteofrance_dataset, 0, keep_attrs=True)
-
-    meteofrance_validity_mask = reproject_using_grid(
-        meteofrance_valid_quantitative, output_grid=output_grid.crs, resampling=Resampling.max
+    meteofrance_quantitative_invalid = xr.where(
+        meteofrance_valid_qualitative_mask == 0, meteofrance_dataset, 0, keep_attrs=True
     )
 
-    meteofrance_resampled = reproject_using_grid(
-        meteofrance_valid_quantitative.astype(np.float32), output_grid=output_grid.crs, resampling=Resampling.average
+    # We resample the dataset using max for the invalid classes
+    meteofrance_invalid_resampled = reproject_using_grid(
+        meteofrance_quantitative_invalid,
+        output_grid=output_grid,
+        resampling_method=Resampling.max,
+        nodata=METEOFRANCE_CLASSES["nodata"][0] - 1,
     )
 
+    # We resample the dataset using max for the quantitative data
+    meteofrance_quantitative_resampled = reproject_using_grid(
+        meteofrance_quantitative_invalid.astype(np.float32), output_grid=output_grid, resampling_method=Resampling.average
+    )
+
+    # Nearest resample for valid qualitative
     meteofrance_water_mask_nearest = reproject_using_grid(
-        meteofrance_water_mask.astype("u1"), output_grid=output_grid.crs, resampling=Resampling.nearest
+        meteofrance_water_mask.astype("u1"), output_grid=output_grid, resampling_method=Resampling.nearest
     )
     meteofrance_forest_without_snow_mask_nearest = reproject_using_grid(
-        meteofrance_forest_without_snow_mask.astype("u1"), output_grid=output_grid.crs, resampling=Resampling.nearest
+        meteofrance_forest_without_snow_mask.astype("u1"), output_grid=output_grid, resampling_method=Resampling.nearest
     )
     meteofrance_forest_with_snow_mask_nearest = reproject_using_grid(
-        meteofrance_forest_with_snow_mask.astype("u1"), output_grid=output_grid.crs, resampling=Resampling.nearest
+        meteofrance_forest_with_snow_mask.astype("u1"), output_grid=output_grid, resampling_method=Resampling.nearest
     )
-    # Compose the mask
+    # Compose the mask. Where is quantitative, we put quantitative, else invalid
     meteofrance_out_image = xr.where(
-        meteofrance_validity_mask <= METEOFRANCE_CLASSES["snow_cover"][-1],
-        meteofrance_resampled.astype("u1"),
-        meteofrance_validity_mask.astype("u1"),
+        meteofrance_invalid_resampled <= METEOFRANCE_CLASSES["snow_cover"][-1],
+        meteofrance_quantitative_resampled.astype("u1"),
+        meteofrance_invalid_resampled.astype("u1"),
     )
+    # We recover valid qualitative classes
     meteofrance_out_image = xr.where(meteofrance_water_mask_nearest, METEOFRANCE_CLASSES["water"][0], meteofrance_out_image)
     meteofrance_out_image = xr.where(
         meteofrance_forest_without_snow_mask_nearest, METEOFRANCE_CLASSES["forest_without_snow"][0], meteofrance_out_image
@@ -189,11 +200,4 @@ def reprojection_l3_meteofrance_to_grid(meteofrance_dataset: xr.Dataset, output_
         meteofrance_forest_with_snow_mask_nearest, METEOFRANCE_CLASSES["forest_with_snow"][0], meteofrance_out_image
     )
     meteofrance_out_image.data_vars[data_array_name].attrs = meteofrance_dataset.data_vars[data_array_name].attrs
-    meteofrance_out_image.data_vars[data_array_name].rio.write_nodata(METEOFRANCE_CLASSES["fill"][0], inplace=True)
-    meteofrance_out_image = meteofrance_out_image.drop_vars("spatial_ref")
-    meteofrance_out_image = georef_data_array(
-        meteofrance_out_image.data_vars[data_array_name],
-        data_array_name=data_array_name,
-        crs=output_grid.crs,
-    )
     return meteofrance_out_image

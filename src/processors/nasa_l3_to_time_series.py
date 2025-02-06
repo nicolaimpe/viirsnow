@@ -9,7 +9,7 @@ from fractional_snow_cover import nasa_ndsi_snow_cover_to_fraction
 from grids import Grid, UTM1kmGrid, UTM375mGrid
 from logger_setup import default_logger as logger
 from metrics import WinterYear
-from products.filenames import VIIRS_COLLECTION, get_daily_nasa_filenames_per_platform
+from products.filenames import VIIRS_NASA_VERSION, get_daily_nasa_filenames_per_product
 
 
 def create_v10a1_time_series(
@@ -19,22 +19,23 @@ def create_v10a1_time_series(
     output_folder: str,
     output_name: str,
     roi_shapefile: str | None = None,
-    platform: str = "SuomiNPP",
+    platform: str = "SNPP",
     ndsi_to_fsc_regression: str | None = None,
 ):
     # Treat user inputs
-    viirs_data_filepaths = glob(str(Path(f"{viirs_data_folder}/V*10*{str(year.from_year)}*.00{VIIRS_COLLECTION}.*h5")))
-    viirs_data_filepaths.extend(glob(str(Path(f"{viirs_data_folder}/V*10*{str(year.to_year)}*.00{VIIRS_COLLECTION}.*h5"))))
+    viirs_data_filepaths = glob(str(Path(f"{viirs_data_folder}/V*10*{str(year.from_year)}*.00{VIIRS_NASA_VERSION}.*h5")))
+    viirs_data_filepaths.extend(glob(str(Path(f"{viirs_data_folder}/V*10*{str(year.to_year)}*.00{VIIRS_NASA_VERSION}.*h5"))))
 
     outpaths = []
     for day in winter_year.iterate_days():
         if day.year == 2024:
             continue
         logger.info(f"Processing day {day}")
-        day_files, n_day_files = get_daily_nasa_filenames_per_platform(
+        day_files = get_daily_nasa_filenames_per_product(
             platform=platform, year=day.year, day=day.day_of_year, viirs_data_filepaths=viirs_data_filepaths
         )
-        if n_day_files == 0:
+
+        if len(day_files) == 0:
             logger.info(f"Skip day {day.date()} because 0 files were found on this day")
             continue
         try:
