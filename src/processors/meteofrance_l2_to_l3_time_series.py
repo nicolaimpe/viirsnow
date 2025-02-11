@@ -4,7 +4,8 @@ import numpy as np
 import xarray as xr
 from rasterio.enums import Resampling
 
-from daily_composites import create_temporal_l2_composite_meteofrance
+from compression import generate_xarray_compression_encodings
+from daily_composites import create_temporal_composite_meteofrance
 from geotools import georef_data_array, mask_dataarray_with_vector_file, reproject_using_grid, to_rioxarray
 from grids import Grid, UTM375mGrid
 from logger_setup import default_logger as logger
@@ -41,9 +42,10 @@ def create_meteofrance_time_series(
         # 1. Collect snow cover and geometry (for sensor zenith angle) files for a given day
         daily_snow_cover_files = get_daily_meteofrance_filenames(day=day, data_folder=meteofrance_data_folder)
         daily_geometry_files = get_daily_nasa_filenames_per_product(
-            product_id=KNOWN_COLLECTIONS["V03IMG"]["Standard"][platform],
+            product_id=KNOWN_COLLECTIONS["V03IMG"]["GEO_250m"][platform],
             day=day,
             data_folder=nasa_geometry_reprojected_folder,
+            extension=".nc",
         )
         if len(daily_snow_cover_files) == 0:
             logger.warning(f"No Météo-France data data found in date {day}. Skipping day.")
@@ -53,7 +55,7 @@ def create_meteofrance_time_series(
             continue
 
         # 2. Create a composite from swath data using some criteria
-        meteofrance_composite = create_temporal_l2_composite_meteofrance(
+        meteofrance_composite = create_temporal_composite_meteofrance(
             daily_snow_cover_files=daily_snow_cover_files, daily_geometry_files=daily_geometry_files
         )
 
@@ -65,18 +67,18 @@ def create_meteofrance_time_series(
             meteofrance_snow_cover = reprojection_l3_meteofrance_to_grid(
                 meteofrance_dataset=meteofrance_snow_cover, output_grid=output_grid
             )
-            meteofrance_view_angle = to_rioxarray(meteofrance_composite.drop_vars("fractional_snow_cover"))
+            meteofrance_view_angle = to_rioxarray(meteofrance_composite.drop_vars("snow_cover_fraction"))
             meteofrance_view_angle = reproject_using_grid(
                 dataset=meteofrance_view_angle,
                 output_grid=grid,
                 nodata=np.nan,
-                resampling_method=Resampling.nearest,
+                resampling_method=Resampling.bilinear,
             )
 
-        # 4. Clip on our area of interest...stilla  lot of code to optimize
+        # 4. Clip on our area of interest...still a  lot of code to optimize
         if roi_shapefile is not None:
             meteofrance_snow_cover = mask_dataarray_with_vector_file(
-                data_array=meteofrance_snow_cover.data_vars["fractional_snow_cover"],
+                data_array=meteofrance_snow_cover.data_vars["snow_cover_fraction"],
                 roi_file=roi_shapefile,
                 output_grid=output_grid,
                 fill_value=METEOFRANCE_CLASSES["fill"][0],
@@ -90,31 +92,33 @@ def create_meteofrance_time_series(
             )
 
         # Sorry for that it's just for georeferencing
-        meteofrance_composite = xr.Dataset(
+        meteofrance_pseudo_l3 = xr.Dataset(
             {
-                "fractional_snow_cover": georef_data_array(
-                    meteofrance_snow_cover, "fractional_snow_cover", output_grid.crs
-                ).data_vars["fractional_snow_cover"],
+                "snow_cover_fraction": georef_data_array(
+                    meteofrance_snow_cover, "snow_cover_fraction", output_grid.crs
+                ).data_vars["snow_cover_fraction"],
                 "sensor_zenith": georef_data_array(meteofrance_view_angle, "sensor_zenith", output_grid.crs).data_vars[
                     "sensor_zenith"
                 ],
             }
         ).rio.write_crs(output_grid.crs)
+
         # Add time dimension
-        meteofrance_composite = meteofrance_composite.expand_dims(time=[day])
+        meteofrance_pseudo_l3 = meteofrance_pseudo_l3.expand_dims(time=[day])
 
         # 5. Export to a temporary netcdf that will be removed in order to keep space in the RAM
         outpath = f"{output_folder}/{day.strftime('%Y%m%d')}.nc"
         outpaths.append(outpath)
-        meteofrance_composite.to_netcdf(outpath)
+        meteofrance_pseudo_l3.to_netcdf(outpath, encoding={"snow_cover_fraction": {"dtype": "uint8"}})
 
     # 6. Reopen all the exported netcdfs for each day with mfdataset (that is able to handle the RAM and save the time series),
     # concatenate on time dimension
     time_series = xr.open_mfdataset(outpaths)
-    # !!!! PUT some compression here
+    encodings = generate_xarray_compression_encodings(time_series)
+    encodings.update(time={"calendar": "gregorian", "units": f"days since {str(year.from_year)}-10-01"})
     time_series.to_netcdf(
         f"{output_folder}/{output_name}",
-        encoding={"time": {"calendar": "gregorian", "units": f"days since {str(year.from_year)}-10-01"}},
+        encoding=encodings,
     )
     # Clean output folder from temporary files
     [os.remove(file) for file in outpaths]
@@ -125,9 +129,9 @@ if __name__ == "__main__":
     # User inputs
     year = WinterYear(2023, 2024)
     grid = UTM375mGrid()
-    from grids import UTM1kmGrid
+    # from grids import UTM1kmGrid
 
-    grid = UTM1kmGrid()
+    # grid = UTM1kmGrid()
 
     platform = "SNPP"  # SNPP, JPSS1
 
@@ -135,7 +139,7 @@ if __name__ == "__main__":
     meteofrance_data_folder = f"{data_folder}/EOFR62"
     nasa_reprojected_geometry_folder = f"{data_folder}/V03IMG/VNP03IMG_GEO_250m"
     output_folder = "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_3"
-    output_name = f"WY_{year.from_year}_{year.to_year}_{platform}_meteofrance_time_series_res_{grid.resolution}m.nc"
+    output_name = f"WY_{year.from_year}_{year.to_year}_{platform}_meteofrance_res_{grid.resolution}m.nc"
     roi_shapefile = "/home/imperatoren/work/VIIRS_S2_comparison/data/vectorial/massifs/massifs.shp"
 
     create_meteofrance_time_series(
