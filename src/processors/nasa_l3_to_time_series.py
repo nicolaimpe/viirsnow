@@ -7,7 +7,7 @@ from compression import generate_xarray_compression_encodings
 from daily_composites import create_spatial_l3_nasa_composite
 from fractional_snow_cover import nasa_ndsi_snow_cover_to_fraction
 from geotools import mask_dataarray_with_vector_file
-from grids import Grid, UTM1kmGrid, UTM375mGrid
+from grids import Grid, UTM1kmGrid, UTM375mGrid, georef_data_array
 from logger_setup import default_logger as logger
 from metrics import WinterYear
 from products.classes import NASA_CLASSES
@@ -38,26 +38,24 @@ def create_v10a1_time_series(
             logger.info(f"Skip day {day.date()} because 0 files were found on this day")
             continue
         try:
-            nasa_composite = create_spatial_l3_nasa_composite(
-                day_files=day_files, output_grid=output_grid, roi_file=roi_shapefile
+            nasa_daily_composite = create_spatial_l3_nasa_composite(day_files=day_files)
+            nasa_daily_composite_reprojected = reprojection_l3_nasa_to_grid(
+                nasa_dataset=nasa_daily_composite, output_grid=output_grid
             )
 
-            day_dataset_reprojected = reprojection_l3_nasa_to_grid(nasa_dataset=nasa_composite, output_grid=output_grid)
-
             if roi_file is not None:
-                day_dataset_reprojected = mask_dataarray_with_vector_file(
-                    data_array=nasa_composite.data_vars["NDSI_Snow_Cover"],
+                nasa_daily_composite_reprojected = mask_dataarray_with_vector_file(
+                    data_array=nasa_daily_composite_reprojected.data_vars["NDSI_Snow_Cover"],
                     roi_file=roi_shapefile,
                     output_grid=output_grid,
                     fill_value=NASA_CLASSES["fill"][0],
                 )
-
             # Apparently need to pop this attribute for correct encoding...not like it took me two hours to understand this :')
             # In practice, when a valid range attribute is encoded, a GDal driver reading the NetCDF will set all values outside this
             # range to NaN.
             # Since valid range in the V10A1 collection is {0,100}, i.e. the NDSI range, all other pixels (clouds, lakes etc.) are set to NaN
             # and that's not useful for the anamysis
-            day_dataset_reprojected.data_vars["NDSI_Snow_Cover"].attrs.pop("valid_range")
+            nasa_daily_composite_reprojected.attrs.pop("valid_range")
             # If we want not to encode the fill value like nodata
             # reprojected.data_vars["snow_cover"].attrs.pop("_FillValue")
         except OSError as e:
@@ -66,10 +64,12 @@ def create_v10a1_time_series(
 
         if ndsi_to_fsc_regression is not None:
             snow_cover_fraction = nasa_ndsi_snow_cover_to_fraction(
-                nasa_composite.data_vars["NDSI_Snow_Cover"].values, method=ndsi_to_fsc_regression
+                nasa_daily_composite_reprojected.values, method=ndsi_to_fsc_regression
             )
-            snow_cover_fraction_data_array = xr.zeros_like(nasa_composite.data_vars["NDSI_Snow_Cover"])
+            snow_cover_fraction_data_array = xr.zeros_like(nasa_daily_composite_reprojected)
             snow_cover_fraction_data_array[:] = snow_cover_fraction
+
+            nasa_composite = georef_data_array(nasa_daily_composite_reprojected, "NDSI_Snow_Cover", output_grid.crs)
             nasa_composite = nasa_composite.assign({"snow_cover_fraction": snow_cover_fraction_data_array})
             nasa_composite.data_vars["snow_cover_fraction"].attrs["NDSI_to_FSC_conversion"] = ndsi_to_fsc_regression
 
@@ -91,7 +91,7 @@ if __name__ == "__main__":
     year = WinterYear(2023, 2024)
     grid_375m = UTM375mGrid()
     grid_1km = UTM1kmGrid()
-    grid = grid_375m
+    grid = grid_1km
     platform = "SNPP"
     product_collection = "V10A1"
 

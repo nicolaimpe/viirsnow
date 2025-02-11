@@ -109,7 +109,7 @@ def create_meteofrance_time_series(
         # 5. Export to a temporary netcdf that will be removed in order to keep space in the RAM
         outpath = f"{output_folder}/{day.strftime('%Y%m%d')}.nc"
         outpaths.append(outpath)
-        # meteofrance_pseudo_l3.to_netcdf(outpath, encoding={"snow_cover_fraction": {"dtype": "uint8"}})
+        meteofrance_pseudo_l3.to_netcdf(outpath, encoding={"snow_cover_fraction": {"dtype": "uint8"}})
 
     # 6. Reopen all the exported netcdfs for each day with mfdataset (that is able to handle the RAM and save the time series),
     # concatenate on time dimension
@@ -129,9 +129,9 @@ if __name__ == "__main__":
     # User inputs
     year = WinterYear(2023, 2024)
     grid = UTM375mGrid()
-    # from grids import UTM1kmGrid
+    from grids import UTM1kmGrid
 
-    # grid = UTM1kmGrid()
+    grid = UTM1kmGrid()
 
     platform = "SNPP"  # SNPP, JPSS1
 
