@@ -10,11 +10,15 @@ import xarray as xr
 
 from compression import generate_xarray_compression_encodings
 from fractional_snow_cover import nasa_ndsi_snow_cover_to_fraction
-from geotools import georef_data_array
-from grids import Grid, UTM375mGrid
+from grids import Grid, UTM375mGrid, georef_data_array
 from logger_setup import default_logger as logger
 from products.classes import NASA_CLASSES
-from products.filenames import KNOWN_COLLECTIONS, NASA_L2_GEOMETRY_PRODUCTS_IDS, NASA_L2_SNOW_PRODUCTS_IDS
+from products.filenames import (
+    KNOWN_COLLECTIONS,
+    NASA_L2_GEOMETRY_PRODUCTS_IDS,
+    NASA_L2_SNOW_PRODUCTS_IDS,
+    get_datetime_from_viirs_nasa_filepath,
+)
 from reprojections import reproject_l2_nasa_to_grid
 from winter_year import WinterYear
 
@@ -37,8 +41,15 @@ def download_daily_products_from_home(
             for result in results
             if result["umm"]["CollectionReference"]["EntryTitle"] == "VIIRS/NPP Snow Cover 6-Min L2 Swath 375m V002"
         ]
+    # Exclude night bands
     if product_name in NASA_L2_GEOMETRY_PRODUCTS_IDS:
         results = [result for result in results if result["umm"]["DataGranule"]["DayNightFlag"] != "Night"]
+    if product_name in NASA_L2_SNOW_PRODUCTS_IDS:
+        results = [
+            result
+            for result in results
+            if get_datetime_from_viirs_nasa_filepath(result["umm"]["DataGranule"]["Identifiers"][0]["Identifier"]).hour > 9
+        ]
     # 3. Access
     files = earthaccess.download(results, f"{output_folder}")
 
@@ -85,7 +96,7 @@ def reproject_l2_snow_cover_product(l2_nasa_filename: str, output_path: str, out
             coords={"y": output_grid.ycoords, "x": output_grid.xcoords},
             attrs={"NDSI_to_FSC_method": "salomonson_appel"},
         ),
-        data_array_name="fractional_snow_cover",
+        data_array_name="snow_cover_fraction",
         crs=output_grid.crs,
     )
     reprojected_dataset = reprojected_dataset.assign(fsc_dataset)
@@ -132,15 +143,15 @@ def reproject_daily_products(
 
 
 if __name__ == "__main__":
-    download_from = "office"  # "office", "home"
+    download_from = "home"  # "office", "home"
     data_folder = (
         "/home/imperatoren/work/VIIRS_S2_comparison/data"
         if download_from == "home"
         else "/home/imperatoren/work/viirsnow/data"
     )
-    product_collection = "V03IMG"  # V10 V03IMG
+    product_collection = "V10"  # V10 V03IMG
     product_type = "Standard"  # Standard, NRT (Near Real Time)
-    platform = "Suomi-NPP"  # Suomi-NPP, JPSS1
+    platform = "SNPP"  # SNPP, JPSS1
     product_id = KNOWN_COLLECTIONS[product_collection][product_type][platform]
     output_folder = f"{data_folder}/{product_collection}/{product_id}/"
 
@@ -161,7 +172,7 @@ if __name__ == "__main__":
     for day in year.iterate_days():
         if day.year == 2023:
             continue
-        if day.day_of_year < 212:
+        if day.day_of_year < 164:
             continue
         try:
             if download_from == "home":

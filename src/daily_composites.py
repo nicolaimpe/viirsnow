@@ -2,23 +2,22 @@ from datetime import timedelta
 from pathlib import Path
 from typing import List
 
-import geopandas as gpd
 import numpy as np
+import pyproj
 import rasterio
+import rioxarray
 import xarray as xr
 
-from geotools import dim_name, extract_netcdf_coords_from_rasterio_raster, gdf_to_binary_mask, georef_data_array
+from geotools import dim_name, extract_netcdf_coords_from_rasterio_raster, georef_data_array
 from grids import Grid
 from logger_setup import default_logger as logger
-from products.classes import METEOFRANCE_CLASSES, NASA_CLASSES
+from products.classes import METEOFRANCE_CLASSES, NASA_CLASSES, S2_CLASSES
 from products.filenames import get_datetime_from_viirs_meteofrance_filepath, get_datetime_from_viirs_nasa_filepath
 from products.georef import modis_crs
-from reprojections import reprojection_l3_nasa_to_grid
+from reprojections import resample_s2_to_grid
 
 
-def create_spatial_l3_nasa_composite(
-    day_files: List[str], output_grid: Grid | None = None, roi_file: str | None = None
-) -> xr.Dataset | None:
+def create_spatial_l3_nasa_composite(day_files: List[str]) -> xr.Dataset | None:
     day_data_arrays = []
     dims = dim_name(crs=modis_crs)
     for filepath in day_files:
@@ -45,36 +44,21 @@ def create_spatial_l3_nasa_composite(
         day_data_arrays.append(georef_data_array(data_array=ndsi_snow_cover, data_array_name="NDSI_Snow_Cover", crs=modis_crs))
 
     merged_day_dataset = xr.combine_by_coords(day_data_arrays, data_vars="minimal").astype(np.uint8)
-    # merged_day_dataset.data_vars["NDSI_Snow_Cover"].attrs.pop("valid_range")
-    # merged_day_dataset.to_netcdf("./output_folder/test_merged.nc")
 
-    if output_grid is None:
-        raise NotImplementedError(
-            "Output grid must be specified or a way to extract the output grid from the NASA products has to be implemented."
-        )
+    return merged_day_dataset
 
-    day_dataset_reprojected = reprojection_l3_nasa_to_grid(nasa_dataset=merged_day_dataset, output_grid=output_grid)
 
-    if roi_file is not None:
-        roi_mask = gdf_to_binary_mask(
-            gdf=gpd.read_file(roi_file),
-            grid=output_grid,
-        )
+def create_spatial_s2_composite(day_files: List[str], output_grid=Grid) -> xr.Dataset:
+    day_data_array = xr.DataArray(np.uint8(S2_CLASSES["nodata"][0]), coords=output_grid.xarray_coords)
+    for filepath in day_files:
+        logger.info(f"Processing product {Path(filepath).name}")
+        s2_image = rioxarray.open_rasterio(filepath)
+        s2_image = s2_image.sel(band=1).drop_vars("band")
+        s2_resampled_image = resample_s2_to_grid(s2_dataset=s2_image, output_grid=output_grid)
+        day_data_array = day_data_array.where(day_data_array != S2_CLASSES["nodata"][0], s2_resampled_image)
 
-        masked = day_dataset_reprojected.data_vars["NDSI_Snow_Cover"].values * roi_mask.data_vars["binary_mask"].values
-        masked[roi_mask.data_vars["binary_mask"].values == 0] = NASA_CLASSES["fill"][0]
-        day_dataset_reprojected.data_vars["NDSI_Snow_Cover"][:] = masked
-
-    # Apparently need to pop this attribute for correct encoding...not like it took me two hours to understand this :')
-    # In practice, when a valid range attribute is encoded, a GDal driver reading the NetCDF will set all values outside this
-    # range to NaN.
-    # Since valid range in the V10A1 collection is {0,100}, i.e. the NDSI range, all other pixels (clouds, lakes etc.) are set to NaN
-    # and that's not useful for the anamysis
-    day_dataset_reprojected.data_vars["NDSI_Snow_Cover"].attrs.pop("valid_range")
-    # If we want not to encode the fill value like nodata
-    # reprojected.data_vars["snow_cover"].attrs.pop("_FillValue")
-
-    return day_dataset_reprojected
+    day_data_array = georef_data_array(day_data_array, data_array_name="snow_cover_fraction", crs=output_grid.crs)
+    return day_data_array
 
 
 def match_daily_snow_cover_and_geometry_meteofrance(daily_snow_cover_files: List[str], daily_geometry_files: List[str]):
@@ -91,7 +75,7 @@ def match_daily_snow_cover_and_geometry_meteofrance(daily_snow_cover_files: List
     return output_snow_cover_files, output_geometry_files
 
 
-def create_temporal_l2_composite_meteofrance(daily_snow_cover_files: List[str], daily_geometry_files: List[str]) -> xr.Dataset:
+def create_temporal_composite_meteofrance(daily_snow_cover_files: List[str], daily_geometry_files: List[str]) -> xr.Dataset:
     """Create a L3 daily composite form daily L2 swath views using a sensor zenith angle criterion.
     For each pixel we select the "best" observation, i.e. the observation with smaller zenith angle.
     We also make the choice of retrieving some "non-optimal" information.
@@ -108,14 +92,6 @@ def create_temporal_l2_composite_meteofrance(daily_snow_cover_files: List[str], 
     daily_snow_cover_files, daily_geometry_files = match_daily_snow_cover_and_geometry_meteofrance(
         daily_snow_cover_files, daily_geometry_files
     )
-
-    # Check that we can suppose to be on the very same grid
-    if xr.open_dataset(daily_geometry_files[0]).coords.equals(
-        xr.Coordinates(extract_netcdf_coords_from_rasterio_raster(rasterio.open(daily_snow_cover_files[0])))
-    ):
-        raise ValueError(
-            "The coordinates of snow cover and geometry datasets should be the same for the composite algorithm to run"
-        )
 
     ################# Sorry for this section :`)
     # Read data and assemble in a numpy temporally ordered array
@@ -159,7 +135,7 @@ def create_temporal_l2_composite_meteofrance(daily_snow_cover_files: List[str], 
     dims = dim_name(meteofrance_crs)
     day_dataset = georef_data_array(
         xr.DataArray(out_snow_cover, dims=dims, coords=output_coords),
-        data_array_name="fractional_snow_cover",
+        data_array_name="snow_cover_fraction",
         crs=meteofrance_crs,
     )
     day_dataset = day_dataset.assign({"sensor_zenith": xr.DataArray(out_view_angle, dims=dims, coords=output_coords)})
@@ -193,5 +169,100 @@ def create_temporal_l2_naive_composite_meteofrance(daily_files: List[str]) -> xr
         data_array_name="snow_cover",
         crs=first_image_raster.crs,
     )
+
+    return day_dataset
+
+
+def match_daily_snow_cover_and_geometry_nasa(daily_snow_cover_files: List[str], daily_geometry_files: List[str]):
+    if len(daily_snow_cover_files) != len(daily_geometry_files):
+        logger.warning("Different number of files between geometry and snow cover.")
+    output_snow_cover_files, output_geometry_files = [], []
+    for snow_cover_file in sorted(daily_snow_cover_files):
+        snow_cover_datetime = get_datetime_from_viirs_nasa_filepath(snow_cover_file)
+        for geometry_file in daily_geometry_files:
+            geometry_datetime = get_datetime_from_viirs_nasa_filepath(geometry_file)
+            # Granule timestamps should be matching...we put a tight threshold of 1 minute
+            if np.abs(snow_cover_datetime - geometry_datetime) < timedelta(seconds=60):
+                output_snow_cover_files.append(snow_cover_file)
+                output_geometry_files.append(geometry_file)
+    return output_snow_cover_files, output_geometry_files
+
+
+def create_temporal_composite_nasa(daily_snow_cover_files: List[str], daily_geometry_files: List[str]) -> xr.Dataset:
+    """Create a L3 daily composite form daily L2 swath views using a sensor zenith angle criterion.
+    For each pixel we select the "best" observation, i.e. the observation with smaller zenith angle.
+    We also make the choice of retrieving some "non-optimal" information.
+    If the "best" observation is cloud covered (more generally invalid), we take the other observation,
+    even if it has been done at a very high sensor zenith angle.
+    This will recover some invalid pixels but at the same time probably introduces false detections
+    (more generally "bad" observations)
+    """
+    daily_snow_cover_files, daily_geometry_files = match_daily_snow_cover_and_geometry_nasa(
+        daily_snow_cover_files, daily_geometry_files
+    )
+
+    # Check that we can suppose to be on the very same grid
+    if not xr.open_dataset(daily_geometry_files[0]).coords.equals(xr.open_dataset(daily_snow_cover_files[0]).coords):
+        raise ValueError(
+            "The coordinates of snow cover and geometry datasets should be the same for the composite algorithm to run"
+        )
+
+    ################# Sorry for this section :`)
+    # Read data and assemble in a numpy temporally ordered array
+    ndsi_snow_cover_daily_images = np.array(
+        [xr.open_dataset(file, mask_and_scale=True).data_vars["NDSI_Snow_Cover"].values for file in daily_snow_cover_files]
+    )
+    view_angles_daily_array = np.array(
+        [xr.open_dataset(file, mask_and_scale=True).data_vars["sensor_zenith"].values for file in daily_geometry_files]
+    )
+    view_angles_daily_array = np.ma.masked_array(view_angles_daily_array, np.isnan(view_angles_daily_array))
+
+    # Inland water is considered valid observation
+    invalid_masks = ~(
+        (ndsi_snow_cover_daily_images <= NASA_CLASSES["snow_cover"][-1])
+        | (ndsi_snow_cover_daily_images == NASA_CLASSES["water"][0])
+    )
+
+    # Take best observation
+    best_observation_index = np.nanargmin(view_angles_daily_array, axis=0)
+    best_observation_angle = np.min(view_angles_daily_array, axis=0)
+    n_obs, height, width = ndsi_snow_cover_daily_images.shape
+
+    snow_cover_best_observation = ndsi_snow_cover_daily_images[
+        best_observation_index, np.arange(height)[:, None], np.arange(width)
+    ]  # Numpy advanced indexing for selecting for each pixel the best observation index
+
+    # In this part we recover observations taken at a worse zenith angle if in the best observation composite the pixel is invalid
+    out_ndsi_snow_cover = snow_cover_best_observation
+    out_view_angle = best_observation_angle
+
+    invalid_mask_best_observation = ~(
+        (snow_cover_best_observation <= NASA_CLASSES["snow_cover"][-1])
+        | (snow_cover_best_observation == NASA_CLASSES["water"][0])
+    )
+    for idx in range(n_obs):
+        out_ndsi_snow_cover = np.where(
+            invalid_masks[idx]
+            < invalid_mask_best_observation,  # pixels that are marked as invalid in the best observation but not in another observation
+            ndsi_snow_cover_daily_images[idx],
+            out_ndsi_snow_cover,
+        )
+
+        # Replace data also for view zenith angle
+        out_view_angle = np.where(
+            invalid_masks[idx] < invalid_mask_best_observation, view_angles_daily_array[idx], out_view_angle
+        )
+
+    # Some boilerplate code to make it compliant with xarray and GDAL drivers...hopefully will change in future iterations
+    output_coords = xr.open_dataset(daily_geometry_files[0]).coords
+    nasa_crs = pyproj.CRS(xr.open_dataset(daily_snow_cover_files[0]).data_vars["spatial_ref"].attrs["spatial_ref"])
+
+    dims = dim_name(nasa_crs)
+    day_dataset = georef_data_array(
+        xr.DataArray(out_ndsi_snow_cover, dims=dims, coords=output_coords),
+        data_array_name="NDSI_Snow_Cover",
+        crs=nasa_crs,
+    )
+    day_dataset = day_dataset.assign({"sensor_zenith": xr.DataArray(out_view_angle, dims=dims, coords=output_coords)})
 
     return day_dataset

@@ -1,15 +1,18 @@
 import os
-from glob import glob
 from pathlib import Path
 
 import xarray as xr
 
+from compression import generate_xarray_compression_encodings
 from daily_composites import create_spatial_l3_nasa_composite
 from fractional_snow_cover import nasa_ndsi_snow_cover_to_fraction
+from geotools import mask_dataarray_with_vector_file
 from grids import Grid, UTM1kmGrid, UTM375mGrid
 from logger_setup import default_logger as logger
 from metrics import WinterYear
-from products.filenames import VIIRS_NASA_VERSION, get_daily_nasa_filenames_per_product
+from products.classes import NASA_CLASSES
+from products.filenames import NASA_L3_SNOW_PRODUCTS, get_daily_nasa_filenames_per_product
+from reprojections import reprojection_l3_nasa_to_grid
 
 
 def create_v10a1_time_series(
@@ -22,17 +25,13 @@ def create_v10a1_time_series(
     platform: str = "SNPP",
     ndsi_to_fsc_regression: str | None = None,
 ):
-    # Treat user inputs
-    viirs_data_filepaths = glob(str(Path(f"{viirs_data_folder}/V*10*{str(year.from_year)}*.00{VIIRS_NASA_VERSION}.*h5")))
-    viirs_data_filepaths.extend(glob(str(Path(f"{viirs_data_folder}/V*10*{str(year.to_year)}*.00{VIIRS_NASA_VERSION}.*h5"))))
-
     outpaths = []
     for day in winter_year.iterate_days():
-        if day.year == 2024:
-            continue
         logger.info(f"Processing day {day}")
+        product_id = NASA_L3_SNOW_PRODUCTS["Standard"][platform]
+
         day_files = get_daily_nasa_filenames_per_product(
-            platform=platform, year=day.year, day=day.day_of_year, viirs_data_filepaths=viirs_data_filepaths
+            product_id=product_id, day=day, data_folder=viirs_data_folder, extension=".h5"
         )
 
         if len(day_files) == 0:
@@ -42,8 +41,27 @@ def create_v10a1_time_series(
             nasa_composite = create_spatial_l3_nasa_composite(
                 day_files=day_files, output_grid=output_grid, roi_file=roi_shapefile
             )
+
+            day_dataset_reprojected = reprojection_l3_nasa_to_grid(nasa_dataset=nasa_composite, output_grid=output_grid)
+
+            if roi_file is not None:
+                day_dataset_reprojected = mask_dataarray_with_vector_file(
+                    data_array=nasa_composite.data_vars["NDSI_Snow_Cover"],
+                    roi_file=roi_shapefile,
+                    output_grid=output_grid,
+                    fill_value=NASA_CLASSES["fill"][0],
+                )
+
+            # Apparently need to pop this attribute for correct encoding...not like it took me two hours to understand this :')
+            # In practice, when a valid range attribute is encoded, a GDal driver reading the NetCDF will set all values outside this
+            # range to NaN.
+            # Since valid range in the V10A1 collection is {0,100}, i.e. the NDSI range, all other pixels (clouds, lakes etc.) are set to NaN
+            # and that's not useful for the anamysis
+            day_dataset_reprojected.data_vars["NDSI_Snow_Cover"].attrs.pop("valid_range")
+            # If we want not to encode the fill value like nodata
+            # reprojected.data_vars["snow_cover"].attrs.pop("_FillValue")
         except OSError as e:
-            logger.warning(f"Error {e} occured while reading VIIRS files. Skipping day {day.date()}.")
+            logger.warning(f"Error {e} occured while processing VIIRS files. Skipping day {day.date()}.")
             continue
 
         if ndsi_to_fsc_regression is not None:
@@ -62,26 +80,25 @@ def create_v10a1_time_series(
 
     time_series = xr.open_mfdataset(outpaths)
     output_name = Path(f"{output_folder}/{output_name}")
-    time_series.to_netcdf(
-        output_name,
-        encoding={
-            "time": {"calendar": "gregorian", "units": f"days since {str(year.from_year)}-10-01"},
-        },
-    )
+    encodings = generate_xarray_compression_encodings(time_series)
+    encodings.update(time={"calendar": "gregorian", "units": f"days since {str(year.from_year)}-10-01"})
+    time_series.to_netcdf(output_name, encoding=encodings)
     [os.remove(file) for file in outpaths]
 
 
 if __name__ == "__main__":
     # User inputs
-    year = WinterYear(2024, 2025)
+    year = WinterYear(2023, 2024)
     grid_375m = UTM375mGrid()
     grid_1km = UTM1kmGrid()
     grid = grid_375m
+    platform = "SNPP"
+    product_collection = "V10A1"
 
-    platform = "Suomi-NPP"
-    folder = "/home/imperatoren/work/VIIRS_S2_comparison/data/V10A1/VNP10A1"
+    product_id = NASA_L3_SNOW_PRODUCTS["Standard"][platform]
+    folder = f"/home/imperatoren/work/VIIRS_S2_comparison/data/{product_collection}/{product_id}"
     output_folder = "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_3"
-    output_name = f"WY_{year.from_year}_{year.to_year}_{platform}_nasa_l3_time_series_res_{grid.resolution}m.nc"
+    output_name = f"WY_{year.from_year}_{year.to_year}_{platform}_nasa_l3_res_{grid.resolution}m.nc"
     roi_file = "/home/imperatoren/work/VIIRS_S2_comparison/data/vectorial/massifs/massifs.shp"
 
     create_v10a1_time_series(

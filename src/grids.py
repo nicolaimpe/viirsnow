@@ -1,6 +1,8 @@
 from typing import Tuple
 
 import numpy as np
+import pyproj
+import xarray as xr
 from affine import Affine
 from pyproj import CRS, Transformer
 from rasterio.enums import Resampling
@@ -70,6 +72,11 @@ class Grid:
     def shape(self) -> Tuple[int, int]:
         return (self.height, self.width)
 
+    @property
+    def xarray_coords(self) -> xr.Coordinates:
+        dims = dim_name(self.crs)
+        return xr.Coordinates({dims[0]: self.ycoords, dims[1]: self.xcoords})
+
     def bounds_projected_to_epsg(self, to_epsg: int | str):
         transformer = Transformer.from_crs(crs_from=self.crs, crs_to=CRS.from_epsg(to_epsg), always_xy=True)
         return transformer.transform_bounds(*self.extent_llx_lly_urx_ury)
@@ -116,3 +123,29 @@ class UTM1kmGrid(Grid):
             height=825,
             name="UTM_1km",
         )
+
+
+def dim_name(crs: pyproj.CRS) -> Tuple[str, str]:
+    if crs.is_geographic:
+        return ("lat", "lon")
+    elif crs.is_projected:
+        return ("y", "x")
+
+
+def georef_data_array(data_array: xr.DataArray, data_array_name: str, crs: pyproj.CRS) -> xr.Dataset:
+    """
+    Turn a DataArray into a Dataset  for which the GDAL driver (GDAL and QGIS) is able to read the georeferencing
+    https://github.com/pydata/xarray/issues/2288
+    https://gis.stackexchange.com/questions/230093/set-projection-for-netcdf4-in-python
+    """
+
+    dims = dim_name(crs=crs)
+    data_array.coords[dims[0]].attrs["axis"] = "Y"
+    data_array.coords[dims[1]].attrs["axis"] = "X"
+    data_array.attrs["grid_mapping"] = "spatial_ref"
+
+    crs_variable = xr.DataArray(0)
+    crs_variable.attrs["spatial_ref"] = crs.to_wkt()
+
+    georeferenced_dataset = xr.Dataset({data_array_name: data_array, "spatial_ref": crs_variable})
+    return georeferenced_dataset

@@ -10,7 +10,7 @@ import xarray as xr
 from affine import Affine
 from rasterio.features import rasterize
 
-from grids import Grid
+from grids import Grid, dim_name, georef_data_array
 
 
 def gdf_to_binary_mask(gdf: gpd.GeoDataFrame, grid: Grid) -> xr.Dataset:
@@ -38,57 +38,6 @@ def gdf_to_binary_mask(gdf: gpd.GeoDataFrame, grid: Grid) -> xr.Dataset:
     out = georef_data_array(binary_mask_data_array, "binary_mask", crs=grid.crs)
 
     return out
-
-
-def dim_name(crs: pyproj.CRS) -> Tuple[str, str]:
-    if crs.is_geographic:
-        return ("lat", "lon")
-    elif crs.is_projected:
-        return ("y", "x")
-
-
-def georef_data_array(data_array: xr.DataArray, data_array_name: str, crs: pyproj.CRS) -> xr.Dataset:
-    """
-    Turn a DataArray into a Dataset  for which the GDAL driver (GDAL and QGIS) is able to read the georeferencing
-    https://github.com/pydata/xarray/issues/2288
-    https://gis.stackexchange.com/questions/230093/set-projection-for-netcdf4-in-python
-    """
-
-    dims = dim_name(crs=crs)
-    data_array.coords[dims[0]].attrs["axis"] = "Y"
-    data_array.coords[dims[1]].attrs["axis"] = "X"
-    data_array.attrs["grid_mapping"] = "spatial_ref"
-
-    crs_variable = xr.DataArray(0)
-    crs_variable.attrs["spatial_ref"] = crs.to_wkt()
-
-    georeferenced_dataset = xr.Dataset({data_array_name: data_array, "spatial_ref": crs_variable})
-    return georeferenced_dataset
-
-
-def create_empty_grid_from_roi(
-    roi: gpd.GeoDataFrame | gpd.GeoSeries,
-    output_grid_resolution: float,
-    fill_value: np.uint8,
-    crs: pyproj.CRS,
-    data_array_name: str,
-    overwrite_x_origin: float | None = None,
-    overwrite_y_origin: float | None = None,
-) -> xr.Dataset:
-    minx, miny, maxx, maxy = roi.total_bounds
-    x_origin = minx if overwrite_x_origin is None else overwrite_x_origin
-    y_origin = miny if overwrite_y_origin is None else overwrite_y_origin
-    dims = dim_name(crs=crs)
-    empty_data_array = xr.DataArray(
-        fill_value,
-        dims=dims,
-        coords={
-            dims[0]: np.arange(y_origin, maxy, output_grid_resolution),
-            dims[1]: np.arange(x_origin, maxx, output_grid_resolution),
-        },
-    )
-    empty_data_array = georef_data_array(empty_data_array, data_array_name, crs)
-    return empty_data_array
 
 
 def reproject_dataset(

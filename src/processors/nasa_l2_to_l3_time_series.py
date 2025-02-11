@@ -7,8 +7,8 @@ from rasterio.enums import Resampling
 from compression import generate_xarray_compression_encodings
 from daily_composites import create_temporal_composite_nasa
 from fractional_snow_cover import nasa_ndsi_snow_cover_to_fraction
-from geotools import georef_data_array, mask_dataarray_with_vector_file, reproject_using_grid, to_rioxarray
-from grids import Grid, UTM375mGrid
+from geotools import mask_dataarray_with_vector_file, reproject_using_grid, to_rioxarray
+from grids import Grid, UTM375mGrid, georef_data_array
 from logger_setup import default_logger as logger
 from metrics import WinterYear
 from products.classes import NASA_CLASSES

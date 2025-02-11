@@ -5,9 +5,9 @@ from pyresample.geometry import AreaDefinition, SwathDefinition
 from rasterio.enums import Resampling
 
 from compression import generate_xarray_compression_encodings
-from geotools import georef_data_array, reproject_using_grid, to_rioxarray
-from grids import Grid
-from products.classes import METEOFRANCE_CLASSES, NASA_CLASSES
+from geotools import reproject_dataset, reproject_using_grid, to_rioxarray
+from grids import Grid, georef_data_array
+from products.classes import METEOFRANCE_CLASSES, NASA_CLASSES, S2_CLASSES
 
 
 def extract_swath_lon_lats(
@@ -158,6 +158,7 @@ def reprojection_l3_meteofrance_to_grid(meteofrance_dataset: xr.Dataset, output_
     meteofrance_valid_qualitative_mask = (
         meteofrance_water_mask | meteofrance_forest_without_snow_mask | meteofrance_forest_with_snow_mask
     )
+
     meteofrance_quantitative_invalid = xr.where(
         meteofrance_valid_qualitative_mask == 0, meteofrance_dataset, 0, keep_attrs=True
     )
@@ -167,12 +168,14 @@ def reprojection_l3_meteofrance_to_grid(meteofrance_dataset: xr.Dataset, output_
         meteofrance_quantitative_invalid,
         output_grid=output_grid,
         resampling_method=Resampling.max,
-        nodata=METEOFRANCE_CLASSES["nodata"][0] - 1,
+        nodata=METEOFRANCE_CLASSES["fill"][0],
     )
 
     # We resample the dataset using max for the quantitative data
     meteofrance_quantitative_resampled = reproject_using_grid(
-        meteofrance_quantitative_invalid.astype(np.float32), output_grid=output_grid, resampling_method=Resampling.average
+        meteofrance_quantitative_invalid.astype(np.float32),
+        output_grid=output_grid,
+        resampling_method=Resampling.average,
     )
 
     # Nearest resample for valid qualitative
@@ -182,8 +185,18 @@ def reprojection_l3_meteofrance_to_grid(meteofrance_dataset: xr.Dataset, output_
     meteofrance_forest_without_snow_mask_nearest = reproject_using_grid(
         meteofrance_forest_without_snow_mask.astype("u1"), output_grid=output_grid, resampling_method=Resampling.nearest
     )
+    # Tricky resmapling of forest with snow
+    # With max we're gonna cover a higher area with forest with snow, even if few snow or few forest is detecred, the whole pixel will be excluded.
+    # But we can decide to exclude these pixels from the analysis
+    # With nearest the result is more realistic, but we're gonna articially increase or decrease the snow cover farction in presence of forest.
+    # When we resampled the quantitative classes with average we set forest with snow to zero snow. We could set it to another value but this implies setting a threshold
+    # If we don't want this approximation to pollute the results all we can do for now is toexlude all pixels even minimally covered with forest
     meteofrance_forest_with_snow_mask_nearest = reproject_using_grid(
-        meteofrance_forest_with_snow_mask.astype("u1"), output_grid=output_grid, resampling_method=Resampling.nearest
+        meteofrance_forest_with_snow_mask.astype("u1"), output_grid=output_grid, resampling_method=Resampling.max
+    )
+    # Don't cover invalid pixels with forest with snow class
+    meteofrance_forest_with_snow_mask_nearest = meteofrance_forest_with_snow_mask_nearest.where(
+        meteofrance_invalid_resampled <= METEOFRANCE_CLASSES["snow_cover"][-1], 0
     )
     # Compose the mask. Where is quantitative, we put quantitative, else invalid
     meteofrance_out_image = xr.where(
@@ -199,5 +212,36 @@ def reprojection_l3_meteofrance_to_grid(meteofrance_dataset: xr.Dataset, output_
     meteofrance_out_image = xr.where(
         meteofrance_forest_with_snow_mask_nearest, METEOFRANCE_CLASSES["forest_with_snow"][0], meteofrance_out_image
     )
+
     meteofrance_out_image.data_vars[data_array_name].attrs = meteofrance_dataset.data_vars[data_array_name].attrs
     return meteofrance_out_image
+
+
+def resample_s2_to_grid(s2_dataset: xr.Dataset, output_grid: Grid) -> xr.DataArray:
+    # 250m resolution FSC from FSCOG S2 product with a "zombie" nodata mask
+
+    # Validity "zombie mask": wherever there is at least one non valid pixel, the output grid pixel is set as invalid (<-> cloud)
+    s2_validity_mask = reproject_dataset(
+        s2_dataset,
+        new_crs=output_grid.crs,
+        resampling=Resampling.max,
+        nodata=S2_CLASSES["nodata"][0],
+        transform=output_grid.affine,
+        shape=output_grid.shape,
+    )
+
+    # Aggregate the dataset at 250 m
+    s2_aggregated = reproject_dataset(
+        s2_dataset.astype(np.float32),
+        new_crs=output_grid.crs,
+        resampling=Resampling.average,
+        nodata=S2_CLASSES["nodata"][0],
+        transform=output_grid.affine,
+        shape=output_grid.shape,
+    )
+
+    # Compose the mask
+    s2_out_image = xr.where(s2_validity_mask <= S2_CLASSES["snow_cover"][-1], s2_aggregated.astype("u1"), s2_validity_mask)
+    s2_out_image.rio.write_nodata(255, inplace=True)
+
+    return s2_out_image
