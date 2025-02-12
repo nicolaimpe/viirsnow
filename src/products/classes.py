@@ -12,7 +12,7 @@ NASA_CLASSES = {
     "snow_cover": range(1, 101),
     "no_snow": (0,),
     "clouds": (250,),
-    "water": (237, 239),
+    "water": (237, 239),  # inland and ocean
     "no_decision": (201,),
     "night": (211,),
     "missing_data": (251,),

@@ -1,27 +1,32 @@
 from typing import Tuple
-from affine import Affine
+
 import numpy as np
+import pyproj
+import xarray as xr
+from affine import Affine
+from pyproj import CRS, Transformer
 from rasterio.enums import Resampling
-from pyproj import CRS
 from rasterio.transform import from_origin
-from dataclasses import dataclass
 
 DEFAULT_CRS_PROJ = 32631
 DEFAULT_CRS = DEFAULT_CRS_PROJ
-OUTPUT_GRID_RES = 250  # m
+OUTPUT_GRID_RES = 375  # m
 OUTPUT_GRID_X0, OUTPUT_GRID_Y0 = 0, 5400000
-OUPUT_GRID_X_SIZE, OUPUT_GRID_Y_SIZE = 4200, 3300
+OUPUT_GRID_X_SIZE, OUPUT_GRID_Y_SIZE = 2800, 2200
 RESAMPLING = Resampling.nearest
 
 
-@dataclass
 class Grid:
-    crs: CRS
-    resolution: float
-    x0: float
-    y0: float
-    width: int
-    height: int
+    def __init__(
+        self, resolution: float, x0: float, y0: float, width: int, height: int, crs: CRS | None = None, name: str | None = None
+    ) -> None:
+        self.crs = crs
+        self.resolution = resolution
+        self.x0 = x0
+        self.y0 = y0
+        self.width = width
+        self.height = height
+        self.name = name
 
     @property
     def xmin(self):
@@ -41,11 +46,11 @@ class Grid:
 
     @property
     def xend(self):
-        return self.xmax + self.resolution / 2
+        return self.x0 + self.width * self.resolution
 
     @property
     def yend(self):
-        return self.ymin - self.resolution / 2
+        return self.y0 - self.height * self.resolution
 
     @property
     def extent_llx_lly_urx_ury(self):
@@ -53,11 +58,11 @@ class Grid:
 
     @property
     def xcoords(self) -> np.array:
-        return np.arange(self.xmin, self.xmax + self.resolution, self.resolution)
+        return np.linspace(self.xmin, self.xmax, self.width)
 
     @property
     def ycoords(self) -> np.array:
-        return np.arange(self.ymin, self.ymax + self.resolution, self.resolution)
+        return np.linspace(self.ymax, self.ymin, self.height)
 
     @property
     def affine(self) -> Affine:
@@ -67,12 +72,80 @@ class Grid:
     def shape(self) -> Tuple[int, int]:
         return (self.height, self.width)
 
+    @property
+    def xarray_coords(self) -> xr.Coordinates:
+        dims = dim_name(self.crs)
+        return xr.Coordinates({dims[0]: self.ycoords, dims[1]: self.xcoords})
 
-@dataclass
-class DefaultGrid(Grid):
-    crs = CRS.from_epsg(DEFAULT_CRS)
-    resolution = OUTPUT_GRID_RES
-    x0 = OUTPUT_GRID_X0
-    y0 = OUTPUT_GRID_Y0
-    width = OUPUT_GRID_X_SIZE
-    height = OUPUT_GRID_Y_SIZE
+    def bounds_projected_to_epsg(self, to_epsg: int | str):
+        transformer = Transformer.from_crs(crs_from=self.crs, crs_to=CRS.from_epsg(to_epsg), always_xy=True)
+        return transformer.transform_bounds(*self.extent_llx_lly_urx_ury)
+
+    # @classmethod
+    # def extract_from_dataset(cls, dataset: xr.Dataset) -> Self:
+    #     """Be very careful"""
+    #     ds_crs = dataset.data_vars["spatial_ref"].attrs["spatial_ref"]
+    #     dims = ("lat", "lon") if ds_crs.is_geographic else ("y", "x") if ds_crs.is_projected else None
+    #     y_coords, x_coords = dataset.coords[dims[0]], dataset.coords[dims[1]]
+    #     width, height = len(x_coords), len(y_coords)
+    #     resolution = np.abs(x_coords[-1] - x_coords[0]) / (width - 1)
+    #     return cls(
+    #         crs=ds_crs,
+    #         resolution=resolution,
+    #         x0=x_coords[0] - resolution / 2,
+    #         y0=y_coords[0] + resolution / 2,
+    #         width=width,
+    #         height=height,
+    #     )
+
+
+class UTM375mGrid(Grid):
+    def __init__(self) -> None:
+        super().__init__(
+            crs=CRS.from_epsg(DEFAULT_CRS),
+            resolution=OUTPUT_GRID_RES,
+            x0=OUTPUT_GRID_X0,
+            y0=OUTPUT_GRID_Y0,
+            width=OUPUT_GRID_X_SIZE,
+            height=OUPUT_GRID_Y_SIZE,
+            name="UTM_375m",
+        )
+
+
+class UTM1kmGrid(Grid):
+    def __init__(self) -> None:
+        super().__init__(
+            crs=CRS.from_epsg(DEFAULT_CRS),
+            resolution=1000,
+            x0=OUTPUT_GRID_X0,
+            y0=OUTPUT_GRID_Y0,
+            width=1050,
+            height=825,
+            name="UTM_1km",
+        )
+
+
+def dim_name(crs: pyproj.CRS) -> Tuple[str, str]:
+    if crs.is_geographic:
+        return ("lat", "lon")
+    elif crs.is_projected:
+        return ("y", "x")
+
+
+def georef_data_array(data_array: xr.DataArray, data_array_name: str, crs: pyproj.CRS) -> xr.Dataset:
+    """
+    Turn a DataArray into a Dataset  for which the GDAL driver (GDAL and QGIS) is able to read the georeferencing
+    https://github.com/pydata/xarray/issues/2288
+    https://gis.stackexchange.com/questions/230093/set-projection-for-netcdf4-in-python
+    """
+
+    dims = dim_name(crs=crs)
+    data_array.coords[dims[0]].attrs["axis"] = "Y"
+    data_array.coords[dims[1]].attrs["axis"] = "X"
+    data_array.attrs["grid_mapping"] = "spatial_ref"
+
+    crs_variable = xr.DataArray(0)
+    crs_variable.attrs["spatial_ref"] = crs.to_wkt()
+
+    georeferenced_dataset = xr.Dataset({data_array_name: data_array, "spatial_ref": crs_variable})
+    return georeferenced_dataset
