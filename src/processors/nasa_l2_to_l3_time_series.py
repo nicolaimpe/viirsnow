@@ -6,11 +6,11 @@ from rasterio.enums import Resampling
 
 from compression import generate_xarray_compression_encodings
 from daily_composites import create_temporal_composite_nasa
+from evaluations.metrics import WinterYear
 from fractional_snow_cover import nasa_ndsi_snow_cover_to_fraction
 from geotools import mask_dataarray_with_vector_file, reproject_using_grid, to_rioxarray
 from grids import Grid, UTM375mGrid, georef_data_array
 from logger_setup import default_logger as logger
-from metrics import WinterYear
 from products.classes import NASA_CLASSES
 from products.filenames import get_daily_nasa_filenames_per_product
 from reprojections import reprojection_l3_nasa_to_grid
@@ -113,6 +113,7 @@ def create_nasa_pseudo_l3_time_series(
             }
         ).rio.write_crs(output_grid.crs)
 
+        nasa_pseudo_l3.rio.write_nodata(NASA_CLASSES["fill"][0], inplace=True)
         # Add time dimension
         nasa_pseudo_l3 = nasa_pseudo_l3.expand_dims(time=[day])
 
@@ -125,13 +126,10 @@ def create_nasa_pseudo_l3_time_series(
 
     # 6. Reopen all the exported netcdfs for each day with mfdataset (that is able to handle the RAM and save the time series),
     # concatenate on time dimension
-    time_series = xr.open_mfdataset(outpaths)
+    time_series = xr.open_mfdataset(outpaths, mask_and_scale=False)
     encodings = generate_xarray_compression_encodings(time_series)
     encodings.update(time={"calendar": "gregorian", "units": f"days since {str(year.from_year)}-10-01"})
-    time_series.to_netcdf(
-        f"{output_folder}/{output_name}",
-        encoding=encodings,
-    )
+    time_series.to_netcdf(f"{output_folder}/{output_name}", encoding=encodings)
     # Clean output folder from temporary files
     [os.remove(file) for file in outpaths]
     return
@@ -151,7 +149,7 @@ if __name__ == "__main__":
     nasa_snow_cover_data_folder = f"{data_folder}/V10/VNP10_UTM_375m"
     nasa_reprojected_geometry_folder = f"{data_folder}/V03IMG/VNP03IMG_UTM_375m"
     output_folder = "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_3"
-    output_name = f"WY_{year.from_year}_{year.to_year}_{platform}_nasa_pseudo_l3_res_{grid.resolution}m.nc"
+    output_name = f"WY_{year.from_year}_{year.to_year}_{platform}_nasa_pseudo_l3_res_{grid.resolution}m_test.nc"
     roi_shapefile = "/home/imperatoren/work/VIIRS_S2_comparison/data/vectorial/massifs/massifs.shp"
 
     create_nasa_pseudo_l3_time_series(

@@ -6,10 +6,10 @@ from rasterio.enums import Resampling
 
 from compression import generate_xarray_compression_encodings
 from daily_composites import create_temporal_composite_meteofrance
+from evaluations.metrics import WinterYear
 from geotools import mask_dataarray_with_vector_file, reproject_using_grid, to_rioxarray
 from grids import Grid, UTM375mGrid, georef_data_array
 from logger_setup import default_logger as logger
-from metrics import WinterYear
 from products.classes import METEOFRANCE_CLASSES
 from products.filenames import KNOWN_COLLECTIONS, get_daily_meteofrance_filenames, get_daily_nasa_filenames_per_product
 from reprojections import reprojection_l3_meteofrance_to_grid
@@ -105,7 +105,6 @@ def create_meteofrance_time_series(
 
         # Add time dimension
         meteofrance_pseudo_l3 = meteofrance_pseudo_l3.expand_dims(time=[day])
-
         # 5. Export to a temporary netcdf that will be removed in order to keep space in the RAM
         outpath = f"{output_folder}/{day.strftime('%Y%m%d')}.nc"
         outpaths.append(outpath)
@@ -113,16 +112,12 @@ def create_meteofrance_time_series(
 
     # 6. Reopen all the exported netcdfs for each day with mfdataset (that is able to handle the RAM and save the time series),
     # concatenate on time dimension
-    time_series = xr.open_mfdataset(outpaths)
+    time_series = xr.open_mfdataset(outpaths, mask_and_scale=False)
     encodings = generate_xarray_compression_encodings(time_series)
     encodings.update(time={"calendar": "gregorian", "units": f"days since {str(year.from_year)}-10-01"})
-    time_series.to_netcdf(
-        f"{output_folder}/{output_name}",
-        encoding=encodings,
-    )
+    time_series.to_netcdf(f"{output_folder}/{output_name}", encoding=encodings)
     # Clean output folder from temporary files
     [os.remove(file) for file in outpaths]
-    return
 
 
 if __name__ == "__main__":
@@ -139,7 +134,7 @@ if __name__ == "__main__":
     meteofrance_data_folder = f"{data_folder}/EOFR62"
     nasa_reprojected_geometry_folder = f"{data_folder}/V03IMG/VNP03IMG_GEO_250m"
     output_folder = "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_3"
-    output_name = f"WY_{year.from_year}_{year.to_year}_{platform}_meteofrance_res_{grid.resolution}m.nc"
+    output_name = f"WY_{year.from_year}_{year.to_year}_{platform}_meteofrance_l3_res_{grid.resolution}m.nc"
     roi_shapefile = "/home/imperatoren/work/VIIRS_S2_comparison/data/vectorial/massifs/massifs.shp"
 
     create_meteofrance_time_series(

@@ -8,6 +8,7 @@ METEOFRANCE_CLASSES = {
     "nodata": (230,),
     "fill": (254,),
 }
+
 NASA_CLASSES = {
     "snow_cover": range(1, 101),
     "no_snow": (0,),

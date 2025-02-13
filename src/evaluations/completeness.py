@@ -1,0 +1,198 @@
+import copy
+import math
+from pathlib import Path
+from typing import Dict, Tuple
+
+import numpy as np
+import xarray as xr
+
+from logger_setup import default_logger as logger
+from products.classes import METEOFRANCE_CLASSES, NASA_CLASSES, NODATA_NASA_CLASSES
+
+
+def mask_of_pixels_of(value: int, data_array: xr.DataArray) -> xr.DataArray:
+    return data_array == value
+
+
+def mask_of_pixels_in_range(range: range, data_array: xr.DataArray) -> xr.DataArray:
+    return (data_array >= range[0]) * (data_array <= range[-1])
+
+
+def compute_percentage_of_mask(mask: xr.DataArray, n_pixels_tot: int) -> float:
+    return mask.sum().values / n_pixels_tot * 100
+
+
+def compute_area_of_class_mask(mask: xr.DataArray) -> float:
+    return mask.sum().values * np.abs(math.prod(mask.rio.resolution()))
+
+
+class SnowCoverProductCompleteness:
+    def __init__(
+        self,
+        classes: Dict[str, Tuple[int, ...] | range],
+        nodata_mapping: Tuple[str, ...] | None = None,
+    ) -> None:
+        self.classes = copy.deepcopy(classes)
+        if nodata_mapping is not None:
+            self.setup_nodata_classes(nodata_mapping=nodata_mapping)
+
+    def setup_nodata_classes(self, nodata_mapping: Tuple[str, ...]):
+        if nodata_mapping is not None:
+            new_nodata_values = ()
+            if "nodata" in self.classes:
+                new_nodata_values += self.classes["nodata"]
+
+            for class_to_exclude_name in nodata_mapping:
+                for value_to_exclude in self.classes[class_to_exclude_name]:
+                    new_nodata_values += (value_to_exclude,)
+                self.classes.pop(class_to_exclude_name)
+            self.classes["nodata"] = new_nodata_values
+
+    def compute_mask_of_class(self, class_name: str, data_array: xr.DataArray) -> xr.DataArray:
+        if type(self.classes[class_name]) is range:
+            return mask_of_pixels_in_range(self.classes[class_name], data_array)
+        else:
+            summed_mask = xr.zeros_like(data_array, dtype=bool)
+            for value in self.classes[class_name]:
+                summed_mask += mask_of_pixels_of(value, data_array)
+            return summed_mask
+
+    def compute_area_of_class(self, class_name: str, data_array: xr.DataArray) -> float:
+        return compute_area_of_class_mask(self.compute_mask_of_class(class_name=class_name, data_array=data_array))
+
+    def compute_snow_area(self, snow_cover_data_array: xr.DataArray, consider_fraction: bool = True) -> float:
+        snow_mask = self.compute_mask_of_class("snow_cover", snow_cover_data_array)
+        if consider_fraction:
+            snow_cover_data_array = snow_cover_data_array / self.classes["snow_cover"][-1]
+            snow_cover_extent = compute_area_of_class_mask(snow_cover_data_array.where(snow_mask, 0))
+        else:
+            snow_cover_extent = compute_area_of_class_mask(snow_mask)
+        return snow_cover_extent
+
+    def count_valid_pixels(self, data_array: xr.DataArray, exclude_nodata: bool = False):
+        if exclude_nodata:
+            nodata_pixels = self.compute_mask_of_class("nodata", data_array).sum().values
+            n_pixels_tot = data_array.count().values - nodata_pixels
+
+        else:
+            n_pixels_tot = data_array.count().values
+        return n_pixels_tot
+
+    def _all_statistics(self, data_array: xr.DataArray, exclude_nodata: bool = False) -> Dict[str, float]:
+        logger.info(f"Processing time: {data_array.coords['time'].values[0]}")
+        self.percentages_dict: Dict[str, float] = {}
+        self.area_dict: Dict[str, float] = {}
+        results_coords = xr.Coordinates({"class_name": list(self.classes.keys())})
+
+        results_dataset = xr.Dataset(
+            {
+                "n_pixels_class": xr.DataArray(np.nan, coords=results_coords, attrs={"units": "-"}),
+                "percentage": xr.DataArray(np.nan, coords=results_coords, attrs={"units": "%"}),
+                "surface": xr.DataArray(np.nan, coords=results_coords, attrs={"units": "m²"}),
+            }
+        )
+        n_pixels_tot = self.count_valid_pixels(data_array, exclude_nodata=exclude_nodata)
+
+        for class_name in self.classes:
+            if class_name == "nodata":
+                continue
+            class_mask = self.compute_mask_of_class(class_name, data_array)
+            results_dataset.data_vars["n_pixels_class"].loc[class_name] = class_mask.sum().values
+            results_dataset.data_vars["percentage"].loc[class_name] = compute_percentage_of_mask(class_mask, n_pixels_tot)
+            results_dataset.data_vars["surface"].loc[class_name] = compute_area_of_class_mask(class_mask)
+        return results_dataset
+
+    def year_temporal_analysis(
+        self,
+        snow_cover_product_time_series_data_array: xr.DataArray,
+        exclude_nodata: bool = False,
+        netcdf_export_path: str | None = None,
+        period: Tuple[str | None, str | None] | None = None,
+    ):
+        if period is not None:
+            snow_cover_product_time_series_data_array = snow_cover_product_time_series_data_array.sel(time=slice(*period))
+        year_results_dataset = snow_cover_product_time_series_data_array.groupby("time").map(
+            self._all_statistics, exclude_nodata=exclude_nodata
+        )
+        if netcdf_export_path is not None:
+            year_results_dataset.to_netcdf(Path(netcdf_export_path))
+
+    # def year_statistics(
+    #     self,
+    #     snow_cover_dataset: xr.Dataset,
+
+    #     exclude_nodata: bool = False,
+
+    # ) -> xr.Dataset:
+    #     from_year = snow_cover_dataset.coords["time"][0].dt.year.values
+    #     winter_year = WinterYear(from_year, from_year + 1)
+    #     if months != "all":
+    #         winter_year.select_months(months=months)
+    #     logger.info(f"Start processing time series of year {str(winter_year)}")
+
+    #     year_data_array_sample = xr.DataArray(
+    #         data=np.empty(shape=(len(self.classes), len(winter_year))),
+    #         coords={
+    #             "class_name": [*self.classes],
+    #             "time": winter_year.to_datetime(),
+    #         },
+    #     )
+    #     n_days_with_observation = xr.DataArray(0, dims=("time",), coords={"time": winter_year.to_datetime()})
+    #     year_dataset = xr.Dataset(data_vars={"to_remove": year_data_array_sample, "n_observed_days": n_days_with_observation})
+
+    #     if self.class_percentage_distribution:
+    #         year_data_array_percentage = year_data_array_sample.copy(deep=True)
+    #     if self.class_cover_area:
+    #         year_data_array_area = year_data_array_sample.copy(deep=True)
+
+    #     for month_datetime in winter_year.to_datetime():
+    #         logger.info(f"Processing month {month_datetime}")
+    #         self.monthly_statics(snow_cover_dataset=snow_cover_dataset, month=month_datetime, exclude_nodata=exclude_nodata)
+
+    #         if self.class_percentage_distribution:
+    #             year_data_array_percentage.loc[dict(time=month_datetime, class_name=list(self.percentages_dict.keys()))] = (
+    #                 list(self.percentages_dict.values())
+    #             )
+    #         if self.class_cover_area:
+    #             year_data_array_area.loc[dict(time=month_datetime, class_name=list(self.area_dict.keys()))] = list(
+    #                 self.area_dict.values()
+    #             )
+
+    #         year_dataset.data_vars["n_observed_days"].loc[dict(time=month_datetime)] = len(
+    #             snow_cover_dataset.groupby("time.month")[month_datetime.month].coords["time"]
+    #         )
+
+    #     if self.class_percentage_distribution:
+    #         year_dataset = year_dataset.assign({"class_distribution_percentage": year_data_array_percentage})
+    #     if self.class_cover_area:
+    #         year_dataset = year_dataset.assign({"class_distribution_area": year_data_array_area})
+
+    #     year_dataset = year_dataset.drop_vars("to_remove")
+
+    #     # Export options
+    #     if netcdf_export_path is not None:
+    #         year_dataset.to_netcdf(Path(netcdf_export_path))
+
+    #     return year_dataset
+
+
+class MeteoFranceSnowCoverProductCompleteness(SnowCoverProductCompleteness):
+    def __init__(self) -> None:
+        super().__init__(classes=METEOFRANCE_CLASSES, nodata_mapping=None)
+
+
+class NASASnowCoverProductCompleteness(SnowCoverProductCompleteness):
+    def __init__(self) -> None:
+        super().__init__(classes=NASA_CLASSES, nodata_mapping=NODATA_NASA_CLASSES)
+
+
+if __name__ == "__main__":
+    output_folder = "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_3"
+    output_name = "WY_2023_2024_SNPP_meteofrance_l3_res_375m.nc"
+    mf_dataset = xr.open_dataset(f"{output_folder}/{output_name}")
+    mf_analyzer = MeteoFranceSnowCoverProductCompleteness()
+    mf_analyzer.year_temporal_analysis(
+        snow_cover_product_time_series_data_array=mf_dataset.data_vars["snow_cover_fraction"],
+        netcdf_export_path=f"{output_folder}/analyses/completeness/completeness_WY_2023_2024_SNPP_meteofrance_l3_res_375m",
+        period=(None, "2023-10-15"),
+    )
