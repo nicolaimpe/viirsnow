@@ -80,8 +80,7 @@ class SnowCoverProductCompleteness:
 
     def _all_statistics(self, data_array: xr.DataArray, exclude_nodata: bool = False) -> Dict[str, float]:
         logger.info(f"Processing time: {data_array.coords['time'].values[0]}")
-        self.percentages_dict: Dict[str, float] = {}
-        self.area_dict: Dict[str, float] = {}
+
         results_coords = xr.Coordinates({"class_name": list(self.classes.keys())})
 
         results_dataset = xr.Dataset(
@@ -94,7 +93,7 @@ class SnowCoverProductCompleteness:
         n_pixels_tot = self.count_valid_pixels(data_array, exclude_nodata=exclude_nodata)
 
         for class_name in self.classes:
-            if class_name == "nodata":
+            if class_name == "nodata" and exclude_nodata:
                 continue
             class_mask = self.compute_mask_of_class(class_name, data_array)
             results_dataset.data_vars["n_pixels_class"].loc[class_name] = class_mask.sum().values
@@ -187,12 +186,22 @@ class NASASnowCoverProductCompleteness(SnowCoverProductCompleteness):
 
 
 if __name__ == "__main__":
+    product_to_evaluate = "nasa_l3"
     output_folder = "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_3"
-    output_name = "WY_2023_2024_SNPP_meteofrance_l3_res_375m.nc"
-    mf_dataset = xr.open_dataset(f"{output_folder}/{output_name}")
-    mf_analyzer = MeteoFranceSnowCoverProductCompleteness()
-    mf_analyzer.year_temporal_analysis(
-        snow_cover_product_time_series_data_array=mf_dataset.data_vars["snow_cover_fraction"],
-        netcdf_export_path=f"{output_folder}/analyses/completeness/completeness_WY_2023_2024_SNPP_meteofrance_l3_res_375m",
-        period=(None, "2023-10-15"),
-    )
+
+    if product_to_evaluate == "meteofrance_l3":
+        time_series_name = "WY_2023_2024_SNPP_meteofrance_l3_res_375m.nc"
+        mf_dataset = xr.open_dataset(f"{output_folder}/{time_series_name}", mask_and_scale=True)
+        mf_analyzer = MeteoFranceSnowCoverProductCompleteness()
+        mf_analyzer.year_temporal_analysis(
+            snow_cover_product_time_series_data_array=mf_dataset.data_vars["snow_cover_fraction"],
+            netcdf_export_path=f"{output_folder}/analyses/completeness/completeness_WY_2023_2024_SNPP_meteofrance_l3_res_375m.nc",
+        )
+    if product_to_evaluate == "nasa_l3":
+        time_series_name = "WY_2023_2024_SNPP_nasa_l3_res_375m.nc"
+        mf_dataset = xr.open_dataset(f"{output_folder}/{time_series_name}", mask_and_scale=True)
+        mf_analyzer = NASASnowCoverProductCompleteness()
+        mf_analyzer.year_temporal_analysis(
+            snow_cover_product_time_series_data_array=mf_dataset.data_vars["snow_cover_fraction"],
+            netcdf_export_path=f"{output_folder}/analyses/completeness/completeness_WY_2023_2024_SNPP_nasa_l3_res_375m.nc",
+        )

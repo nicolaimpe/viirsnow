@@ -3,10 +3,10 @@ import os
 import xarray as xr
 
 from daily_composites import create_spatial_s2_composite
+from evaluations.metrics import WinterYear
 from geotools import mask_dataarray_with_vector_file
 from grids import Grid, UTM375mGrid
 from logger_setup import default_logger as logger
-from metrics import WinterYear
 from products.classes import S2_CLASSES
 from products.filenames import get_all_s2_files_of_winter_year, get_datetime_from_s2_filepath
 
@@ -44,7 +44,7 @@ def create_s2_time_series(
         daily_composite = daily_composite.expand_dims(time=[day])
         daily_composite.to_netcdf(out_path)
 
-    all_data = xr.open_mfdataset(out_tmp_paths)
+    all_data = xr.open_mfdataset(out_tmp_paths, mask_and_scale=False)
     all_data.to_netcdf(f"{output_folder}/WY_{winter_year.from_year}_{winter_year.to_year}_S2_res_{output_grid.resolution}m.nc")
     [os.remove(file) for file in out_tmp_paths]
 
