@@ -23,7 +23,8 @@ def compute_percentage_of_mask(mask: xr.DataArray, n_pixels_tot: int) -> float:
 
 
 def compute_area_of_class_mask(mask: xr.DataArray) -> float:
-    return mask.sum().values * np.abs(math.prod(mask.rio.resolution()))
+    gsd = mask.rio.resolution()
+    return mask.sum().values * np.abs(math.prod(gsd))
 
 
 class SnowCoverProductCompleteness:
@@ -64,7 +65,7 @@ class SnowCoverProductCompleteness:
         snow_mask = self.compute_mask_of_class("snow_cover", snow_cover_data_array)
         if consider_fraction:
             snow_cover_data_array = snow_cover_data_array / self.classes["snow_cover"][-1]
-            snow_cover_extent = compute_area_of_class_mask(snow_cover_data_array.where(snow_mask, 0))
+            snow_cover_extent = compute_area_of_class_mask(snow_cover_data_array.where(snow_mask))
         else:
             snow_cover_extent = compute_area_of_class_mask(snow_mask)
         return snow_cover_extent

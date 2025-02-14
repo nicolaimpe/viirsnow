@@ -6,7 +6,7 @@ from rasterio.enums import Resampling
 
 from compression import generate_xarray_compression_encodings
 from daily_composites import create_temporal_composite_meteofrance
-from evaluations.metrics import WinterYear
+from evaluations.snow_cover_extent_cross_comparison import WinterYear
 from geotools import mask_dataarray_with_vector_file, reproject_using_grid, to_rioxarray
 from grids import Grid, UTM375mGrid, georef_data_array
 from logger_setup import default_logger as logger
