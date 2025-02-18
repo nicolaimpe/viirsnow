@@ -5,7 +5,7 @@ import xarray as xr
 
 from compression import generate_xarray_compression_encodings
 from daily_composites import create_spatial_l3_nasa_composite
-from evaluations.metrics import WinterYear
+from evaluations.snow_cover_extent_cross_comparison import WinterYear
 from fractional_snow_cover import nasa_ndsi_snow_cover_to_fraction
 from geotools import mask_dataarray_with_vector_file
 from grids import Grid, UTM1kmGrid, UTM375mGrid, georef_data_array
