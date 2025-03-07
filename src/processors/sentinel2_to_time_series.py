@@ -3,7 +3,7 @@ import os
 import xarray as xr
 
 from daily_composites import create_spatial_s2_composite
-from evaluations.metrics import WinterYear
+from evaluations.snow_cover_extent_cross_comparison import WinterYear
 from geotools import mask_dataarray_with_vector_file
 from grids import Grid, UTM375mGrid
 from logger_setup import default_logger as logger
