@@ -7,7 +7,7 @@ import numpy as np
 import xarray as xr
 
 from logger_setup import default_logger as logger
-from products.classes import METEOFRANCE_CLASSES, NASA_CLASSES, NODATA_NASA_CLASSES
+from products.classes import METEOFRANCE_CLASSES, NASA_CLASSES, NODATA_NASA_CLASSES, S2_CLASSES
 
 
 def mask_of_pixels_of(value: int, data_array: xr.DataArray) -> xr.DataArray:
@@ -117,64 +117,6 @@ class SnowCoverProductCompleteness:
         if netcdf_export_path is not None:
             year_results_dataset.to_netcdf(Path(netcdf_export_path))
 
-    # def year_statistics(
-    #     self,
-    #     snow_cover_dataset: xr.Dataset,
-
-    #     exclude_nodata: bool = False,
-
-    # ) -> xr.Dataset:
-    #     from_year = snow_cover_dataset.coords["time"][0].dt.year.values
-    #     winter_year = WinterYear(from_year, from_year + 1)
-    #     if months != "all":
-    #         winter_year.select_months(months=months)
-    #     logger.info(f"Start processing time series of year {str(winter_year)}")
-
-    #     year_data_array_sample = xr.DataArray(
-    #         data=np.empty(shape=(len(self.classes), len(winter_year))),
-    #         coords={
-    #             "class_name": [*self.classes],
-    #             "time": winter_year.to_datetime(),
-    #         },
-    #     )
-    #     n_days_with_observation = xr.DataArray(0, dims=("time",), coords={"time": winter_year.to_datetime()})
-    #     year_dataset = xr.Dataset(data_vars={"to_remove": year_data_array_sample, "n_observed_days": n_days_with_observation})
-
-    #     if self.class_percentage_distribution:
-    #         year_data_array_percentage = year_data_array_sample.copy(deep=True)
-    #     if self.class_cover_area:
-    #         year_data_array_area = year_data_array_sample.copy(deep=True)
-
-    #     for month_datetime in winter_year.to_datetime():
-    #         logger.info(f"Processing month {month_datetime}")
-    #         self.monthly_statics(snow_cover_dataset=snow_cover_dataset, month=month_datetime, exclude_nodata=exclude_nodata)
-
-    #         if self.class_percentage_distribution:
-    #             year_data_array_percentage.loc[dict(time=month_datetime, class_name=list(self.percentages_dict.keys()))] = (
-    #                 list(self.percentages_dict.values())
-    #             )
-    #         if self.class_cover_area:
-    #             year_data_array_area.loc[dict(time=month_datetime, class_name=list(self.area_dict.keys()))] = list(
-    #                 self.area_dict.values()
-    #             )
-
-    #         year_dataset.data_vars["n_observed_days"].loc[dict(time=month_datetime)] = len(
-    #             snow_cover_dataset.groupby("time.month")[month_datetime.month].coords["time"]
-    #         )
-
-    #     if self.class_percentage_distribution:
-    #         year_dataset = year_dataset.assign({"class_distribution_percentage": year_data_array_percentage})
-    #     if self.class_cover_area:
-    #         year_dataset = year_dataset.assign({"class_distribution_area": year_data_array_area})
-
-    #     year_dataset = year_dataset.drop_vars("to_remove")
-
-    #     # Export options
-    #     if netcdf_export_path is not None:
-    #         year_dataset.to_netcdf(Path(netcdf_export_path))
-
-    #     return year_dataset
-
 
 class MeteoFranceSnowCoverProductCompleteness(SnowCoverProductCompleteness):
     def __init__(self) -> None:
@@ -184,6 +126,11 @@ class MeteoFranceSnowCoverProductCompleteness(SnowCoverProductCompleteness):
 class NASASnowCoverProductCompleteness(SnowCoverProductCompleteness):
     def __init__(self) -> None:
         super().__init__(classes=NASA_CLASSES, nodata_mapping=NODATA_NASA_CLASSES)
+
+
+class S2SnowCoverProductCompleteness(SnowCoverProductCompleteness):
+    def __init__(self) -> None:
+        super().__init__(classes=S2_CLASSES)
 
 
 if __name__ == "__main__":

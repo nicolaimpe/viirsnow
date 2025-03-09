@@ -41,8 +41,12 @@ class CrossComparisonSnowCoverExtent:
         fsc_threshold: float | None = None,
     ):
         logger.info(f"Processing time of the year {dataset.coords['time'].values[0].astype('M8[D]').astype('O')}")
+
+        # Mask invalid values
         valid_mask_meteofrance = dataset.data_vars["meteofrance"] <= METEOFRANCE_CLASSES["forest_without_snow"]
         valid_mask_nasa = dataset.data_vars["nasa"] <= NASA_CLASSES["snow_cover"][-1]
+
+        # Apply FSC threshold
         if fsc_threshold > 0:
             if fsc_threshold > 1:
                 raise ValueError(f"Invalid fsc threshold {fsc_threshold}. It must by between 0 and 1.")
@@ -55,27 +59,31 @@ class CrossComparisonSnowCoverExtent:
             )
             valid_mask_nasa = valid_mask_nasa & fsc_thresh_mask_nasa
 
+        # Validity mask union
         union_valid_mask = valid_mask_meteofrance & valid_mask_nasa
 
         meteofrance_valid = dataset.data_vars["meteofrance"].where(union_valid_mask)
         nasa_valid = dataset.data_vars["nasa"].where(union_valid_mask)
 
-        area_meteofrance_snow_binary = self.mf_analyzer.compute_snow_area(meteofrance_valid, consider_fraction=False)
-        area_meteofrance_snow_fraction = self.mf_analyzer.compute_snow_area(meteofrance_valid, consider_fraction=True)
+        # Divide forest/no forest
         meteofrance_forest_with_snow_mask = self.mf_analyzer.compute_mask_of_class("forest_with_snow", meteofrance_valid)
         meteofrance_forest_without_snow_mask = self.mf_analyzer.compute_mask_of_class("forest_without_snow", meteofrance_valid)
-
         meteofrance_forest_mask = meteofrance_forest_with_snow_mask | meteofrance_forest_without_snow_mask
-
-        area_meteofrance_forest_with_snow_binary = compute_area_of_class_mask(meteofrance_forest_with_snow_mask)
-        area_meteofrance_forest_with_snow_fraction = area_meteofrance_forest_with_snow_binary
 
         nasa_valid_no_forest = nasa_valid.where(~meteofrance_forest_mask)
         nasa_valid_forest = nasa_valid.where(meteofrance_forest_mask)
+
+        # Reduction
+        area_meteofrance_snow_binary = self.mf_analyzer.compute_snow_area(meteofrance_valid, consider_fraction=False)
+        area_meteofrance_snow_fraction = self.mf_analyzer.compute_snow_area(meteofrance_valid, consider_fraction=True)
+        area_meteofrance_forest_with_snow_binary = compute_area_of_class_mask(meteofrance_forest_with_snow_mask)
+        area_meteofrance_forest_with_snow_fraction = area_meteofrance_forest_with_snow_binary
+
         area_nasa_snow_binary = self.nasa_analyzer.compute_snow_area(nasa_valid_no_forest, consider_fraction=False)
         area_nasa_snow_fraction = self.nasa_analyzer.compute_snow_area(nasa_valid_no_forest, consider_fraction=True)
         area_nasa_forest_with_snow_binary = self.nasa_analyzer.compute_snow_area(nasa_valid_forest, consider_fraction=False)
         area_nasa_forest_with_snow_fraction = self.nasa_analyzer.compute_snow_area(nasa_valid_forest, consider_fraction=True)
+
         out_dataset = xr.Dataset(
             data_vars={
                 "meteofrance": xr.DataArray(
@@ -100,7 +108,6 @@ class CrossComparisonSnowCoverExtent:
                 ),
             }
         )
-
         return out_dataset
 
     def analyze_sce_valid_union(
@@ -113,10 +120,8 @@ class CrossComparisonSnowCoverExtent:
         common_days = np.intersect1d(meteofrance_time_series["time"], nasa_time_series["time"])
         both_products_dataset = xr.Dataset(
             {
-                "meteofrance": meteofrance_time_series.data_vars["snow_cover_fraction"]
-                .sel(time=common_days)
-                .chunk({"time": 1}),
-                "nasa": nasa_time_series.data_vars["snow_cover_fraction"].sel(time=common_days).chunk({"time": 1}),
+                "meteofrance": meteofrance_time_series.data_vars["snow_cover_fraction"].sel(time=common_days),
+                "nasa": nasa_time_series.data_vars["snow_cover_fraction"].sel(time=common_days),
             },
         )
 

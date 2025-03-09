@@ -186,11 +186,11 @@ def reprojection_l3_meteofrance_to_grid(meteofrance_dataset: xr.Dataset, output_
         meteofrance_forest_without_snow_mask.astype("u1"), output_grid=output_grid, resampling_method=Resampling.nearest
     )
     # Tricky resmapling of forest with snow
-    # With max we're gonna cover a higher area with forest with snow, even if few snow or few forest is detecred, the whole pixel will be excluded.
+    # With max we're gonna cover a higher area with forest with snow, even if few snow or few forest is detected, the whole pixel will be excluded.
     # But we can decide to exclude these pixels from the analysis
     # With nearest the result is more realistic, but we're gonna articially increase or decrease the snow cover farction in presence of forest.
     # When we resampled the quantitative classes with average we set forest with snow to zero snow. We could set it to another value but this implies setting a threshold
-    # If we don't want this approximation to pollute the results all we can do for now is toexlude all pixels even minimally covered with forest
+    # If we don't want this approximation to pollute the results all we can do for now is to exclude all pixels even minimally covered with forest
     meteofrance_forest_with_snow_mask_nearest = reproject_using_grid(
         meteofrance_forest_with_snow_mask.astype("u1"), output_grid=output_grid, resampling_method=Resampling.max
     )
