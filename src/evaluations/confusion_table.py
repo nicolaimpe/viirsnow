@@ -4,6 +4,7 @@ from typing import Dict
 import numpy as np
 import rioxarray
 import xarray as xr
+from scores.categorical import BasicContingencyManager
 from sklearn.metrics import ConfusionMatrixDisplay
 from xarray.groupers import BinGrouper
 
@@ -16,10 +17,37 @@ from evaluations.completeness import (
 from logger_setup import default_logger as logger
 from winter_year import WinterYear
 
+SCORES = ["precision", "recall", "f1_score", "commission_error", "omission_error", "accuracy"]
 
-def accuracy(dataset: xr.Dataset):
-    tot = np.sum(np.array([dataset[dv].sum() for dv in dataset]))
-    return (dataset.data_vars["true_positive"].sum() + dataset.data_vars["true_negative"].sum()) / tot
+
+def compute_score(dataset: xr.Dataset, score_name: str):
+    tp, tn, fp, fn = (
+        dataset.data_vars["true_positive"].sum(),
+        dataset.data_vars["true_negative"].sum(),
+        dataset.data_vars["false_positive"].sum(),
+        dataset.data_vars["false_negative"].sum(),
+    )
+    scores_manager = BasicContingencyManager(
+        counts={"tp_count": tp, "tn_count": tn, "fp_count": fp, "fn_count": fn, "total_count": tp + tn + fp + fn}
+    )
+
+    return getattr(scores_manager, score_name)()
+
+
+def omission_error(dataset: xr.Dataset):
+    return dataset["false_negative"].sum() / (dataset["true_positive"].sum() + dataset["false_negative"].sum())
+
+
+def compute_all_scores(dataset: xr.Dataset):
+    out_scores_dict = {}
+    for score in SCORES:
+        if score == "omission_error":
+            out_scores_dict.update({score: omission_error(dataset)})
+        elif score == "commission_error":
+            out_scores_dict.update({score: compute_score(dataset, score_name="false_alarm_rate")})
+        else:
+            out_scores_dict.update({score: compute_score(dataset, score_name=score)})
+    return xr.Dataset(out_scores_dict)
 
 
 def plot_confusion_table(dataset: xr.Dataset):
@@ -48,6 +76,8 @@ class ConfusionTable:
         test_analyzer: SnowCoverProductCompleteness,
         fsc_threshold: float | None = None,
     ) -> None:
+        if reference_analyzer.classes["snow_cover"] != range(1, 101):
+            raise NotImplementedError("This class supposes that the reference snow cover fraction is encoded beween 0 and 100")
         if fsc_threshold is not None:
             max_fsc_ref = reference_analyzer.classes["snow_cover"][-1]
             max_fsc_test = test_analyzer.classes["snow_cover"][-1]
@@ -71,13 +101,16 @@ class ConfusionTable:
 
     @staticmethod
     def sensor_zenith_bins():
-        return BinGrouper(np.arange(0, 90, 15), labels=np.arange(15, 90, 15))
+        return BinGrouper(
+            np.array([*np.arange(0, 90, 10), 255]),
+            labels=np.array([*np.arange(10, 90, 10), 255]),
+        )
 
     @staticmethod
     def ref_fsc_bins():
         return BinGrouper(
-            np.array([-1, *np.arange(0, 99, 10), 99, 100]),
-            labels=np.array([0, *np.arange(10, 99, 10), 99, 100]),
+            np.array([-1, *np.arange(0, 99, 10), 99, 100, 205]),
+            labels=np.array([0, *np.arange(10, 99, 10), 99, 100, 205]),
         )
 
     @staticmethod
@@ -99,7 +132,6 @@ class ConfusionTable:
         dataset = dataset.assign({"false_negative": no_snow_test & snow_ref})
 
         out_dataset = dataset.groupby(bins_dict).map(self.sum_masks)
-        out_dataset = out_dataset.assign_coords({"time": dataset.coords["time"].values})
         return out_dataset
 
     def sum_masks(self, dataset: xr.Dataset):
@@ -120,6 +152,13 @@ class ConfusionTable:
         forest_mask_path: str | None = None,
         netcdf_export_path: str | None = None,
     ) -> xr.Dataset:
+        if ref_time_series.data_vars["snow_cover_fraction"].max() != 205:
+            print(ref_time_series.data_vars["snow_cover_fraction"].max())
+            # This is supposed by limiting ref bins values to 205 just in ref_fsc_bins()
+            # If we don' put a max value, then groupby for ref FSC bins might not work in case we have invalid data
+            # but max value depends on the encoding so we have to put this
+            raise NotImplementedError("This function supposes that the reference data maximum is 205")
+
         common_days = np.intersect1d(test_time_series["time"], ref_time_series["time"])
 
         all_products_dataset = xr.Dataset(
@@ -197,7 +236,7 @@ class ConfusionTableNASA(ConfusionTable):
 if __name__ == "__main__":
     platform = "SNPP"
     year = WinterYear(2023, 2024)
-    products_to_evaluate = ["meteofrance_l3", "nasa_l3", "nasa_pseudo_l3"]
+    products_to_evaluate = ["nasa_l3", "meteofrance_l3", "nasa_pseudo_l3"]
     resolution = 375
     fsc_threshold = 0.15
     forest_mask_path = "/home/imperatoren/work/VIIRS_S2_comparison/data/vectorial/corine_2006_forest_mask.tif"
@@ -208,10 +247,9 @@ if __name__ == "__main__":
         ref_time_series_name = f"WY_{year.from_year}_{year.to_year}_S2_res_{resolution}m.nc"
         test_time_series_name = f"WY_{year.from_year}_{year.to_year}_{platform}_{product_to_evaluate}_res_{resolution}m.nc"
         output_filename = f"{output_folder}/confusion_table_WY_{year.from_year}_{year.to_year}_{platform}_{product_to_evaluate}_res_{resolution}m.nc"
-        test_time_series = xr.open_dataset(f"{working_folder}/{test_time_series_name}").isel(time=slice(100, 130))
-        ref_time_series = xr.open_dataset(f"{working_folder}/{ref_time_series_name}").isel(time=slice(100, 130))
-
-        logger.info(f"Evaluating product {products_to_evaluate}")
+        test_time_series = xr.open_dataset(f"{working_folder}/{test_time_series_name}")
+        ref_time_series = xr.open_dataset(f"{working_folder}/{ref_time_series_name}")
+        logger.info(f"Evaluating product {product_to_evaluate}")
         if product_to_evaluate == "nasa_l3":
             metrics_calcuator = ConfusionTableNASA(fsc_threshold=fsc_threshold)
             metrics_calcuator.contingency_analysis(
