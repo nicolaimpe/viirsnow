@@ -1,12 +1,9 @@
-import abc
 from typing import Dict
 
 import numpy as np
-import rioxarray
 import xarray as xr
 from scores.categorical import BasicContingencyManager
 from sklearn.metrics import ConfusionMatrixDisplay
-from xarray.groupers import BinGrouper
 
 from evaluations.completeness import (
     MeteoFranceSnowCoverProductCompleteness,
@@ -14,6 +11,7 @@ from evaluations.completeness import (
     S2SnowCoverProductCompleteness,
     SnowCoverProductCompleteness,
 )
+from evaluations.statistics_base import EvaluationVsHighResBase
 from logger_setup import default_logger as logger
 from winter_year import WinterYear
 
@@ -69,15 +67,13 @@ def plot_confusion_table(dataset: xr.Dataset):
     disp.plot()
 
 
-class ConfusionTable:
+class ConfusionTable(EvaluationVsHighResBase):
     def __init__(
         self,
         reference_analyzer: SnowCoverProductCompleteness,
         test_analyzer: SnowCoverProductCompleteness,
         fsc_threshold: float | None = None,
-    ) -> None:
-        if reference_analyzer.classes["snow_cover"] != range(1, 101):
-            raise NotImplementedError("This class supposes that the reference snow cover fraction is encoded beween 0 and 100")
+    ):
         if fsc_threshold is not None:
             max_fsc_ref = reference_analyzer.classes["snow_cover"][-1]
             max_fsc_test = test_analyzer.classes["snow_cover"][-1]
@@ -87,44 +83,16 @@ class ConfusionTable:
 
             reference_analyzer.classes.update(no_snow=range(0, int(fsc_threshold * max_fsc_ref)))
             test_analyzer.classes.update(no_snow=range(0, int(fsc_threshold * max_fsc_test)))
-
-        self.ref_analyzer = reference_analyzer
-        self.test_analyzer = test_analyzer
-
-    @abc.abstractmethod
-    def compute_test_product_snow_mask(self, data_array: xr.DataArray):
-        pass
-
-    @abc.abstractmethod
-    def compute_test_product_no_snow_mask(self, data_array: xr.DataArray):
-        pass
-
-    @staticmethod
-    def sensor_zenith_bins():
-        return BinGrouper(
-            np.array([*np.arange(0, 90, 10), 255]),
-            labels=np.array([*np.arange(10, 90, 10), 255]),
-        )
-
-    @staticmethod
-    def ref_fsc_bins():
-        return BinGrouper(
-            np.array([-1, *np.arange(0, 99, 10), 99, 100, 205]),
-            labels=np.array([0, *np.arange(10, 99, 10), 99, 100, 205]),
-        )
-
-    @staticmethod
-    def forest_bins():
-        return BinGrouper([-1, 0, 1], labels=[0, 1])
+        super().__init__(reference_analyzer, test_analyzer)
 
     def compute_binary_metrics(self, dataset: xr.Dataset, bins_dict: Dict[str, xr.groupers.Grouper]):
         logger.info(f"Processing time of the year {dataset.coords['time'].values[0].astype('M8[D]').astype('O')}")
 
-        snow_test = self.compute_test_product_snow_mask(dataset["test"])
-        no_snow_test = self.compute_test_product_no_snow_mask(dataset["test"])
+        snow_test = self.test_analyzer.total_snow_mask(dataset["test"])
+        no_snow_test = self.test_analyzer.total_no_snow_mask(dataset["test"])
 
-        snow_ref = self.ref_analyzer.compute_mask_of_class("snow_cover", dataset["ref"])
-        no_snow_ref = self.ref_analyzer.compute_mask_of_class("no_snow", dataset["ref"])
+        snow_ref = self.ref_analyzer.total_snow_mask(dataset["ref"])
+        no_snow_ref = self.ref_analyzer.total_no_snow_mask(dataset["ref"])
 
         dataset = dataset.assign({"true_positive": snow_test & snow_ref})
         dataset = dataset.assign({"true_negative": no_snow_test & no_snow_ref})
@@ -152,42 +120,16 @@ class ConfusionTable:
         forest_mask_path: str | None = None,
         netcdf_export_path: str | None = None,
     ) -> xr.Dataset:
-        if ref_time_series.data_vars["snow_cover_fraction"].max() != 205:
-            print(ref_time_series.data_vars["snow_cover_fraction"].max())
-            # This is supposed by limiting ref bins values to 205 just in ref_fsc_bins()
-            # If we don' put a max value, then groupby for ref FSC bins might not work in case we have invalid data
-            # but max value depends on the encoding so we have to put this
-            raise NotImplementedError("This function supposes that the reference data maximum is 205")
-
-        common_days = np.intersect1d(test_time_series["time"], ref_time_series["time"])
-
-        all_products_dataset = xr.Dataset(
-            {
-                "ref": ref_time_series.data_vars["snow_cover_fraction"].sel(time=common_days),
-                "test": test_time_series.data_vars["snow_cover_fraction"].sel(time=common_days),
-            },
+        combined_dataset, analysis_bin_dict = self.prepare_analysis(
+            test_time_series=test_time_series,
+            ref_time_series=ref_time_series,
+            sensor_zenith_analysis=sensor_zenith_analysis,
+            forest_mask_path=forest_mask_path,
         )
-
-        analysis_bin_dict = dict(ref=self.ref_fsc_bins())
-
-        if sensor_zenith_analysis:
-            analysis_bin_dict.update(sensor_zenith=self.sensor_zenith_bins())
-            all_products_dataset = all_products_dataset.assign(
-                {"sensor_zenith": test_time_series.data_vars["sensor_zenith"].sel(time=common_days)}
-            )
-
-        if forest_mask_path is not None:
-            forest_mask = rioxarray.open_rasterio(forest_mask_path)
-            all_products_dataset = all_products_dataset.assign(forest_mask=forest_mask.sel(band=1).drop_vars("band"))
-            analysis_bin_dict.update(forest_mask=self.forest_bins())
-
-        result = all_products_dataset.groupby("time").map(self.compute_binary_metrics, bins_dict=analysis_bin_dict)
+        result = combined_dataset.groupby("time").map(self.compute_binary_metrics, bins_dict=analysis_bin_dict)
 
         if netcdf_export_path:
-            result.to_netcdf(
-                netcdf_export_path,
-                encoding=dict(time={"calendar": "gregorian", "units": f"days since {str(year.from_year)}-10-01"}),
-            )
+            result.to_netcdf(netcdf_export_path)
         return result
 
 
@@ -199,20 +141,6 @@ class ConfusionTableMeteoFrance(ConfusionTable):
             fsc_threshold=fsc_threshold,
         )
 
-    def compute_test_product_snow_mask(self, data_array: xr.DataArray):
-        snow_meteofrance = self.test_analyzer.compute_mask_of_class(
-            "snow_cover", data_array
-        ) | self.test_analyzer.compute_mask_of_class("forest_with_snow", data_array)
-        return snow_meteofrance
-
-    def compute_test_product_no_snow_mask(self, data_array: xr.DataArray):
-        no_snow_meteofrance = (
-            self.test_analyzer.compute_mask_of_class("no_snow", data_array)
-            | self.test_analyzer.compute_mask_of_class("forest_without_snow", data_array)
-            | self.test_analyzer.compute_mask_of_class("water", data_array)
-        )
-        return no_snow_meteofrance
-
 
 class ConfusionTableNASA(ConfusionTable):
     def __init__(self, fsc_threshold: float | None = None) -> None:
@@ -221,16 +149,6 @@ class ConfusionTableNASA(ConfusionTable):
             test_analyzer=NASASnowCoverProductCompleteness(),
             fsc_threshold=fsc_threshold,
         )
-
-    def compute_test_product_snow_mask(self, data_array: xr.DataArray):
-        snow_nasa = self.test_analyzer.compute_mask_of_class("snow_cover", data_array)
-        return snow_nasa
-
-    def compute_test_product_no_snow_mask(self, data_array: xr.DataArray):
-        no_snow_nasa = self.test_analyzer.compute_mask_of_class(
-            "no_snow", data_array
-        ) | self.test_analyzer.compute_mask_of_class("water", data_array)
-        return no_snow_nasa
 
 
 if __name__ == "__main__":
@@ -250,6 +168,7 @@ if __name__ == "__main__":
         test_time_series = xr.open_dataset(f"{working_folder}/{test_time_series_name}")
         ref_time_series = xr.open_dataset(f"{working_folder}/{ref_time_series_name}")
         logger.info(f"Evaluating product {product_to_evaluate}")
+
         if product_to_evaluate == "nasa_l3":
             metrics_calcuator = ConfusionTableNASA(fsc_threshold=fsc_threshold)
             metrics_calcuator.contingency_analysis(
@@ -259,6 +178,7 @@ if __name__ == "__main__":
                 forest_mask_path=forest_mask_path,
                 netcdf_export_path=output_filename,
             )
+
         elif product_to_evaluate == "nasa_pseudo_l3":
             metrics_calcuator = ConfusionTableNASA(fsc_threshold=fsc_threshold)
             metrics_calcuator.contingency_analysis(
@@ -268,6 +188,7 @@ if __name__ == "__main__":
                 forest_mask_path=forest_mask_path,
                 netcdf_export_path=output_filename,
             )
+
         elif product_to_evaluate == "meteofrance_l3":
             metrics_calcuator = ConfusionTableMeteoFrance(fsc_threshold=fsc_threshold)
             metrics_calcuator.contingency_analysis(
@@ -277,5 +198,6 @@ if __name__ == "__main__":
                 forest_mask_path=forest_mask_path,
                 netcdf_export_path=output_filename,
             )
+
         else:
             raise NotImplementedError(f"Unknown product: {product_to_evaluate}")
