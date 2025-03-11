@@ -1,3 +1,4 @@
+import abc
 import copy
 import math
 from pathlib import Path
@@ -49,7 +50,7 @@ class SnowCoverProductCompleteness:
                 self.classes.pop(class_to_exclude_name)
             self.classes["nodata"] = new_nodata_values
 
-    def compute_mask_of_class(self, class_name: str, data_array: xr.DataArray) -> xr.DataArray:
+    def mask_of_class(self, class_name: str, data_array: xr.DataArray) -> xr.DataArray:
         if type(self.classes[class_name]) is range:
             return mask_of_pixels_in_range(self.classes[class_name], data_array)
         else:
@@ -58,11 +59,22 @@ class SnowCoverProductCompleteness:
                 summed_mask += mask_of_pixels_of(value, data_array)
             return summed_mask
 
-    def compute_area_of_class(self, class_name: str, data_array: xr.DataArray) -> float:
-        return compute_area_of_class_mask(self.compute_mask_of_class(class_name=class_name, data_array=data_array))
+    @abc.abstractmethod
+    def total_snow_mask(self, data_array: xr.DataArray) -> xr.DataArray:
+        pass
 
-    def compute_snow_area(self, snow_cover_data_array: xr.DataArray, consider_fraction: bool = True) -> float:
-        snow_mask = self.compute_mask_of_class("snow_cover", snow_cover_data_array)
+    @abc.abstractmethod
+    def total_no_snow_mask(self, data_array: xr.DataArray) -> xr.DataArray:
+        pass
+
+    def quantitative_mask(self, data_array: xr.DataArray):
+        return mask_of_pixels_in_range(range(self.classes["no_snow"][0], self.classes["snow_cover"][-1] + 1), data_array)
+
+    def area_of_class(self, class_name: str, data_array: xr.DataArray) -> float:
+        return compute_area_of_class_mask(self.mask_of_class(class_name=class_name, data_array=data_array))
+
+    def snow_area(self, snow_cover_data_array: xr.DataArray, consider_fraction: bool = True) -> float:
+        snow_mask = self.mask_of_class("snow_cover", snow_cover_data_array)
         if consider_fraction:
             snow_cover_data_array = snow_cover_data_array / self.classes["snow_cover"][-1]
             snow_cover_extent = compute_area_of_class_mask(snow_cover_data_array.where(snow_mask))
@@ -72,7 +84,7 @@ class SnowCoverProductCompleteness:
 
     def count_valid_pixels(self, data_array: xr.DataArray, exclude_nodata: bool = False):
         if exclude_nodata:
-            nodata_pixels = self.compute_mask_of_class("nodata", data_array).sum().values
+            nodata_pixels = self.mask_of_class("nodata", data_array).sum().values
             n_pixels_tot = data_array.count().values - nodata_pixels
 
         else:
@@ -96,7 +108,7 @@ class SnowCoverProductCompleteness:
         for class_name in self.classes:
             if class_name == "nodata" and exclude_nodata:
                 continue
-            class_mask = self.compute_mask_of_class(class_name, data_array)
+            class_mask = self.mask_of_class(class_name, data_array)
             results_dataset.data_vars["n_pixels_class"].loc[class_name] = class_mask.sum().values
             results_dataset.data_vars["percentage"].loc[class_name] = compute_percentage_of_mask(class_mask, n_pixels_tot)
             results_dataset.data_vars["surface"].loc[class_name] = compute_area_of_class_mask(class_mask)
@@ -122,15 +134,43 @@ class MeteoFranceSnowCoverProductCompleteness(SnowCoverProductCompleteness):
     def __init__(self) -> None:
         super().__init__(classes=METEOFRANCE_CLASSES, nodata_mapping=None)
 
+    def total_snow_mask(self, data_array: xr.DataArray) -> xr.DataArray:
+        snow_meteofrance = self.mask_of_class("snow_cover", data_array) | self.mask_of_class("forest_with_snow", data_array)
+        return snow_meteofrance
+
+    def total_no_snow_mask(self, data_array: xr.DataArray) -> xr.DataArray:
+        no_snow_meteofrance = (
+            self.mask_of_class("no_snow", data_array)
+            | self.mask_of_class("forest_without_snow", data_array)
+            | self.mask_of_class("water", data_array)
+        )
+        return no_snow_meteofrance
+
 
 class NASASnowCoverProductCompleteness(SnowCoverProductCompleteness):
     def __init__(self) -> None:
         super().__init__(classes=NASA_CLASSES, nodata_mapping=NODATA_NASA_CLASSES)
 
+    def total_snow_mask(self, data_array: xr.DataArray) -> xr.DataArray:
+        snow_nasa = self.mask_of_class("snow_cover", data_array)
+        return snow_nasa
+
+    def total_no_snow_mask(self, data_array: xr.DataArray) -> xr.DataArray:
+        no_snow_nasa = self.mask_of_class("no_snow", data_array) | self.mask_of_class("water", data_array)
+        return no_snow_nasa
+
 
 class S2SnowCoverProductCompleteness(SnowCoverProductCompleteness):
     def __init__(self) -> None:
         super().__init__(classes=S2_CLASSES)
+
+    def total_snow_mask(self, data_array: xr.DataArray) -> xr.DataArray:
+        snow_s2 = self.mask_of_class("snow_cover", data_array)
+        return snow_s2
+
+    def total_no_snow_mask(self, data_array: xr.DataArray) -> xr.DataArray:
+        no_snow_s2 = self.mask_of_class("no_snow", data_array)
+        return no_snow_s2
 
 
 if __name__ == "__main__":
