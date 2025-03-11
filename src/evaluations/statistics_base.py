@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Dict, Tuple
 
 import numpy as np
@@ -6,6 +7,7 @@ import xarray as xr
 from xarray.groupers import BinGrouper
 
 from evaluations.completeness import SnowCoverProductCompleteness
+from winter_year import WinterYear
 
 
 class EvaluationVsHighResBase:
@@ -38,6 +40,12 @@ class EvaluationVsHighResBase:
     @staticmethod
     def forest_bins():
         return BinGrouper([-1, 0, 1], labels=[0, 1])
+
+    @staticmethod
+    def month_bins(winter_year: WinterYear):
+        wy_datetime = winter_year.to_datetime()
+        wy_datetime.extend([datetime(year=wy_datetime[-1].year, month=wy_datetime[-1].month + 1, day=1)])
+        return BinGrouper(wy_datetime, labels=[month_datetime for month_datetime in wy_datetime[:-1]])
 
     def prepare_analysis(
         self,

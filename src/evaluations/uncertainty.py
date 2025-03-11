@@ -1,7 +1,9 @@
-from typing import Dict
+from typing import Dict, Tuple
 
 import numpy as np
+import pandas as pd
 import xarray as xr
+from matplotlib import pyplot as plt
 from xarray.groupers import BinGrouper
 
 from evaluations.completeness import (
@@ -11,6 +13,7 @@ from evaluations.completeness import (
 )
 from evaluations.statistics_base import EvaluationVsHighResBase
 from logger_setup import default_logger as logger
+from products.plot_settings import PRODUCT_PLOT_COLORS
 from winter_year import WinterYear
 
 
@@ -23,6 +26,54 @@ def histograms_to_biais_rmse(metrics_dataset: xr.Dataset) -> xr.Dataset:
     rmse = np.sqrt((n_occur * biais_bins**2).sum() / tot_occurrences)
     unbiaised_rmse = np.sqrt((n_occur * (biais_bins - biais) ** 2).sum() / tot_occurrences)
     return xr.Dataset({"biais": biais, "rmse": rmse, "unbiaised_rmse": unbiaised_rmse})
+
+
+def postprocess_uncertainty_analysis(
+    uncertainty_datasets: Dict[str, xr.Dataset], analysis_var: str | BinGrouper
+) -> xr.Dataset:
+    reduced_datasets = []
+    for dataset in uncertainty_datasets.values():
+        reduced_datasets.append(dataset.groupby(analysis_var).map(histograms_to_biais_rmse))
+    concatenated = xr.concat(reduced_datasets, pd.Index(list(uncertainty_datasets.keys()), name="product"), coords="minimal")
+    return concatenated
+
+
+def barplots(postprocessed_data_array: xr.DataArray, title: str, y_lim: Tuple[int, int]):
+    plot_dataframe_dict = {}
+    colors = []
+    for product in postprocessed_data_array.coords["product"].values:
+        plot_dataframe_dict.update({product: postprocessed_data_array.sel(product=product).to_pandas()})
+        colors.append(PRODUCT_PLOT_COLORS[product])
+    plot_dataframe = pd.DataFrame(plot_dataframe_dict)
+    if "month" in title:
+        plot_dataframe.index = plot_dataframe.index.strftime("%B")
+    plot_dataframe.plot.bar(figsize=(14, 4), color=colors, width=0.6, title=title)
+    plt.ylim(y_lim)
+    plt.grid(True, axis="y")
+
+
+def biais_barplots(postprocessed_dataset: xr.Dataset, analysis_var_plot_name: str, winter_year: WinterYear):
+    barplots(
+        postprocessed_data_array=postprocessed_dataset.data_vars["biais"],
+        title=f"Biais comparison {analysis_var_plot_name} - {str(winter_year)}",
+        y_lim=(-15, 15),
+    )
+
+
+def rmse_barplots(postprocessed_dataset: xr.Dataset, analysis_var_plot_name: str, winter_year: WinterYear):
+    barplots(
+        postprocessed_data_array=postprocessed_dataset.data_vars["rmse"],
+        title=f"RMSE comparison {analysis_var_plot_name} - {str(winter_year)}",
+        y_lim=(0, 40),
+    )
+
+
+def unbiaised_rmse_barplots(postprocessed_dataset: xr.Dataset, analysis_var_plot_name: str, winter_year: WinterYear):
+    barplots(
+        postprocessed_data_array=postprocessed_dataset.data_vars["unbiaised_rmse"],
+        title=f"Unbiaised RMSE comparison {analysis_var_plot_name} - {str(winter_year)}",
+        y_lim=(0, 40),
+    )
 
 
 class Uncertainty(EvaluationVsHighResBase):
@@ -39,16 +90,10 @@ class Uncertainty(EvaluationVsHighResBase):
 
     def time_step_analysis(self, dataset: xr.Dataset, bins_dict: Dict[str, xr.groupers.Grouper]):
         logger.info(f"Processing time of the year {dataset.coords['time'].values[0].astype('M8[D]').astype('O')}")
-        valid_test = (
-            dataset.data_vars["test"].where(self.test_analyzer.quantitative_mask(dataset.data_vars["test"]))
-            * 100
-            / self.test_analyzer.classes["snow_cover"][-1]
-        )
-        valid_ref = (
-            dataset.data_vars["ref"].where(self.ref_analyzer.quantitative_mask(dataset.data_vars["ref"]))
-            * 100
-            / self.ref_analyzer.classes["snow_cover"][-1]
-        )
+        valid_test = dataset.data_vars["test"].where(self.test_analyzer.quantitative_mask(dataset.data_vars["test"]))
+        valid_test = valid_test * 100 / self.test_analyzer.classes["snow_cover"][-1]
+        valid_ref = dataset.data_vars["ref"].where(self.ref_analyzer.quantitative_mask(dataset.data_vars["ref"]))
+        valid_ref = valid_ref * 100 / self.ref_analyzer.classes["snow_cover"][-1]
         dataset = dataset.assign(biais=valid_test - valid_ref)
         histograms = dataset.groupby(bins_dict).map(self.compute_biais_histogram)
         # histograms = (histograms.where(~np.isnan(histograms), 0) + 100).astype("u1")
@@ -114,12 +159,8 @@ if __name__ == "__main__":
         ref_time_series_name = f"WY_{year.from_year}_{year.to_year}_S2_res_{resolution}m.nc"
         test_time_series_name = f"WY_{year.from_year}_{year.to_year}_{platform}_{product_to_evaluate}_res_{resolution}m.nc"
         output_filename = f"{output_folder}/uncertainty_WY_{year.from_year}_{year.to_year}_{platform}_{product_to_evaluate}_res_{resolution}m.nc"
-        test_time_series = xr.open_dataset(f"{working_folder}/{test_time_series_name}").sel(
-            time=slice("2024-03-01", "2024-04-05")
-        )
-        ref_time_series = xr.open_dataset(f"{working_folder}/{ref_time_series_name}").sel(
-            time=slice("2024-03-01", "2024-04-05")
-        )
+        test_time_series = xr.open_dataset(f"{working_folder}/{test_time_series_name}")
+        ref_time_series = xr.open_dataset(f"{working_folder}/{ref_time_series_name}")
         logger.info(f"Evaluating product {product_to_evaluate}")
 
         if product_to_evaluate == "nasa_l3":
