@@ -10,6 +10,7 @@ from evaluations.completeness import (
     NASASnowCoverProductCompleteness,
     S2SnowCoverProductCompleteness,
     SnowCoverProductCompleteness,
+    mask_of_pixels_in_range,
 )
 from evaluations.statistics_base import EvaluationVsHighResBase
 from logger_setup import default_logger as logger
@@ -74,25 +75,27 @@ class ConfusionTable(EvaluationVsHighResBase):
         test_analyzer: SnowCoverProductCompleteness,
         fsc_threshold: float | None = None,
     ):
-        if fsc_threshold is not None:
-            max_fsc_ref = reference_analyzer.classes["snow_cover"][-1]
-            max_fsc_test = test_analyzer.classes["snow_cover"][-1]
-
-            reference_analyzer.classes.update(snow_cover=range(int(fsc_threshold * max_fsc_ref), max_fsc_ref + 1))
-            test_analyzer.classes.update(snow_cover=range(int(fsc_threshold * max_fsc_test), max_fsc_test + 1))
-
-            reference_analyzer.classes.update(no_snow=range(0, int(fsc_threshold * max_fsc_ref)))
-            test_analyzer.classes.update(no_snow=range(0, int(fsc_threshold * max_fsc_test)))
+        self.fsc_threshold = fsc_threshold if fsc_threshold is not None else None
         super().__init__(reference_analyzer, test_analyzer)
 
     def compute_binary_metrics(self, dataset: xr.Dataset, bins_dict: Dict[str, xr.groupers.Grouper]):
         logger.info(f"Processing time of the year {dataset.coords['time'].values[0].astype('M8[D]').astype('O')}")
 
-        snow_test = self.test_analyzer.total_snow_mask(dataset["test"])
+        snow_test = mask_of_pixels_in_range(
+            range(int(fsc_threshold * self.test_analyzer.max_fsc), self.test_analyzer.max_fsc), dataset["test"]
+        )
         no_snow_test = self.test_analyzer.total_no_snow_mask(dataset["test"])
 
-        snow_ref = self.ref_analyzer.total_snow_mask(dataset["ref"])
+        snow_ref = mask_of_pixels_in_range(
+            range(int(fsc_threshold * self.ref_analyzer.max_fsc), self.ref_analyzer.max_fsc), dataset["ref"]
+        )
         no_snow_ref = self.ref_analyzer.total_no_snow_mask(dataset["ref"])
+
+        # snow_test = self.test_analyzer.total_snow_mask(dataset["test"])
+        # no_snow_test = self.test_analyzer.total_no_snow_mask(dataset["test"])
+
+        # snow_ref = self.ref_analyzer.total_snow_mask(dataset["ref"])
+        # no_snow_ref = self.ref_analyzer.total_no_snow_mask(dataset["ref"])
 
         dataset = dataset.assign({"true_positive": snow_test & snow_ref})
         dataset = dataset.assign({"true_negative": no_snow_test & no_snow_ref})
@@ -118,6 +121,7 @@ class ConfusionTable(EvaluationVsHighResBase):
         ref_time_series: xr.Dataset,
         sensor_zenith_analysis: bool = True,
         forest_mask_path: str | None = None,
+        slope_map_path: str | None = None,
         netcdf_export_path: str | None = None,
     ) -> xr.Dataset:
         combined_dataset, analysis_bin_dict = self.prepare_analysis(
@@ -125,6 +129,7 @@ class ConfusionTable(EvaluationVsHighResBase):
             ref_time_series=ref_time_series,
             sensor_zenith_analysis=sensor_zenith_analysis,
             forest_mask_path=forest_mask_path,
+            slope_map_path=slope_map_path,
         )
         result = combined_dataset.groupby("time").map(self.compute_binary_metrics, bins_dict=analysis_bin_dict)
 
@@ -154,28 +159,30 @@ class ConfusionTableNASA(ConfusionTable):
 if __name__ == "__main__":
     platform = "SNPP"
     year = WinterYear(2023, 2024)
-    products_to_evaluate = ["nasa_l3", "meteofrance_l3", "nasa_pseudo_l3"]
+    products_to_evaluate = ["meteofrance_l3", "nasa_pseudo_l3", "nasa_l3"]
     resolution = 375
     fsc_threshold = 0.15
-    forest_mask_path = "/home/imperatoren/work/VIIRS_S2_comparison/data/vectorial/corine_2006_forest_mask.tif"
+    forest_mask_path = "/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/forest_mask/corine_2006_forest_mask.tif"
+    slope_map_path = "/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/dem/SLP_MSF_UTM32_375m_lanczos.tif"
 
     for product_to_evaluate in products_to_evaluate:
         working_folder = "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_3/"
-        output_folder = f"{working_folder}/analyses/confusion_table"
+        output_folder = f"{working_folder}/analyses/confusion_table_test"
         ref_time_series_name = f"WY_{year.from_year}_{year.to_year}_S2_res_{resolution}m.nc"
         test_time_series_name = f"WY_{year.from_year}_{year.to_year}_{platform}_{product_to_evaluate}_res_{resolution}m.nc"
         output_filename = f"{output_folder}/confusion_table_WY_{year.from_year}_{year.to_year}_{platform}_{product_to_evaluate}_res_{resolution}m.nc"
-        test_time_series = xr.open_dataset(f"{working_folder}/{test_time_series_name}")
-        ref_time_series = xr.open_dataset(f"{working_folder}/{ref_time_series_name}")
+        test_time_series = xr.open_dataset(f"{working_folder}/{test_time_series_name}").isel(time=slice(100, 120))
+        ref_time_series = xr.open_dataset(f"{working_folder}/{ref_time_series_name}").isel(time=slice(100, 120))
         logger.info(f"Evaluating product {product_to_evaluate}")
 
-        if product_to_evaluate == "nasa_l3":
+        if product_to_evaluate in "nasa_l3":
             metrics_calcuator = ConfusionTableNASA(fsc_threshold=fsc_threshold)
             metrics_calcuator.contingency_analysis(
                 test_time_series=test_time_series,
                 ref_time_series=ref_time_series,
                 sensor_zenith_analysis=False,
                 forest_mask_path=forest_mask_path,
+                slope_map_path=slope_map_path,
                 netcdf_export_path=output_filename,
             )
 
@@ -186,6 +193,7 @@ if __name__ == "__main__":
                 ref_time_series=ref_time_series,
                 sensor_zenith_analysis=True,
                 forest_mask_path=forest_mask_path,
+                slope_map_path=slope_map_path,
                 netcdf_export_path=output_filename,
             )
 
@@ -196,6 +204,7 @@ if __name__ == "__main__":
                 ref_time_series=ref_time_series,
                 sensor_zenith_analysis=True,
                 forest_mask_path=forest_mask_path,
+                slope_map_path=slope_map_path,
                 netcdf_export_path=output_filename,
             )
 

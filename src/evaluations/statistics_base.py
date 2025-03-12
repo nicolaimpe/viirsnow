@@ -2,7 +2,6 @@ from datetime import datetime
 from typing import Dict, Tuple
 
 import numpy as np
-import rioxarray
 import xarray as xr
 from xarray.groupers import BinGrouper
 
@@ -24,25 +23,40 @@ class EvaluationVsHighResBase:
         self.test_analyzer = test_analyzer
 
     @staticmethod
-    def sensor_zenith_bins():
+    def sensor_zenith_bins(sensor_zenith_step: int = 15) -> BinGrouper:
+        # degrees
+        # 255 is there to account for empty bins...otherwise the code breaks
         return BinGrouper(
-            np.array([*np.arange(0, 90, 10), 255]),
-            labels=np.array([*np.arange(10, 90, 10), 255]),
+            np.array([*np.arange(0, 90, sensor_zenith_step), 255]),
+            labels=np.array([*np.arange(sensor_zenith_step, 90, sensor_zenith_step), 255]),
+            include_lowest=True,
         )
 
     @staticmethod
-    def ref_fsc_bins():
+    def ref_fsc_bins(ref_fsc_step: int = 25) -> BinGrouper:
+        # 255 is there to account for empty/invalid bins...otherwise the code breaks
         return BinGrouper(
-            np.array([-1, *np.arange(0, 99, 10), 99, 100, 205]),
-            labels=np.array([0, *np.arange(10, 99, 10), 99, 100, 205]),
+            np.array([*np.arange(0, 99, ref_fsc_step), 99, 100, 205]),
+            labels=np.array([*np.arange(ref_fsc_step, 99, ref_fsc_step), 99, 100, 205]),
+            include_lowest=True,
         )
 
     @staticmethod
-    def forest_bins():
+    def forest_bins() -> BinGrouper:
         return BinGrouper([-1, 0, 1], labels=[0, 1])
 
     @staticmethod
-    def month_bins(winter_year: WinterYear):
+    def slope_bins() -> BinGrouper:
+        return BinGrouper(
+            np.array([0, *np.arange(10, 70, 20), 90]), labels=np.array([*np.arange(10, 70, 20), 90]), include_lowest=True
+        )
+
+    @staticmethod
+    def aspect_bins() -> BinGrouper:
+        return BinGrouper(np.arange(0, 370, 45), labels=np.array([""]), include_lowest=True)
+
+    @staticmethod
+    def month_bins(winter_year: WinterYear) -> BinGrouper:
         wy_datetime = winter_year.to_datetime()
         wy_datetime.extend([datetime(year=wy_datetime[-1].year, month=wy_datetime[-1].month + 1, day=1)])
         return BinGrouper(wy_datetime, labels=[month_datetime for month_datetime in wy_datetime[:-1]])
@@ -53,6 +67,9 @@ class EvaluationVsHighResBase:
         ref_time_series: xr.Dataset,
         sensor_zenith_analysis: bool = True,
         forest_mask_path: str | None = None,
+        slope_map_path: str | None = None,
+        aspect_map_path: str | None = None,
+        dem_path: str | None = None,
     ) -> Tuple[xr.Dataset, Dict[str, BinGrouper]]:
         if ref_time_series.data_vars["snow_cover_fraction"].max() != 205:
             # This is supposed by limiting ref bins values to 205 just in ref_fsc_bins()
@@ -78,9 +95,19 @@ class EvaluationVsHighResBase:
             )
 
         if forest_mask_path is not None:
-            forest_mask = rioxarray.open_rasterio(forest_mask_path)
+            forest_mask = xr.open_dataarray(forest_mask_path)
             combined_dataset = combined_dataset.assign(forest_mask=forest_mask.sel(band=1).drop_vars("band"))
             analysis_bin_dict.update(forest_mask=self.forest_bins())
+
+        if slope_map_path is not None:
+            slope_map = xr.open_dataarray(slope_map_path)
+            combined_dataset = combined_dataset.assign(slope=slope_map.sel(band=1).drop_vars("band"))
+            analysis_bin_dict.update(slope=self.slope_bins())
+
+        if aspect_map_path is not None:
+            aspect_map = xr.open_dataarray(aspect_map_path)
+            combined_dataset = combined_dataset.assign(aspect_map=aspect_map.sel(band=1).drop_vars("band"))
+            analysis_bin_dict.update(aspect=self.aspect_bins())
 
         combined_dataset = combined_dataset.drop_vars("spatial_ref")
         return combined_dataset, analysis_bin_dict
