@@ -127,6 +127,7 @@ class ConfusionTable(EvaluationVsHighResBase):
         combined_dataset, analysis_bin_dict = self.prepare_analysis(
             test_time_series=test_time_series,
             ref_time_series=ref_time_series,
+            ref_fsc_step=25,
             sensor_zenith_analysis=sensor_zenith_analysis,
             forest_mask_path=forest_mask_path,
             slope_map_path=slope_map_path,

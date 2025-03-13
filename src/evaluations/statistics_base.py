@@ -36,9 +36,8 @@ class EvaluationVsHighResBase:
     def ref_fsc_bins(ref_fsc_step: int = 25) -> BinGrouper:
         # 255 is there to account for empty/invalid bins...otherwise the code breaks
         return BinGrouper(
-            np.array([*np.arange(0, 99, ref_fsc_step), 99, 100, 205]),
-            labels=np.array([*np.arange(ref_fsc_step, 99, ref_fsc_step), 99, 100, 205]),
-            include_lowest=True,
+            np.array([-1, *np.arange(0, 99, ref_fsc_step), 99, 100, 205]),
+            labels=np.array([*np.arange(0, 99, ref_fsc_step), 99, 100, 205]),
         )
 
     @staticmethod
@@ -53,7 +52,14 @@ class EvaluationVsHighResBase:
 
     @staticmethod
     def aspect_bins() -> BinGrouper:
-        return BinGrouper(np.arange(0, 370, 45), labels=np.array([""]), include_lowest=True)
+        return BinGrouper(np.arange(-22.5, 360, 45), labels=np.array(["N", "NE", "E", "SE", "S", "SW", "W", "NW"]))
+
+    @staticmethod
+    def altitude_bins(altitude_band: int = 300) -> BinGrouper:
+        return BinGrouper(
+            np.array([0, *np.arange(900, 3900, altitude_band), 4800]),
+            labels=np.array([*np.arange(900, 3900, altitude_band), 4800]),
+        )
 
     @staticmethod
     def month_bins(winter_year: WinterYear) -> BinGrouper:
@@ -61,10 +67,28 @@ class EvaluationVsHighResBase:
         wy_datetime.extend([datetime(year=wy_datetime[-1].year, month=wy_datetime[-1].month + 1, day=1)])
         return BinGrouper(wy_datetime, labels=[month_datetime for month_datetime in wy_datetime[:-1]])
 
+    @staticmethod
+    def aspect_map_transform(aspect_map: xr.DataArray) -> xr.DataArray:
+        """
+        Aspect map in degrees azimuth
+
+        Transform the aspect map so that its values are monotonically incresing from N to NW,
+        without dividing the North in two bins (NNW [337.5-360] and NNE [0-315])
+        This is convenient for BinGrouper object
+
+        """
+        # Transform the aspect map so that its values are monotonically incresing from N to NW,
+        # without dividing the North in two bins (NNW [337.5-360] and NNE [0-315])
+        # This is convenient for BinGrouper object
+
+        aspect_map = aspect_map.where(aspect_map < 337.5, aspect_map - 360)
+        return aspect_map
+
     def prepare_analysis(
         self,
         test_time_series: xr.Dataset,
         ref_time_series: xr.Dataset,
+        ref_fsc_step: int = 25,
         sensor_zenith_analysis: bool = True,
         forest_mask_path: str | None = None,
         slope_map_path: str | None = None,
@@ -86,7 +110,7 @@ class EvaluationVsHighResBase:
             },
         )
 
-        analysis_bin_dict = dict(ref=self.ref_fsc_bins())
+        analysis_bin_dict = dict(ref=self.ref_fsc_bins(ref_fsc_step))
 
         if sensor_zenith_analysis:
             analysis_bin_dict.update(sensor_zenith=self.sensor_zenith_bins())
@@ -106,8 +130,14 @@ class EvaluationVsHighResBase:
 
         if aspect_map_path is not None:
             aspect_map = xr.open_dataarray(aspect_map_path)
-            combined_dataset = combined_dataset.assign(aspect_map=aspect_map.sel(band=1).drop_vars("band"))
+            aspect_map = self.aspect_map_transform(aspect_map.sel(band=1).drop_vars("band"))
+            combined_dataset = combined_dataset.assign(aspect=aspect_map)
             analysis_bin_dict.update(aspect=self.aspect_bins())
+
+        if dem_path is not None:
+            dem_map = xr.open_dataarray(dem_path)
+            combined_dataset = combined_dataset.assign(altitude=dem_map.sel(band=1).drop_vars("band"))
+            analysis_bin_dict.update(altitude=self.altitude_bins())
 
         combined_dataset = combined_dataset.drop_vars("spatial_ref")
         return combined_dataset, analysis_bin_dict
