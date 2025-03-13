@@ -109,6 +109,7 @@ class Uncertainty(EvaluationVsHighResBase):
         ref_time_series: xr.Dataset,
         sensor_zenith_analysis: bool = True,
         forest_mask_path: str | None = None,
+        sub_roi_mask_path: str | None = None,
         slope_map_path: str | None = None,
         aspect_map_path: str | None = None,
         dem_path: str | None = None,
@@ -120,6 +121,7 @@ class Uncertainty(EvaluationVsHighResBase):
             ref_fsc_step=99,
             sensor_zenith_analysis=sensor_zenith_analysis,
             forest_mask_path=forest_mask_path,
+            sub_roi_mask_path=sub_roi_mask_path,
             slope_map_path=slope_map_path,
             aspect_map_path=aspect_map_path,
             dem_path=dem_path,
@@ -150,12 +152,13 @@ class UncertaintyNASA(Uncertainty):
 if __name__ == "__main__":
     platform = "SNPP"
     year = WinterYear(2023, 2024)
-    products_to_evaluate = ["meteofrance_l3", "nasa_l3", "nasa_pseudo_l3"]
+    products_to_evaluate = ["nasa_pseudo_l3"]
     resolution = 375
     forest_mask_path = "/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/forest_mask/corine_2006_forest_mask.tif"
-    slope_map_path = "/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/dem/SLP_MSF_UTM32_375m_lanczos.tif"
-    aspect_map_path = "/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/dem/ASP_MSF_UTM32_375m_lanczos.tif"
-    dem_path = "/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/dem/DEM_MSF_UTM32_375m_lanczos.tif"
+    massifs_mask_path = None
+    slope_map_path = "/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/dem/SLP_MSF_UTM31_375m_lanczos.tif"
+    aspect_map_path = "/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/dem/ASP_MSF_UTM31_375m_lanczos.tif"
+    dem_path = "/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/dem/DEM_MSF_UTM31_375m_lanczos.tif"
     for product_to_evaluate in products_to_evaluate:
         working_folder = "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_3/"
         output_folder = f"{working_folder}/analyses/uncertainty_test"
@@ -173,6 +176,7 @@ if __name__ == "__main__":
                 ref_time_series=ref_time_series,
                 sensor_zenith_analysis=False,
                 forest_mask_path=forest_mask_path,
+                sub_roi_mask_path=massifs_mask_path,
                 slope_map_path=slope_map_path,
                 aspect_map_path=aspect_map_path,
                 dem_path=dem_path,
@@ -186,6 +190,7 @@ if __name__ == "__main__":
                 ref_time_series=ref_time_series,
                 sensor_zenith_analysis=True,
                 forest_mask_path=forest_mask_path,
+                sub_roi_mask_path=massifs_mask_path,
                 slope_map_path=slope_map_path,
                 aspect_map_path=aspect_map_path,
                 dem_path=dem_path,
@@ -199,6 +204,7 @@ if __name__ == "__main__":
                 ref_time_series=ref_time_series,
                 sensor_zenith_analysis=True,
                 forest_mask_path=forest_mask_path,
+                sub_roi_mask_path=None,
                 slope_map_path=slope_map_path,
                 aspect_map_path=aspect_map_path,
                 dem_path=dem_path,

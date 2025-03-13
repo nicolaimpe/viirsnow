@@ -3,7 +3,7 @@ from typing import Dict, Tuple
 
 import numpy as np
 import xarray as xr
-from xarray.groupers import BinGrouper
+from xarray.groupers import BinGrouper, UniqueGrouper
 
 from evaluations.completeness import SnowCoverProductCompleteness
 from winter_year import WinterYear
@@ -41,8 +41,12 @@ class EvaluationVsHighResBase:
         )
 
     @staticmethod
-    def forest_bins() -> BinGrouper:
-        return BinGrouper([-1, 0, 1], labels=[0, 1])
+    def forest_bins() -> UniqueGrouper:
+        return UniqueGrouper()
+
+    @staticmethod
+    def sub_roi_bins() -> UniqueGrouper:
+        return UniqueGrouper()
 
     @staticmethod
     def slope_bins() -> BinGrouper:
@@ -55,7 +59,7 @@ class EvaluationVsHighResBase:
         return BinGrouper(np.arange(-22.5, 360, 45), labels=np.array(["N", "NE", "E", "SE", "S", "SW", "W", "NW"]))
 
     @staticmethod
-    def altitude_bins(altitude_band: int = 300) -> BinGrouper:
+    def altitude_bins(altitude_band: int = 600) -> BinGrouper:
         return BinGrouper(
             np.array([0, *np.arange(900, 3900, altitude_band), 4800]),
             labels=np.array([*np.arange(900, 3900, altitude_band), 4800]),
@@ -91,6 +95,7 @@ class EvaluationVsHighResBase:
         ref_fsc_step: int = 25,
         sensor_zenith_analysis: bool = True,
         forest_mask_path: str | None = None,
+        sub_roi_mask_path: str | None = None,
         slope_map_path: str | None = None,
         aspect_map_path: str | None = None,
         dem_path: str | None = None,
@@ -122,6 +127,11 @@ class EvaluationVsHighResBase:
             forest_mask = xr.open_dataarray(forest_mask_path)
             combined_dataset = combined_dataset.assign(forest_mask=forest_mask.sel(band=1).drop_vars("band"))
             analysis_bin_dict.update(forest_mask=self.forest_bins())
+
+        if sub_roi_mask_path is not None:
+            sub_roi_mask = xr.open_dataarray(sub_roi_mask_path)
+            combined_dataset = combined_dataset.assign(sub_roi=sub_roi_mask.sel(band=1).drop_vars("band"))
+            analysis_bin_dict.update(sub_roi=self.sub_roi_bins())
 
         if slope_map_path is not None:
             slope_map = xr.open_dataarray(slope_map_path)
