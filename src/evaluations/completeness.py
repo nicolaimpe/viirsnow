@@ -38,6 +38,10 @@ class SnowCoverProductCompleteness:
         if nodata_mapping is not None:
             self.setup_nodata_classes(nodata_mapping=nodata_mapping)
 
+    @property
+    def max_fsc(self) -> int:
+        return self.classes["snow_cover"][-1]
+
     def setup_nodata_classes(self, nodata_mapping: Tuple[str, ...]):
         if nodata_mapping is not None:
             new_nodata_values = ()

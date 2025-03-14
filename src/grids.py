@@ -28,6 +28,24 @@ class Grid:
         self.height = height
         self.name = name
 
+    """
+    x0,y0,xend,yend pixel corners
+    xmin, ymin, xmax, ymax pixel centers
+    width, height, number of pixel columns/rows
+
+    x0,  y0 ------------------------------................--------------xend, y0
+        |               |               |                   |               |
+        |       .       |       .       | ................  |      .        |
+        |   xmin,ymax   |               |                   |   xmax,ymax   |
+        |               |               |                   |               |
+        |---------------------------------.................------------------
+        |               |               |                   |               |
+        |               |               |                   |               |
+        |
+
+    
+    """
+
     @property
     def xmin(self):
         return self.x0 + self.resolution / 2
