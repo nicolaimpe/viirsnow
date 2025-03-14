@@ -48,6 +48,7 @@ def barplots(postprocessed_data_array: xr.DataArray, title: str, y_lim: Tuple[in
     if "month" in title:
         plot_dataframe.index = plot_dataframe.index.strftime("%B")
     if "aspect" in title:
+        # That's because to_pandas() reorders the aspect labels alphabetically
         plot_dataframe = plot_dataframe.reindex(index=EvaluationVsHighResBase.aspect_bins().labels)
     plot_dataframe.plot.bar(figsize=(14, 4), color=colors, width=0.6, title=title)
     plt.ylim(y_lim)
@@ -152,7 +153,7 @@ class UncertaintyNASA(Uncertainty):
 if __name__ == "__main__":
     platform = "SNPP"
     year = WinterYear(2023, 2024)
-    products_to_evaluate = ["nasa_pseudo_l3"]
+    products_to_evaluate = ["meteofrance_l3", "nasa_l3", "nasa_pseudo_l3"]
     resolution = 375
     forest_mask_path = "/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/forest_mask/corine_2006_forest_mask.tif"
     massifs_mask_path = None
@@ -161,12 +162,12 @@ if __name__ == "__main__":
     dem_path = "/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/dem/DEM_MSF_UTM31_375m_lanczos.tif"
     for product_to_evaluate in products_to_evaluate:
         working_folder = "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_3/"
-        output_folder = f"{working_folder}/analyses/uncertainty_test"
+        output_folder = f"{working_folder}/analyses/uncertainty"
         ref_time_series_name = f"WY_{year.from_year}_{year.to_year}_S2_res_{resolution}m.nc"
         test_time_series_name = f"WY_{year.from_year}_{year.to_year}_{platform}_{product_to_evaluate}_res_{resolution}m.nc"
         output_filename = f"{output_folder}/uncertainty_WY_{year.from_year}_{year.to_year}_{platform}_{product_to_evaluate}_res_{resolution}m.nc"
-        test_time_series = xr.open_dataset(f"{working_folder}/{test_time_series_name}").isel(time=slice(100, 190))
-        ref_time_series = xr.open_dataset(f"{working_folder}/{ref_time_series_name}").isel(time=slice(100, 190))
+        test_time_series = xr.open_dataset(f"{working_folder}/{test_time_series_name}").isel(time=slice(30, 270))
+        ref_time_series = xr.open_dataset(f"{working_folder}/{ref_time_series_name}").isel(time=slice(30, 270))
         logger.info(f"Evaluating product {product_to_evaluate}")
 
         if product_to_evaluate == "nasa_l3":
