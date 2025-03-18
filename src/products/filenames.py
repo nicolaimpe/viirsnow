@@ -68,9 +68,15 @@ def get_daily_meteofrance_filenames(day: datetime, data_folder: str) -> List[str
     return glob(f"{data_folder}/VIIRS{day.year}/*{METEOFRANCE_L2['SNPP']}_*{day.strftime('%Y%m%d')}*.LT")
 
 
-def get_all_s2_files_of_winter_year(s2_folder: str, winter_year: WinterYear) -> List[str]:
+def get_all_s2_clms_files_of_winter_year(s2_folder: str, winter_year: WinterYear) -> List[str]:
     s2_files = glob(str(Path(s2_folder).joinpath(f"FSC_*{winter_year.from_year}1[0-2]*/*FSCOG.tif")))
     s2_files.extend(glob(str(Path(s2_folder).joinpath(f"FSC_*{winter_year.to_year}0[1-9]*/*FSCOG.tif"))))
+    return sorted(s2_files)
+
+
+def get_all_s2_theia_files_of_winter_year(s2_folder: str, winter_year: WinterYear) -> List[str]:
+    s2_files = glob(str(Path(s2_folder).joinpath(f"LIS_S2-SNOW-FSC_*{winter_year.from_year}1[0-2]*.tif")))
+    s2_files.extend(glob(str(Path(s2_folder).joinpath(f"LIS_S2-SNOW-FSC_*{winter_year.to_year}0[1-9]*.tif"))))
     return sorted(s2_files)
 
 

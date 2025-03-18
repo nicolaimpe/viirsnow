@@ -5,10 +5,10 @@ import xarray as xr
 from rasterio.enums import Resampling
 
 from compression import generate_xarray_compression_encodings
-from daily_composites import create_temporal_composite_meteofrance
 from evaluations.snow_cover_extent_cross_comparison import WinterYear
 from geotools import mask_dataarray_with_vector_file, reproject_using_grid, to_rioxarray
-from grids import Grid, UTM375mGrid, georef_data_array
+from grids import GeoGrid, UTM375mGrid, georef_data_array
+from harmonisation.daily_composites import create_temporal_composite_meteofrance
 from logger_setup import default_logger as logger
 from products.classes import METEOFRANCE_CLASSES
 from products.filenames import KNOWN_COLLECTIONS, get_daily_meteofrance_filenames, get_daily_nasa_filenames_per_product
@@ -21,7 +21,7 @@ def create_meteofrance_time_series(
     nasa_geometry_reprojected_folder: str,
     output_folder: str,
     output_name: str,
-    output_grid: Grid | None = None,
+    output_grid: GeoGrid | None = None,
     roi_shapefile: str | None = None,
     platform: str = "SNPP",
 ):

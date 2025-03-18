@@ -6,7 +6,7 @@ from rasterio.enums import Resampling
 
 from compression import generate_xarray_compression_encodings
 from geotools import reproject_dataset, reproject_using_grid, to_rioxarray
-from grids import Grid, georef_data_array
+from grids import GeoGrid, georef_data_array
 from products.classes import METEOFRANCE_CLASSES, NASA_CLASSES, S2_CLASSES
 
 
@@ -25,7 +25,7 @@ def extract_swath_lon_lats(
 
 
 def reproject_l2_nasa_to_grid(
-    output_grid: Grid,
+    output_grid: GeoGrid,
     l2_geolocation_dataset: xr.Dataset,
     l2_dataset: xr.Dataset,
     bowtie_trim_mask: xr.DataArray | None = None,
@@ -82,7 +82,7 @@ def reproject_l2_nasa_to_grid(
     return output_dataset
 
 
-def reprojection_l3_nasa_to_grid(nasa_dataset: xr.Dataset, output_grid: Grid) -> xr.Dataset:
+def reprojection_l3_nasa_to_grid(nasa_dataset: xr.Dataset, output_grid: GeoGrid) -> xr.Dataset:
     # Validity "zombie mask": wherever there is at least one non valid pixel, the output grid pixel is set as invalid (<-> cloud)
     nasa_dataset = to_rioxarray(nasa_dataset)
 
@@ -135,7 +135,7 @@ def reprojection_l3_nasa_to_grid(nasa_dataset: xr.Dataset, output_grid: Grid) ->
     return nasa_out_image
 
 
-def reprojection_l3_meteofrance_to_grid(meteofrance_dataset: xr.Dataset, output_grid: Grid) -> xr.Dataset:
+def reprojection_l3_meteofrance_to_grid(meteofrance_dataset: xr.Dataset, output_grid: GeoGrid) -> xr.Dataset:
     # Validity "zombie mask": wherever there is at least one non valid pixel, the output grid pixel is set as invalid (<-> cloud)
     meteofrance_dataset = to_rioxarray(meteofrance_dataset)
     # nasa_dataset = nasa_dataset.where(nasa_dataset <= NASA_CLASSES["snow_cover"][-1], NASA_CLASSES["fill"][0])
@@ -217,7 +217,7 @@ def reprojection_l3_meteofrance_to_grid(meteofrance_dataset: xr.Dataset, output_
     return meteofrance_out_image
 
 
-def resample_s2_to_grid(s2_dataset: xr.Dataset, output_grid: Grid) -> xr.DataArray:
+def resample_s2_to_grid(s2_dataset: xr.Dataset, output_grid: GeoGrid) -> xr.DataArray:
     # 250m resolution FSC from FSCOG S2 product with a "zombie" nodata mask
 
     # Validity "zombie mask": wherever there is at least one non valid pixel, the output grid pixel is set as invalid (<-> cloud)

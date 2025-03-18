@@ -4,11 +4,11 @@ from pathlib import Path
 import xarray as xr
 
 from compression import generate_xarray_compression_encodings
-from daily_composites import create_spatial_l3_nasa_composite
 from evaluations.snow_cover_extent_cross_comparison import WinterYear
 from fractional_snow_cover import nasa_ndsi_snow_cover_to_fraction
 from geotools import mask_dataarray_with_vector_file
-from grids import Grid, UTM1kmGrid, UTM375mGrid, georef_data_array
+from grids import GeoGrid, UTM1kmGrid, UTM375mGrid, georef_data_array
+from harmonisation.daily_composites import create_spatial_l3_nasa_composite
 from logger_setup import default_logger as logger
 from products.classes import NASA_CLASSES
 from products.filenames import NASA_L3_SNOW_PRODUCTS, get_daily_nasa_filenames_per_product
@@ -17,7 +17,7 @@ from reprojections import reprojection_l3_nasa_to_grid
 
 def create_v10a1_time_series(
     winter_year: WinterYear,
-    output_grid: Grid,
+    output_grid: GeoGrid,
     viirs_data_folder: str,
     output_folder: str,
     output_name: str,

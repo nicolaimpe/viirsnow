@@ -1,3 +1,11 @@
+from products.plot_settings import (
+    METEOFRANCE_VAR_NAME,
+    NASA_L3_VAR_NAME,
+    NASA_PSEUDO_L3_VAR_NAME,
+    S2_CLMS_VAR_NAME,
+    S2_THEIA_VAR_NAME,
+)
+
 METEOFRANCE_CLASSES = {
     "snow_cover": range(1, 201),
     "no_snow": (0,),
@@ -38,4 +46,12 @@ S2_CLASSES = {
     "no_snow": (0,),
     "clouds": (205,),
     "nodata": (255,),
+}
+
+PRODUCT_CLASSES_DICT = {
+    METEOFRANCE_VAR_NAME: METEOFRANCE_CLASSES,
+    NASA_L3_VAR_NAME: NASA_CLASSES,
+    NASA_PSEUDO_L3_VAR_NAME: NASA_CLASSES,
+    S2_THEIA_VAR_NAME: S2_CLASSES,
+    S2_CLMS_VAR_NAME: S2_CLASSES,
 }

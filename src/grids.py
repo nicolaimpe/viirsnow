@@ -16,7 +16,7 @@ OUPUT_GRID_X_SIZE, OUPUT_GRID_Y_SIZE = 2800, 2200
 RESAMPLING = Resampling.nearest
 
 
-class Grid:
+class GeoGrid:
     def __init__(
         self, resolution: float, x0: float, y0: float, width: int, height: int, crs: CRS | None = None, name: str | None = None
     ) -> None:
@@ -117,7 +117,7 @@ class Grid:
     #     )
 
 
-class UTM375mGrid(Grid):
+class UTM375mGrid(GeoGrid):
     def __init__(self) -> None:
         super().__init__(
             crs=CRS.from_epsg(DEFAULT_CRS),
@@ -130,7 +130,7 @@ class UTM375mGrid(Grid):
         )
 
 
-class UTM1kmGrid(Grid):
+class UTM1kmGrid(GeoGrid):
     def __init__(self) -> None:
         super().__init__(
             crs=CRS.from_epsg(DEFAULT_CRS),
