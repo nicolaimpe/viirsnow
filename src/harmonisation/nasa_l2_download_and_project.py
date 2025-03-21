@@ -10,7 +10,7 @@ import xarray as xr
 
 from compression import generate_xarray_compression_encodings
 from fractional_snow_cover import nasa_ndsi_snow_cover_to_fraction
-from grids import Grid, UTM375mGrid, georef_data_array
+from grids import GeoGrid, UTM375mGrid, georef_data_array
 from logger_setup import default_logger as logger
 from products.classes import NASA_CLASSES
 from products.filenames import (
@@ -75,7 +75,7 @@ def download_daily_products_from_sxcen(day: datetime, product_name: str, downloa
     return output_filepaths
 
 
-def reproject_l2_snow_cover_product(l2_nasa_filename: str, output_path: str, output_grid: Grid):
+def reproject_l2_snow_cover_product(l2_nasa_filename: str, output_path: str, output_grid: GeoGrid):
     l2_geoloc = xr.open_dataset(l2_nasa_filename, group="/GeolocationData")
     l2_dataset = xr.open_dataset(l2_nasa_filename, group="/SnowData")
     selected = l2_dataset.data_vars["NDSI_Snow_Cover"] != NASA_CLASSES["bowtie_trim"][0]
@@ -104,7 +104,7 @@ def reproject_l2_snow_cover_product(l2_nasa_filename: str, output_path: str, out
     reprojected_dataset.to_netcdf(output_path, encoding=generate_xarray_compression_encodings(reprojected_dataset))
 
 
-def reproject_l2_geometry_product(l2_nasa_filename: str, output_path: str, output_grid: Grid):
+def reproject_l2_geometry_product(l2_nasa_filename: str, output_path: str, output_grid: GeoGrid):
     l2_geoloc = xr.open_dataset(l2_nasa_filename, group="/geolocation_data")
     l2_dataset = xr.open_dataset(l2_nasa_filename, group="/geolocation_data").drop_vars(
         ["land_water_mask", "latitude", "longitude", "range", "quality_flag", "sensor_azimuth", "solar_azimuth"]
@@ -122,7 +122,7 @@ def reproject_l2_geometry_product(l2_nasa_filename: str, output_path: str, outpu
 def reproject_daily_products(
     daily_l2_filenames: List[str],
     output_folder: str,
-    output_grid: Grid,
+    output_grid: GeoGrid,
     product_id: str,
     delete_downloaded_swath_files: bool = False,
 ):

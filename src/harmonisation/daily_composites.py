@@ -8,8 +8,8 @@ import rasterio
 import rioxarray
 import xarray as xr
 
-from geotools import dim_name, extract_netcdf_coords_from_rasterio_raster, georef_data_array
-from grids import Grid
+from geotools import dim_name, extract_netcdf_coords_from_rasterio_raster
+from grids import GeoGrid, georef_data_array
 from logger_setup import default_logger as logger
 from products.classes import METEOFRANCE_CLASSES, NASA_CLASSES, S2_CLASSES
 from products.filenames import get_datetime_from_viirs_meteofrance_filepath, get_datetime_from_viirs_nasa_filepath
@@ -26,7 +26,7 @@ def create_spatial_l3_nasa_composite(day_files: List[str]) -> xr.Dataset | None:
 
         product_grid_data_variable = xr.open_dataset(filepath, group="HDFEOS/GRIDS/VIIRS_Grid_IMG_2D", engine="netcdf4")
         bin_size = xr.open_dataset(filepath, engine="netcdf4").attrs["CharacteristicBinSize"]
-        nasa_l3_grid = Grid(
+        nasa_l3_grid = GeoGrid(
             resolution=bin_size,
             x0=product_grid_data_variable.coords["XDim"][0].values,
             y0=product_grid_data_variable.coords["YDim"][0].values,
@@ -48,7 +48,7 @@ def create_spatial_l3_nasa_composite(day_files: List[str]) -> xr.Dataset | None:
     return merged_day_dataset
 
 
-def create_spatial_s2_composite(day_files: List[str], output_grid=Grid) -> xr.Dataset:
+def create_spatial_s2_composite(day_files: List[str], output_grid: GeoGrid) -> xr.Dataset:
     day_data_array = xr.DataArray(np.uint8(S2_CLASSES["nodata"][0]), coords=output_grid.xarray_coords)
     for filepath in day_files:
         logger.info(f"Processing product {Path(filepath).name}")
@@ -56,9 +56,8 @@ def create_spatial_s2_composite(day_files: List[str], output_grid=Grid) -> xr.Da
         s2_image = s2_image.sel(band=1).drop_vars("band")
         s2_resampled_image = resample_s2_to_grid(s2_dataset=s2_image, output_grid=output_grid)
         day_data_array = day_data_array.where(day_data_array != S2_CLASSES["nodata"][0], s2_resampled_image)
-
-    day_data_array = georef_data_array(day_data_array, data_array_name="snow_cover_fraction", crs=output_grid.crs)
-    return day_data_array
+    day_dataset = xr.Dataset({"snow_cover_fraction": georef_data_array(day_data_array, output_grid.crs)})
+    return day_dataset
 
 
 def match_daily_snow_cover_and_geometry_meteofrance(daily_snow_cover_files: List[str], daily_geometry_files: List[str]):

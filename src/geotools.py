@@ -10,10 +10,10 @@ import xarray as xr
 from affine import Affine
 from rasterio.features import rasterize
 
-from grids import Grid, dim_name, georef_data_array
+from grids import GeoGrid, dim_name, georef_data_array
 
 
-def gdf_to_binary_mask(gdf: gpd.GeoDataFrame, grid: Grid) -> xr.Dataset:
+def gdf_to_binary_mask(gdf: gpd.GeoDataFrame, grid: GeoGrid) -> xr.DataArray:
     gdf = gdf.to_crs(grid.crs)
     transform = grid.affine
 
@@ -33,9 +33,9 @@ def gdf_to_binary_mask(gdf: gpd.GeoDataFrame, grid: Grid) -> xr.Dataset:
     binary_mask_data_array = xr.DataArray(
         data=binary_mask,
         dims=(dims[0], dims[1]),
-        coords={dims[0]: (dims[0], np.flip(grid.ycoords)), dims[1]: (dims[1], grid.xcoords)},
+        coords={dims[0]: (dims[0], grid.ycoords), dims[1]: (dims[1], grid.xcoords)},
     )
-    out = georef_data_array(binary_mask_data_array, "binary_mask", crs=grid.crs)
+    out = georef_data_array(binary_mask_data_array, grid.crs)
 
     return out
 
@@ -65,7 +65,7 @@ def reproject_dataset(
 
 def reproject_using_grid(
     dataset: xr.Dataset,
-    output_grid: Grid,
+    output_grid: GeoGrid,
     nodata: int | float | None = None,
     resampling_method: rasterio.enums.Resampling | None = None,
 ) -> xr.Dataset:
@@ -101,7 +101,7 @@ def to_rioxarray(dataset: xr.Dataset) -> xr.DataArray:
     return dataset.rio.write_crs(dataset.data_vars["spatial_ref"].attrs["spatial_ref"])
 
 
-def mask_dataarray_with_vector_file(data_array: xr.DataArray, roi_file: str, output_grid: Grid, fill_value: int = 255):
+def mask_dataarray_with_vector_file(data_array: xr.DataArray, roi_file: str, output_grid: GeoGrid, fill_value: int = 255):
     roi_mask = gdf_to_binary_mask(gdf=gpd.read_file(roi_file), grid=output_grid)
     masked = data_array.values * roi_mask.data_vars["binary_mask"].values
     masked[roi_mask.data_vars["binary_mask"].values == 0] = fill_value
@@ -114,16 +114,16 @@ def mask_dataarray_with_vector_file(data_array: xr.DataArray, roi_file: str, out
 
 from pyresample import geometry,AreaDefinition, kd_tree
 from geotools import georef_data_array
-from grids import Grid
+from grids import GeoGrid
 from fractional_snow_cover import nasa_ndsi_snow_cover_to_fraction
 import xarray as xr
 import numpy as np
 from pyproj import CRS
 
-#output_grid = Grid(crs=CRS.from_epsg(32631),resolution=375, x0=0, y0=5400000,width=2800, height=2200)
+#output_grid =GeoGrid(crs=CRS.from_epsg(32631),resolution=375, x0=0, y0=5400000,width=2800, height=2200)
 PROJ4_MODIS = "+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +R=6371007.181 +units=m +no_defs"
 modis_crs = CRS.from_proj4(PROJ4_MODIS)
-output_grid = Grid(crs=modis_crs,resolution=370.65017322, x0=0, y0=5559752.598333,width=3000, height=3000)
+output_grid =GeoGrid(crs=modis_crs,resolution=370.65017322, x0=0, y0=5559752.598333,width=3000, height=3000)
 
 fn = 'VNP10.A2023340.1200.002.2023340210716.nc'
 l2_geoloc = xr.open_dataset(f'/home/imperatoren/work/VIIRS_S2_comparison/data/V10/{fn}',group='/GeolocationData')

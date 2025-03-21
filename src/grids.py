@@ -16,7 +16,7 @@ OUPUT_GRID_X_SIZE, OUPUT_GRID_Y_SIZE = 2800, 2200
 RESAMPLING = Resampling.nearest
 
 
-class Grid:
+class GeoGrid:
     def __init__(
         self, resolution: float, x0: float, y0: float, width: int, height: int, crs: CRS | None = None, name: str | None = None
     ) -> None:
@@ -117,7 +117,7 @@ class Grid:
     #     )
 
 
-class UTM375mGrid(Grid):
+class UTM375mGrid(GeoGrid):
     def __init__(self) -> None:
         super().__init__(
             crs=CRS.from_epsg(DEFAULT_CRS),
@@ -130,7 +130,7 @@ class UTM375mGrid(Grid):
         )
 
 
-class UTM1kmGrid(Grid):
+class UTM1kmGrid(GeoGrid):
     def __init__(self) -> None:
         super().__init__(
             crs=CRS.from_epsg(DEFAULT_CRS),
@@ -150,7 +150,7 @@ def dim_name(crs: pyproj.CRS) -> Tuple[str, str]:
         return ("y", "x")
 
 
-def georef_data_array(data_array: xr.DataArray, data_array_name: str, crs: pyproj.CRS) -> xr.Dataset:
+def georef_data_array(data_array: xr.DataArray | xr.Dataset, crs: pyproj.CRS) -> xr.Dataset | xr.Dataset:
     """
     Turn a DataArray into a Dataset  for which the GDAL driver (GDAL and QGIS) is able to read the georeferencing
     https://github.com/pydata/xarray/issues/2288
@@ -162,8 +162,6 @@ def georef_data_array(data_array: xr.DataArray, data_array_name: str, crs: pypro
     data_array.coords[dims[1]].attrs["axis"] = "X"
     data_array.attrs["grid_mapping"] = "spatial_ref"
 
-    crs_variable = xr.DataArray(0)
-    crs_variable.attrs["spatial_ref"] = crs.to_wkt()
+    georeferenced = data_array.rio.write_crs(crs)
 
-    georeferenced_dataset = xr.Dataset({data_array_name: data_array, "spatial_ref": crs_variable})
-    return georeferenced_dataset
+    return georeferenced

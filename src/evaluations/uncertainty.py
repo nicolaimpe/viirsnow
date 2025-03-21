@@ -79,6 +79,14 @@ def unbiaised_rmse_barplots(postprocessed_dataset: xr.Dataset, analysis_var_plot
     )
 
 
+def histograms_to_distribution(metrics_ds: xr.Dataset):
+    all_dims = list(metrics_ds.sizes.keys())
+    all_dims.remove("biais_bins")
+    metrics_squeezed = metrics_ds.sum(dim=all_dims)
+    distribution = np.repeat(metrics_ds.coords["biais_bins"].values, metrics_squeezed["n_occurrences"].values.astype(np.int64))
+    return distribution
+
+
 class Uncertainty(EvaluationVsHighResBase):
     @staticmethod
     def biais_bins():
@@ -161,13 +169,13 @@ if __name__ == "__main__":
     aspect_map_path = "/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/dem/ASP_MSF_UTM31_375m_lanczos.tif"
     dem_path = "/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/dem/DEM_MSF_UTM31_375m_lanczos.tif"
     for product_to_evaluate in products_to_evaluate:
-        working_folder = "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_3/"
+        working_folder = "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_4/"
         output_folder = f"{working_folder}/analyses/uncertainty"
-        ref_time_series_name = f"WY_{year.from_year}_{year.to_year}_S2_res_{resolution}m.nc"
+        ref_time_series_name = f"WY_{year.from_year}_{year.to_year}_s2_theia_res_{resolution}m.nc"
         test_time_series_name = f"WY_{year.from_year}_{year.to_year}_{platform}_{product_to_evaluate}_res_{resolution}m.nc"
         output_filename = f"{output_folder}/uncertainty_WY_{year.from_year}_{year.to_year}_{platform}_{product_to_evaluate}_res_{resolution}m.nc"
-        test_time_series = xr.open_dataset(f"{working_folder}/{test_time_series_name}").isel(time=slice(30, 270))
-        ref_time_series = xr.open_dataset(f"{working_folder}/{ref_time_series_name}").isel(time=slice(30, 270))
+        test_time_series = xr.open_dataset(f"{working_folder}/time_series/{test_time_series_name}").isel(time=slice(30, 180))
+        ref_time_series = xr.open_dataset(f"{working_folder}/time_series/{ref_time_series_name}").isel(time=slice(30, 180))
         logger.info(f"Evaluating product {product_to_evaluate}")
 
         if product_to_evaluate == "nasa_l3":
@@ -189,7 +197,7 @@ if __name__ == "__main__":
             metrics_calcuator.uncertainty_analysis(
                 test_time_series=test_time_series,
                 ref_time_series=ref_time_series,
-                sensor_zenith_analysis=True,
+                sensor_zenith_analysis=False,
                 forest_mask_path=forest_mask_path,
                 sub_roi_mask_path=massifs_mask_path,
                 slope_map_path=slope_map_path,
@@ -203,7 +211,7 @@ if __name__ == "__main__":
             metrics_calcuator.uncertainty_analysis(
                 test_time_series=test_time_series,
                 ref_time_series=ref_time_series,
-                sensor_zenith_analysis=True,
+                sensor_zenith_analysis=False,
                 forest_mask_path=forest_mask_path,
                 sub_roi_mask_path=None,
                 slope_map_path=slope_map_path,

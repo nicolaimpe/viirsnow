@@ -34,13 +34,15 @@ def fit_regression(data_to_fit: xr.DataArray):
 
 def fancy_scatter_plot(data_to_plt: xr.DataArray, ax: Axes, figure: Figure, gaussian_window_size: int | None = 2):
     if gaussian_window_size is not None:
-        data_to_plt[:] = gaussian_filter(data_to_plt, sigma=gaussian_window_size)
-    distr_min, distr_max = np.quantile(data_to_plt, 0.02), np.quantile(data_to_plt, 0.98)
+        data_smooth = gaussian_filter(data_to_plt, sigma=gaussian_window_size)
+    else:
+        data_smooth = data_to_plt
+    distr_min, distr_max = np.quantile(data_smooth, 0.02), np.quantile(data_smooth, 0.98)
     coeff_slope, intercept, score = fit_regression(data_to_plt)
     scatter_plot = ax.pcolormesh(
         data_to_plt.ref_bins.values,
         data_to_plt.test_bins.values,
-        data_to_plt.T,
+        data_smooth.T,
         norm=colors.LogNorm(vmin=distr_min if distr_min > 0 else 1, vmax=distr_max),
         cmap=cm.bone,
     )
@@ -51,7 +53,7 @@ def fancy_scatter_plot(data_to_plt: xr.DataArray, ax: Axes, figure: Figure, gaus
     cbar_ticks = np.array([1e-1, 1, 1e1, 1e2, 1e3, 1e4])
     cbar = figure.colorbar(scatter_plot, ticks=cbar_ticks)
     cbar.ax.set_yticklabels([f"{tick:n}" for tick in cbar_ticks])
-    ax.legend([f"Fitted r={score:.2f} m={float(coeff_slope):.2f} b={float(intercept):.2f}", "y=x"])
+    ax.legend([f"Fitted R²={score:.2f} m={float(coeff_slope):.2f} b={float(intercept):.2f}", "y=x"])
     return scatter_plot
 
 

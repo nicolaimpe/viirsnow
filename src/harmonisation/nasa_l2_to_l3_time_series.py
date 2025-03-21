@@ -5,10 +5,10 @@ import xarray as xr
 from rasterio.enums import Resampling
 
 from compression import generate_xarray_compression_encodings
-from daily_composites import create_temporal_composite_nasa
 from fractional_snow_cover import nasa_ndsi_snow_cover_to_fraction
 from geotools import mask_dataarray_with_vector_file, reproject_using_grid, to_rioxarray
-from grids import Grid, UTM375mGrid, georef_data_array
+from grids import GeoGrid, UTM375mGrid, georef_data_array
+from harmonisation.daily_composites import create_temporal_composite_nasa
 from logger_setup import default_logger as logger
 from products.classes import NASA_CLASSES
 from products.filenames import get_daily_nasa_filenames_per_product
@@ -22,7 +22,7 @@ def create_nasa_pseudo_l3_time_series(
     nasa_geometry_reprojected_folder: str,
     output_folder: str,
     output_name: str,
-    output_grid: Grid | None = None,
+    output_grid: GeoGrid | None = None,
     roi_shapefile: str | None = None,
     platform: str = "SNPP",
 ):
