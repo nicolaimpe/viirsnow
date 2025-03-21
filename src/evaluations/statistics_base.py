@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Dict, Tuple
 
@@ -7,6 +8,41 @@ from xarray.groupers import BinGrouper, UniqueGrouper
 
 from evaluations.completeness import SnowCoverProductCompleteness
 from winter_year import WinterYear
+
+
+@dataclass
+class EvaluationConfig:
+    ref_fsc_step: int = (25,)
+    sensor_zenith_analysis: bool = (True,)
+    forest_mask_path: str | None = (None,)
+    sub_roi_mask_path: str | None = (None,)
+    slope_map_path: str | None = (None,)
+    aspect_map_path: str | None = (None,)
+    dem_path: str | None = (None,)
+
+
+def generate_evaluation_io(
+    analysis_type: str,
+    working_folder: str,
+    year: WinterYear,
+    resolution: int,
+    platform: str,
+    product_name: str,
+    period: slice | None = None,
+) -> Tuple[xr.Dataset, xr.Dataset, str]:
+    output_folder = f"{working_folder}/analyses/{analysis_type}"
+    ref_time_series_name = f"WY_{year.from_year}_{year.to_year}_s2_theia_res_{resolution}m.nc"
+    test_time_series_name = f"WY_{year.from_year}_{year.to_year}_{platform}_{product_name}_res_{resolution}m.nc"
+    output_filename = (
+        f"{output_folder}/{analysis_type}_WY_{year.from_year}_{year.to_year}_{platform}_{product_name}_res_{resolution}m.nc"
+    )
+    if period is not None:
+        test_time_series = xr.open_dataset(f"{working_folder}/time_series/{test_time_series_name}").sel(time=period)
+        ref_time_series = xr.open_dataset(f"{working_folder}/time_series/{ref_time_series_name}").sel(time=period)
+    else:
+        test_time_series = xr.open_dataset(f"{working_folder}/time_series/{test_time_series_name}")
+        ref_time_series = xr.open_dataset(f"{working_folder}/time_series/{ref_time_series_name}")
+    return ref_time_series, test_time_series, output_filename
 
 
 class EvaluationVsHighResBase:
@@ -92,13 +128,7 @@ class EvaluationVsHighResBase:
         self,
         test_time_series: xr.Dataset,
         ref_time_series: xr.Dataset,
-        ref_fsc_step: int = 25,
-        sensor_zenith_analysis: bool = True,
-        forest_mask_path: str | None = None,
-        sub_roi_mask_path: str | None = None,
-        slope_map_path: str | None = None,
-        aspect_map_path: str | None = None,
-        dem_path: str | None = None,
+        config: EvaluationConfig,
     ) -> Tuple[xr.Dataset, Dict[str, BinGrouper]]:
         if ref_time_series.data_vars["snow_cover_fraction"].max() != 205:
             # This is supposed by limiting ref bins values to 205 just in ref_fsc_bins()
@@ -115,37 +145,37 @@ class EvaluationVsHighResBase:
             },
         )
 
-        analysis_bin_dict = dict(ref=self.ref_fsc_bins(ref_fsc_step))
+        analysis_bin_dict = dict(ref=self.ref_fsc_bins(config.ref_fsc_step))
 
-        if sensor_zenith_analysis:
+        if config.sensor_zenith_analysis:
             analysis_bin_dict.update(sensor_zenith=self.sensor_zenith_bins())
             combined_dataset = combined_dataset.assign(
                 {"sensor_zenith": test_time_series.data_vars["sensor_zenith"].sel(time=common_days)}
             )
 
-        if forest_mask_path is not None:
-            forest_mask = xr.open_dataarray(forest_mask_path)
+        if config.forest_mask_path is not None:
+            forest_mask = xr.open_dataarray(config.forest_mask_path)
             combined_dataset = combined_dataset.assign(forest_mask=forest_mask.sel(band=1).drop_vars("band"))
             analysis_bin_dict.update(forest_mask=self.forest_bins())
 
-        if sub_roi_mask_path is not None:
-            sub_roi_mask = xr.open_dataarray(sub_roi_mask_path)
+        if config.sub_roi_mask_path is not None:
+            sub_roi_mask = xr.open_dataarray(config.sub_roi_mask_path)
             combined_dataset = combined_dataset.assign(sub_roi=sub_roi_mask.sel(band=1).drop_vars("band"))
             analysis_bin_dict.update(sub_roi=self.sub_roi_bins())
 
-        if slope_map_path is not None:
-            slope_map = xr.open_dataarray(slope_map_path)
+        if config.slope_map_path is not None:
+            slope_map = xr.open_dataarray(config.slope_map_path)
             combined_dataset = combined_dataset.assign(slope=slope_map.sel(band=1).drop_vars("band"))
             analysis_bin_dict.update(slope=self.slope_bins())
 
-        if aspect_map_path is not None:
-            aspect_map = xr.open_dataarray(aspect_map_path)
+        if config.aspect_map_path is not None:
+            aspect_map = xr.open_dataarray(config.aspect_map_path)
             aspect_map = self.aspect_map_transform(aspect_map.sel(band=1).drop_vars("band"))
             combined_dataset = combined_dataset.assign(aspect=aspect_map)
             analysis_bin_dict.update(aspect=self.aspect_bins())
 
-        if dem_path is not None:
-            dem_map = xr.open_dataarray(dem_path)
+        if config.dem_path is not None:
+            dem_map = xr.open_dataarray(config.dem_path)
             combined_dataset = combined_dataset.assign(altitude=dem_map.sel(band=1).drop_vars("band"))
             analysis_bin_dict.update(altitude=self.altitude_bins())
 
