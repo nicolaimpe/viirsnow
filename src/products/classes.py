@@ -41,12 +41,7 @@ NODATA_NASA_CLASSES = (
     "fill",
 )
 
-S2_CLASSES = {
-    "snow_cover": range(1, 101),
-    "no_snow": (0,),
-    "clouds": (205,),
-    "nodata": (255,),
-}
+S2_CLASSES = {"snow_cover": range(1, 101), "no_snow": (0,), "clouds": (205,), "nodata": (255,), "fill": (255,)}
 
 PRODUCT_CLASSES_DICT = {
     METEOFRANCE_VAR_NAME: METEOFRANCE_CLASSES,

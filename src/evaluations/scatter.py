@@ -53,7 +53,7 @@ def fancy_scatter_plot(data_to_plt: xr.DataArray, ax: Axes, figure: Figure, gaus
     cbar_ticks = np.array([1e-1, 1, 1e1, 1e2, 1e3, 1e4])
     cbar = figure.colorbar(scatter_plot, ticks=cbar_ticks)
     cbar.ax.set_yticklabels([f"{tick:n}" for tick in cbar_ticks])
-    ax.legend([f"Fitted r={score:.2f} m={float(coeff_slope):.2f} b={float(intercept):.2f}", "y=x"])
+    ax.legend([f"Fitted R²={score:.2f} m={float(coeff_slope):.2f} b={float(intercept):.2f}", "y=x"])
     return scatter_plot
 
 

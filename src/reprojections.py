@@ -242,6 +242,6 @@ def resample_s2_to_grid(s2_dataset: xr.Dataset, output_grid: GeoGrid) -> xr.Data
 
     # Compose the mask
     s2_out_image = xr.where(s2_validity_mask <= S2_CLASSES["snow_cover"][-1], s2_aggregated.astype("u1"), s2_validity_mask)
-    s2_out_image.rio.write_nodata(255, inplace=True)
+    s2_out_image.rio.write_nodata(S2_CLASSES["fill"][0], inplace=True)
 
     return s2_out_image

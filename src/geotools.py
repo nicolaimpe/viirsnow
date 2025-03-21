@@ -13,7 +13,7 @@ from rasterio.features import rasterize
 from grids import GeoGrid, dim_name, georef_data_array
 
 
-def gdf_to_binary_mask(gdf: gpd.GeoDataFrame, grid: GeoGrid) -> xr.Dataset:
+def gdf_to_binary_mask(gdf: gpd.GeoDataFrame, grid: GeoGrid) -> xr.DataArray:
     gdf = gdf.to_crs(grid.crs)
     transform = grid.affine
 
@@ -33,9 +33,9 @@ def gdf_to_binary_mask(gdf: gpd.GeoDataFrame, grid: GeoGrid) -> xr.Dataset:
     binary_mask_data_array = xr.DataArray(
         data=binary_mask,
         dims=(dims[0], dims[1]),
-        coords={dims[0]: (dims[0], np.flip(grid.ycoords)), dims[1]: (dims[1], grid.xcoords)},
+        coords={dims[0]: (dims[0], grid.ycoords), dims[1]: (dims[1], grid.xcoords)},
     )
-    out = georef_data_array(binary_mask_data_array, "binary_mask", crs=grid.crs)
+    out = georef_data_array(binary_mask_data_array, grid.crs)
 
     return out
 
