@@ -3,6 +3,7 @@ from typing import Dict
 
 import numpy as np
 import xarray as xr
+from matplotlib.axes import Axes
 from scores.categorical import BasicContingencyManager
 from sklearn.metrics import ConfusionMatrixDisplay
 
@@ -50,7 +51,7 @@ def compute_all_scores(dataset: xr.Dataset):
     return xr.Dataset(out_scores_dict)
 
 
-def plot_confusion_table(dataset: xr.Dataset):
+def plot_confusion_table(dataset: xr.Dataset, axes: Axes | None = None):
     tot = np.sum(np.array([dataset[dv].sum() for dv in dataset]))
 
     confusion_matrix = np.array(
@@ -66,7 +67,7 @@ def plot_confusion_table(dataset: xr.Dataset):
         ],
     )
     disp = ConfusionMatrixDisplay(confusion_matrix=confusion_matrix, display_labels=["snow", "no_snow"])
-    disp.plot()
+    disp.plot(ax=axes, colorbar=False)
 
 
 class ConfusionTable(EvaluationVsHighResBase):
@@ -82,21 +83,21 @@ class ConfusionTable(EvaluationVsHighResBase):
     def compute_binary_metrics(self, dataset: xr.Dataset, bins_dict: Dict[str, xr.groupers.Grouper]):
         logger.info(f"Processing time of the year {dataset.coords['time'].values[0].astype('M8[D]').astype('O')}")
 
-        snow_test = mask_of_pixels_in_range(
-            range(int(self.fsc_threshold * self.test_analyzer.max_fsc), self.test_analyzer.max_fsc), dataset["test"]
-        )
-        no_snow_test = self.test_analyzer.total_no_snow_mask(dataset["test"])
-
-        snow_ref = mask_of_pixels_in_range(
-            range(int(self.fsc_threshold * self.ref_analyzer.max_fsc), self.ref_analyzer.max_fsc), dataset["ref"]
-        )
-        no_snow_ref = self.ref_analyzer.total_no_snow_mask(dataset["ref"])
-
-        # snow_test = self.test_analyzer.total_snow_mask(dataset["test"])
+        # snow_test = mask_of_pixels_in_range(
+        #     range(int(self.fsc_threshold * self.test_analyzer.max_fsc), self.test_analyzer.max_fsc), dataset["test"]
+        # )
         # no_snow_test = self.test_analyzer.total_no_snow_mask(dataset["test"])
 
-        # snow_ref = self.ref_analyzer.total_snow_mask(dataset["ref"])
+        # snow_ref = mask_of_pixels_in_range(
+        #     range(int(self.fsc_threshold * self.ref_analyzer.max_fsc), self.ref_analyzer.max_fsc), dataset["ref"]
+        # )
         # no_snow_ref = self.ref_analyzer.total_no_snow_mask(dataset["ref"])
+
+        snow_test = self.test_analyzer.total_snow_mask(dataset["test"])
+        no_snow_test = self.test_analyzer.total_no_snow_mask(dataset["test"])
+
+        snow_ref = self.ref_analyzer.total_snow_mask(dataset["ref"])
+        no_snow_ref = self.ref_analyzer.total_no_snow_mask(dataset["ref"])
 
         dataset = dataset.assign({"true_positive": snow_test & snow_ref})
         dataset = dataset.assign({"true_negative": no_snow_test & no_snow_ref})
@@ -182,10 +183,13 @@ if __name__ == "__main__":
             resolution=375,
             platform="SNPP",
             product_name=product,
-            period=slice("2023-12", "2024-01"),
+            period=None,
         )
         logger.info(f"Evaluating product {product}")
         metrics_calcuator = evaluation_dict[product]["evaluator"]
         metrics_calcuator.contingency_analysis(
-            test_time_series=test_time_series, ref_time_series=ref_time_series, config=evaluation_dict[product]["config"]
+            test_time_series=test_time_series,
+            ref_time_series=ref_time_series,
+            config=evaluation_dict[product]["config"],
+            netcdf_export_path=output_filename,
         )

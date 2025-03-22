@@ -98,7 +98,7 @@ class EvaluationVsHighResBase:
     def altitude_bins(altitude_band: int = 600) -> BinGrouper:
         return BinGrouper(
             np.array([0, *np.arange(900, 3900, altitude_band), 4800]),
-            labels=np.array([*np.arange(900, 3900, altitude_band), 4800]),
+            labels=np.array([0, *np.arange(900, 3900, altitude_band)]),
         )
 
     @staticmethod
