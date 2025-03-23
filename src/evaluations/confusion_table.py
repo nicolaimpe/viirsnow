@@ -18,7 +18,7 @@ from evaluations.statistics_base import EvaluationConfig, EvaluationVsHighResBas
 from logger_setup import default_logger as logger
 from winter_year import WinterYear
 
-SCORES = ["precision", "recall", "f1_score", "commission_error", "omission_error", "accuracy"]
+SCORES = ["accuracy", "precision", "recall", "f1_score", "commission_error", "omission_error"]
 
 
 def compute_score(dataset: xr.Dataset, score_name: str):
@@ -82,16 +82,6 @@ class ConfusionTable(EvaluationVsHighResBase):
 
     def compute_binary_metrics(self, dataset: xr.Dataset, bins_dict: Dict[str, xr.groupers.Grouper]):
         logger.info(f"Processing time of the year {dataset.coords['time'].values[0].astype('M8[D]').astype('O')}")
-
-        # snow_test = mask_of_pixels_in_range(
-        #     range(int(self.fsc_threshold * self.test_analyzer.max_fsc), self.test_analyzer.max_fsc), dataset["test"]
-        # )
-        # no_snow_test = self.test_analyzer.total_no_snow_mask(dataset["test"])
-
-        # snow_ref = mask_of_pixels_in_range(
-        #     range(int(self.fsc_threshold * self.ref_analyzer.max_fsc), self.ref_analyzer.max_fsc), dataset["ref"]
-        # )
-        # no_snow_ref = self.ref_analyzer.total_no_snow_mask(dataset["ref"])
 
         snow_test = self.test_analyzer.total_snow_mask(dataset["test"])
         no_snow_test = self.test_analyzer.total_no_snow_mask(dataset["test"])
@@ -169,13 +159,13 @@ if __name__ == "__main__":
     working_folder = "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_4/"
 
     fsc_threshold = None
-    evaluation_dict = {
+    evaluation_dict: Dict[str, ConfusionTable] = {
         "meteofrance_l3": {"evaluator": ConfusionTableMeteoFrance(fsc_threshold=fsc_threshold), "config": config},
         "nasa_pseudo_l3": {"evaluator": ConfusionTableNASA(fsc_threshold=fsc_threshold), "config": config},
         "nasa_l3": {"evaluator": ConfusionTableNASA(fsc_threshold=fsc_threshold), "config": config_nasa_l3},
     }
 
-    for product in evaluation_dict:
+    for product, evaluator in evaluation_dict.items():
         ref_time_series, test_time_series, output_filename = generate_evaluation_io(
             analysis_type="confusion_table",
             working_folder=working_folder,
@@ -186,7 +176,7 @@ if __name__ == "__main__":
             period=None,
         )
         logger.info(f"Evaluating product {product}")
-        metrics_calcuator = evaluation_dict[product]["evaluator"]
+        metrics_calcuator = evaluation_dict["evaluator"]
         metrics_calcuator.contingency_analysis(
             test_time_series=test_time_series,
             ref_time_series=ref_time_series,
