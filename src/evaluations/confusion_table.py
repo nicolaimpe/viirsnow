@@ -12,7 +12,6 @@ from evaluations.completeness import (
     NASASnowCoverProductCompleteness,
     S2SnowCoverProductCompleteness,
     SnowCoverProductCompleteness,
-    mask_of_pixels_in_range,
 )
 from evaluations.statistics_base import EvaluationConfig, EvaluationVsHighResBase, generate_evaluation_io
 from logger_setup import default_logger as logger
@@ -159,7 +158,7 @@ if __name__ == "__main__":
     working_folder = "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_4/"
 
     fsc_threshold = None
-    evaluation_dict: Dict[str, ConfusionTable] = {
+    evaluation_dict: Dict[str, Dict[str, ConfusionTable]] = {
         "meteofrance_l3": {"evaluator": ConfusionTableMeteoFrance(fsc_threshold=fsc_threshold), "config": config},
         "nasa_pseudo_l3": {"evaluator": ConfusionTableNASA(fsc_threshold=fsc_threshold), "config": config},
         "nasa_l3": {"evaluator": ConfusionTableNASA(fsc_threshold=fsc_threshold), "config": config_nasa_l3},
@@ -176,7 +175,7 @@ if __name__ == "__main__":
             period=None,
         )
         logger.info(f"Evaluating product {product}")
-        metrics_calcuator = evaluation_dict["evaluator"]
+        metrics_calcuator = evaluator["evaluator"]
         metrics_calcuator.contingency_analysis(
             test_time_series=test_time_series,
             ref_time_series=ref_time_series,
