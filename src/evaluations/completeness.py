@@ -42,6 +42,16 @@ class SnowCoverProductCompleteness:
     def max_fsc(self) -> int:
         return self.classes["snow_cover"][-1]
 
+    @property
+    def max_value(self) -> int:
+        values = []
+        for value in METEOFRANCE_CLASSES.values():
+            if type(value) is not range:
+                values.append(value[0])
+            else:
+                values.append(np.max(value))
+        return int(np.max(values))
+
     def setup_nodata_classes(self, nodata_mapping: Tuple[str, ...]):
         if nodata_mapping is not None:
             new_nodata_values = ()

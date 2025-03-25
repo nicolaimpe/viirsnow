@@ -119,6 +119,7 @@ class ConfusionTable(EvaluationVsHighResBase):
         result = combined_dataset.groupby("time").map(self.compute_binary_metrics, bins_dict=analysis_bin_dict)
 
         if netcdf_export_path:
+            logger.info(f"Exporting to {netcdf_export_path}")
             result.to_netcdf(netcdf_export_path)
         return result
 

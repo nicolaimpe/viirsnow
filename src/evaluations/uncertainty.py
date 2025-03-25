@@ -110,9 +110,9 @@ class Uncertainty(EvaluationVsHighResBase):
     def time_step_analysis(self, dataset: xr.Dataset, bins_dict: Dict[str, xr.groupers.Grouper]):
         logger.info(f"Processing time of the year {dataset.coords['time'].values[0].astype('M8[D]').astype('O')}")
         valid_test = dataset.data_vars["test"].where(self.test_analyzer.quantitative_mask(dataset.data_vars["test"]))
-        valid_test = valid_test * 100 / self.test_analyzer.classes["snow_cover"][-1]
+        valid_test = valid_test * 100 / self.test_analyzer.max_fsc
         valid_ref = dataset.data_vars["ref"].where(self.ref_analyzer.quantitative_mask(dataset.data_vars["ref"]))
-        valid_ref = valid_ref * 100 / self.ref_analyzer.classes["snow_cover"][-1]
+        valid_ref = valid_ref * 100 / self.ref_analyzer.max_fsc
         dataset = dataset.assign(biais=valid_test - valid_ref)
         histograms = dataset.groupby(bins_dict).map(self.compute_biais_histogram)
         return histograms
@@ -142,6 +142,7 @@ class Uncertainty(EvaluationVsHighResBase):
 
         result = combined_dataset.groupby("time").map(self.time_step_analysis, bins_dict=analysis_bin_dict)
         if netcdf_export_path:
+            logger.info(f"Exporting to {netcdf_export_path}")
             result.to_netcdf(netcdf_export_path, encoding={"n_occurrences": {"zlib": True}})
         return result
 
