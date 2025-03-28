@@ -1,9 +1,11 @@
+from copy import deepcopy
 from typing import Dict, Tuple
 
 import numpy as np
 import pandas as pd
 import xarray as xr
 from matplotlib import pyplot as plt
+from matplotlib.axes import Axes
 from xarray.groupers import BinGrouper
 
 from evaluations.completeness import (
@@ -11,7 +13,7 @@ from evaluations.completeness import (
     NASASnowCoverProductCompleteness,
     S2SnowCoverProductCompleteness,
 )
-from evaluations.statistics_base import EvaluationVsHighResBase
+from evaluations.statistics_base import EvaluationConfig, EvaluationVsHighResBase, generate_evaluation_io
 from logger_setup import default_logger as logger
 from products.plot_settings import PRODUCT_PLOT_COLORS
 from winter_year import WinterYear
@@ -38,7 +40,7 @@ def postprocess_uncertainty_analysis(
     return concatenated
 
 
-def barplots(postprocessed_data_array: xr.DataArray, title: str, y_lim: Tuple[int, int]):
+def barplots(postprocessed_data_array: xr.DataArray, title: str, ax: Axes):
     plot_dataframe_dict = {}
     colors = []
     for product in postprocessed_data_array.coords["product"].values:
@@ -50,33 +52,46 @@ def barplots(postprocessed_data_array: xr.DataArray, title: str, y_lim: Tuple[in
     if "aspect" in title:
         # That's because to_pandas() reorders the aspect labels alphabetically
         plot_dataframe = plot_dataframe.reindex(index=EvaluationVsHighResBase.aspect_bins().labels)
-    plot_dataframe.plot.bar(figsize=(14, 4), color=colors, width=0.6, title=title)
-    plt.ylim(y_lim)
-    plt.grid(True, axis="y")
+    plot_dataframe.plot.bar(figsize=(11, 3), color=colors, width=0.6, title=title, ax=ax)
 
 
-def biais_barplots(postprocessed_dataset: xr.Dataset, analysis_var_plot_name: str, winter_year: WinterYear):
+def biais_barplots(postprocessed_dataset: xr.Dataset, analysis_var_plot_name: str, title_complement: str):
+    _, ax = plt.subplots()
+    ax.set_ylim(-10, 10)
+    ax.set_ylabel("biais [%]")
+    ax.set_xlabel(analysis_var_plot_name)
     barplots(
         postprocessed_data_array=postprocessed_dataset.data_vars["biais"],
-        title=f"Biais comparison {analysis_var_plot_name} - {str(winter_year)}",
-        y_lim=(-15, 15),
+        title=f"Biais vs {analysis_var_plot_name} - {title_complement}",
+        ax=ax,
     )
+    ax.grid(True, axis="y")
 
 
-def rmse_barplots(postprocessed_dataset: xr.Dataset, analysis_var_plot_name: str, winter_year: WinterYear):
+def rmse_barplots(postprocessed_dataset: xr.Dataset, analysis_var_plot_name: str, title_complement: str):
+    _, ax = plt.subplots()
+    ax.set_ylim(0, 30)
+    ax.set_ylabel("rmse [%]")
+    ax.set_xlabel(analysis_var_plot_name)
     barplots(
         postprocessed_data_array=postprocessed_dataset.data_vars["rmse"],
-        title=f"RMSE comparison {analysis_var_plot_name} - {str(winter_year)}",
-        y_lim=(0, 40),
+        title=f"RMSE vs {analysis_var_plot_name} - {title_complement}",
+        ax=ax,
     )
+    ax.grid(True, axis="y")
 
 
-def unbiaised_rmse_barplots(postprocessed_dataset: xr.Dataset, analysis_var_plot_name: str, winter_year: WinterYear):
+def unbiaised_rmse_barplots(postprocessed_dataset: xr.Dataset, analysis_var_plot_name: str, title_complement: str):
+    _, ax = plt.subplots()
+    ax.set_ylim(0, 30)
+    ax.set_ylabel("unbiaised_rmse [%]")
+    ax.set_xlabel(analysis_var_plot_name)
     barplots(
         postprocessed_data_array=postprocessed_dataset.data_vars["unbiaised_rmse"],
-        title=f"Unbiaised RMSE comparison {analysis_var_plot_name} - {str(winter_year)}",
-        y_lim=(0, 40),
+        title=f"Unbiaised RMSE vs {analysis_var_plot_name} - {title_complement}",
+        ax=ax,
     )
+    ax.grid(True, axis="y")
 
 
 def histograms_to_distribution(metrics_ds: xr.Dataset):
@@ -95,9 +110,9 @@ class Uncertainty(EvaluationVsHighResBase):
     def time_step_analysis(self, dataset: xr.Dataset, bins_dict: Dict[str, xr.groupers.Grouper]):
         logger.info(f"Processing time of the year {dataset.coords['time'].values[0].astype('M8[D]').astype('O')}")
         valid_test = dataset.data_vars["test"].where(self.test_analyzer.quantitative_mask(dataset.data_vars["test"]))
-        valid_test = valid_test * 100 / self.test_analyzer.classes["snow_cover"][-1]
+        valid_test = valid_test * 100 / self.test_analyzer.max_fsc
         valid_ref = dataset.data_vars["ref"].where(self.ref_analyzer.quantitative_mask(dataset.data_vars["ref"]))
-        valid_ref = valid_ref * 100 / self.ref_analyzer.classes["snow_cover"][-1]
+        valid_ref = valid_ref * 100 / self.ref_analyzer.max_fsc
         dataset = dataset.assign(biais=valid_test - valid_ref)
         histograms = dataset.groupby(bins_dict).map(self.compute_biais_histogram)
         return histograms
@@ -116,28 +131,18 @@ class Uncertainty(EvaluationVsHighResBase):
         self,
         test_time_series: xr.Dataset,
         ref_time_series: xr.Dataset,
-        sensor_zenith_analysis: bool = True,
-        forest_mask_path: str | None = None,
-        sub_roi_mask_path: str | None = None,
-        slope_map_path: str | None = None,
-        aspect_map_path: str | None = None,
-        dem_path: str | None = None,
+        config: EvaluationConfig,
         netcdf_export_path: str | None = None,
     ) -> xr.Dataset:
         combined_dataset, analysis_bin_dict = self.prepare_analysis(
             test_time_series=test_time_series,
             ref_time_series=ref_time_series,
-            ref_fsc_step=99,
-            sensor_zenith_analysis=sensor_zenith_analysis,
-            forest_mask_path=forest_mask_path,
-            sub_roi_mask_path=sub_roi_mask_path,
-            slope_map_path=slope_map_path,
-            aspect_map_path=aspect_map_path,
-            dem_path=dem_path,
+            config=config,
         )
 
         result = combined_dataset.groupby("time").map(self.time_step_analysis, bins_dict=analysis_bin_dict)
         if netcdf_export_path:
+            logger.info(f"Exporting to {netcdf_export_path}")
             result.to_netcdf(netcdf_export_path, encoding={"n_occurrences": {"zlib": True}})
         return result
 
@@ -159,66 +164,43 @@ class UncertaintyNASA(Uncertainty):
 
 
 if __name__ == "__main__":
-    platform = "SNPP"
-    year = WinterYear(2023, 2024)
-    products_to_evaluate = ["meteofrance_l3", "nasa_l3", "nasa_pseudo_l3"]
-    resolution = 375
-    forest_mask_path = "/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/forest_mask/corine_2006_forest_mask.tif"
-    massifs_mask_path = None
-    slope_map_path = "/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/dem/SLP_MSF_UTM31_375m_lanczos.tif"
-    aspect_map_path = "/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/dem/ASP_MSF_UTM31_375m_lanczos.tif"
-    dem_path = "/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/dem/DEM_MSF_UTM31_375m_lanczos.tif"
-    for product_to_evaluate in products_to_evaluate:
-        working_folder = "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_4/"
-        output_folder = f"{working_folder}/analyses/uncertainty"
-        ref_time_series_name = f"WY_{year.from_year}_{year.to_year}_s2_theia_res_{resolution}m.nc"
-        test_time_series_name = f"WY_{year.from_year}_{year.to_year}_{platform}_{product_to_evaluate}_res_{resolution}m.nc"
-        output_filename = f"{output_folder}/uncertainty_WY_{year.from_year}_{year.to_year}_{platform}_{product_to_evaluate}_res_{resolution}m.nc"
-        test_time_series = xr.open_dataset(f"{working_folder}/time_series/{test_time_series_name}").isel(time=slice(30, 180))
-        ref_time_series = xr.open_dataset(f"{working_folder}/time_series/{ref_time_series_name}").isel(time=slice(30, 180))
-        logger.info(f"Evaluating product {product_to_evaluate}")
+    config = EvaluationConfig(
+        ref_fsc_step=99,
+        sensor_zenith_analysis=True,
+        forest_mask_path="/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/forest_mask/corine_2006_forest_mask.tif",
+        slope_map_path="/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/dem/SLP_MSF_UTM31_375m_lanczos.tif",
+        aspect_map_path="/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/dem/ASP_MSF_UTM31_375m_lanczos.tif",
+        sub_roi_mask_path=None,
+        dem_path="/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/dem/DEM_MSF_UTM31_375m_lanczos.tif",
+    )
 
-        if product_to_evaluate == "nasa_l3":
-            metrics_calcuator = UncertaintyNASA()
-            metrics_calcuator.uncertainty_analysis(
-                test_time_series=test_time_series,
-                ref_time_series=ref_time_series,
-                sensor_zenith_analysis=False,
-                forest_mask_path=forest_mask_path,
-                sub_roi_mask_path=massifs_mask_path,
-                slope_map_path=slope_map_path,
-                aspect_map_path=aspect_map_path,
-                dem_path=dem_path,
-                netcdf_export_path=output_filename,
-            )
+    config_nasa_l3 = deepcopy(config)
+    config_nasa_l3.sensor_zenith_analysis = False
 
-        elif product_to_evaluate == "nasa_pseudo_l3":
-            metrics_calcuator = UncertaintyNASA()
-            metrics_calcuator.uncertainty_analysis(
-                test_time_series=test_time_series,
-                ref_time_series=ref_time_series,
-                sensor_zenith_analysis=False,
-                forest_mask_path=forest_mask_path,
-                sub_roi_mask_path=massifs_mask_path,
-                slope_map_path=slope_map_path,
-                aspect_map_path=aspect_map_path,
-                dem_path=dem_path,
-                netcdf_export_path=output_filename,
-            )
+    working_folder = "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_4/"
 
-        elif product_to_evaluate == "meteofrance_l3":
-            metrics_calcuator = UncertaintyMeteoFrance()
-            metrics_calcuator.uncertainty_analysis(
-                test_time_series=test_time_series,
-                ref_time_series=ref_time_series,
-                sensor_zenith_analysis=False,
-                forest_mask_path=forest_mask_path,
-                sub_roi_mask_path=None,
-                slope_map_path=slope_map_path,
-                aspect_map_path=aspect_map_path,
-                dem_path=dem_path,
-                netcdf_export_path=output_filename,
-            )
+    fsc_threshold = None
+    evaluation_dict: Dict[str, Dict[str, Uncertainty]] = {
+        "meteofrance_l3": {"evaluator": UncertaintyMeteoFrance(), "config": config},
+        "nasa_pseudo_l3": {"evaluator": UncertaintyNASA(), "config": config},
+        "nasa_l3": {"evaluator": UncertaintyNASA(), "config": config_nasa_l3},
+    }
 
-        else:
-            raise NotImplementedError(f"Unknown product: {product_to_evaluate}")
+    for product, evaluator in evaluation_dict.items():
+        ref_time_series, test_time_series, output_filename = generate_evaluation_io(
+            analysis_type="uncertainty",
+            working_folder=working_folder,
+            year=WinterYear(2023, 2024),
+            resolution=375,
+            platform="SNPP",
+            product_name=product,
+            period=None,
+        )
+        logger.info(f"Evaluating product {product}")
+        metrics_calcuator = evaluator["evaluator"]
+        metrics_calcuator.uncertainty_analysis(
+            test_time_series=test_time_series,
+            ref_time_series=ref_time_series,
+            config=evaluation_dict[product]["config"],
+            netcdf_export_path=output_filename,
+        )
