@@ -14,8 +14,8 @@ def fit_regression(data_to_fit: xr.DataArray):
     weights = data_to_fit.values.ravel()
     regression = LinearRegression().fit(X=model_x_data, y=model_y_data, sample_weight=weights)
     return (
-        regression.coef_[0],
-        regression.intercept_,
+        regression.coef_[0][0],
+        regression.intercept_[0],
         regression.score(model_x_data, model_y_data, data_to_fit.values.ravel()),
     )
 
@@ -50,7 +50,7 @@ def fancy_scatter_plot(
         regression_x_axis * coeff_slope + intercept,
         "--",
         color="gray",
-        label=f"Fitted R²={score[0]:.2f} m={float(coeff_slope[0]):.2f} b={float(intercept[0]):.2f}",
+        label=f"Fitted R²={score:.2f} m={float(coeff_slope):.2f} b={float(intercept):.2f}",
     )
     ax.plot(regression_x_axis, regression_x_axis, color="k", linewidth=0.5, label="y=x")
     ax.grid(True)
