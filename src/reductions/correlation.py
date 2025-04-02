@@ -1,61 +1,17 @@
-from copy import deepcopy
 from typing import Dict
 
 import numpy as np
 import xarray as xr
-from matplotlib import cm, colors
-from matplotlib.axes import Axes
-from matplotlib.figure import Figure
-from scipy.ndimage import gaussian_filter
-from sklearn.linear_model import LinearRegression
 from xarray.groupers import BinGrouper
 
-from evaluations.completeness import (
+from logger_setup import default_logger as logger
+from reductions.completeness import (
     MeteoFranceSnowCoverProductCompleteness,
     NASASnowCoverProductCompleteness,
     S2SnowCoverProductCompleteness,
 )
-from evaluations.statistics_base import EvaluationConfig, EvaluationVsHighResBase, generate_evaluation_io
-from logger_setup import default_logger as logger
+from reductions.statistics_base import EvaluationConfig, EvaluationVsHighResBase
 from winter_year import WinterYear
-
-
-def fit_regression(data_to_fit: xr.DataArray):
-    test_grid, ref_grid = np.meshgrid(data_to_fit.test_bins.values, data_to_fit.ref_bins.values)
-    model_x_data = ref_grid.reshape((-1, 1))
-    model_y_data = test_grid.reshape((-1, 1))
-    weights = data_to_fit.values.ravel()
-    regression = LinearRegression().fit(X=model_x_data, y=model_y_data, sample_weight=weights)
-    return (
-        regression.coef_[0],
-        regression.intercept_,
-        regression.score(model_x_data, model_y_data, data_to_fit.values.ravel()),
-    )
-
-
-def fancy_scatter_plot(data_to_plt: xr.DataArray, ax: Axes, figure: Figure, gaussian_window_size: int | None = 2):
-    if gaussian_window_size is not None:
-        data_smooth = gaussian_filter(data_to_plt, sigma=gaussian_window_size)
-    else:
-        data_smooth = data_to_plt
-    distr_min, distr_max = np.quantile(data_smooth, 0.05), np.quantile(data_smooth, 0.95)
-    coeff_slope, intercept, score = fit_regression(data_to_plt)
-    scatter_plot = ax.pcolormesh(
-        data_to_plt.ref_bins.values,
-        data_to_plt.test_bins.values,
-        data_smooth.T,
-        norm=colors.LogNorm(vmin=distr_min if distr_min > 0 else 1, vmax=distr_max),
-        cmap=cm.bone,
-    )
-    regression_x_axis = data_to_plt.ref_bins.values
-    ax.plot(regression_x_axis, regression_x_axis * coeff_slope + intercept, color="r")
-    ax.plot(regression_x_axis, regression_x_axis, color="k", linewidth=0.5)
-    ax.grid(True)
-    cbar_ticks = np.array([1e-1, 1, 1e1, 1e2, 1e3, 1e4])
-    cbar = figure.colorbar(scatter_plot, ticks=cbar_ticks)
-    cbar.ax.set_yticklabels([f"{tick:n}" for tick in cbar_ticks])
-    ax.legend([f"Fitted R²={score:.2f} m={float(coeff_slope):.2f} b={float(intercept):.2f}", "y=x"])
-    return scatter_plot
 
 
 class Scatter(EvaluationVsHighResBase):

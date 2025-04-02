@@ -6,7 +6,7 @@ import numpy as np
 import xarray as xr
 from xarray.groupers import BinGrouper, UniqueGrouper
 
-from evaluations.completeness import SnowCoverProductCompleteness
+from reductions.completeness import SnowCoverProductCompleteness
 from winter_year import WinterYear
 
 

@@ -5,13 +5,13 @@ import xarray as xr
 from rasterio.enums import Resampling
 
 from compression import generate_xarray_compression_encodings
-from evaluations.snow_cover_extent_cross_comparison import WinterYear
 from geotools import mask_dataarray_with_vector_file, reproject_using_grid, to_rioxarray
 from grids import GeoGrid, UTM375mGrid, georef_data_array
 from harmonisation.daily_composites import create_temporal_composite_meteofrance
 from logger_setup import default_logger as logger
 from products.classes import METEOFRANCE_CLASSES
 from products.filenames import KNOWN_COLLECTIONS, get_daily_meteofrance_filenames, get_daily_nasa_filenames_per_product
+from reductions.snow_cover_extent_cross_comparison import WinterYear
 from reprojections import reprojection_l3_meteofrance_to_grid
 
 

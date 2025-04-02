@@ -3,9 +3,9 @@ from pathlib import Path
 import numpy as np
 import xarray as xr
 
-from evaluations.completeness import SnowCoverProductCompleteness, compute_area_of_class_mask
 from logger_setup import default_logger as logger
 from products.classes import METEOFRANCE_CLASSES, NASA_CLASSES
+from reductions.completeness import SnowCoverProductCompleteness, compute_area_of_class_mask
 from winter_year import WinterYear
 
 

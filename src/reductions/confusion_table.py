@@ -1,72 +1,17 @@
 from copy import deepcopy
 from typing import Dict
 
-import numpy as np
 import xarray as xr
-from matplotlib.axes import Axes
-from scores.categorical import BasicContingencyManager
-from sklearn.metrics import ConfusionMatrixDisplay
 
-from evaluations.completeness import (
+from logger_setup import default_logger as logger
+from reductions.completeness import (
     MeteoFranceSnowCoverProductCompleteness,
     NASASnowCoverProductCompleteness,
     S2SnowCoverProductCompleteness,
     SnowCoverProductCompleteness,
 )
-from evaluations.statistics_base import EvaluationConfig, EvaluationVsHighResBase, generate_evaluation_io
-from logger_setup import default_logger as logger
+from reductions.statistics_base import EvaluationConfig, EvaluationVsHighResBase, generate_evaluation_io
 from winter_year import WinterYear
-
-SCORES = ["accuracy", "precision", "recall", "f1_score", "commission_error", "omission_error"]
-
-
-def compute_score(dataset: xr.Dataset, score_name: str):
-    tp, tn, fp, fn = (
-        dataset.data_vars["true_positive"].sum(),
-        dataset.data_vars["true_negative"].sum(),
-        dataset.data_vars["false_positive"].sum(),
-        dataset.data_vars["false_negative"].sum(),
-    )
-    scores_manager = BasicContingencyManager(
-        counts={"tp_count": tp, "tn_count": tn, "fp_count": fp, "fn_count": fn, "total_count": tp + tn + fp + fn}
-    )
-
-    return getattr(scores_manager, score_name)()
-
-
-def omission_error(dataset: xr.Dataset):
-    return dataset["false_negative"].sum() / (dataset["true_positive"].sum() + dataset["false_negative"].sum())
-
-
-def compute_all_scores(dataset: xr.Dataset):
-    out_scores_dict = {}
-    for score in SCORES:
-        if score == "omission_error":
-            out_scores_dict.update({score: omission_error(dataset)})
-        elif score == "commission_error":
-            out_scores_dict.update({score: compute_score(dataset, score_name="false_alarm_rate")})
-        else:
-            out_scores_dict.update({score: compute_score(dataset, score_name=score)})
-    return xr.Dataset(out_scores_dict)
-
-
-def plot_confusion_table(dataset: xr.Dataset, axes: Axes | None = None):
-    tot = np.sum(np.array([dataset[dv].sum() for dv in dataset]))
-
-    confusion_matrix = np.array(
-        [
-            [
-                dataset.data_vars["true_positive"].sum().values / tot * 100,
-                dataset.data_vars["false_negative"].sum().values / tot * 100,
-            ],
-            [
-                dataset.data_vars["false_positive"].sum().values / tot * 100,
-                dataset.data_vars["true_negative"].sum().values / tot * 100,
-            ],
-        ],
-    )
-    disp = ConfusionMatrixDisplay(confusion_matrix=confusion_matrix, display_labels=["snow", "no_snow"])
-    disp.plot(ax=axes, colorbar=False)
 
 
 class ConfusionTable(EvaluationVsHighResBase):
