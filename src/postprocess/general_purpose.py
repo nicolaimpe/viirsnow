@@ -1,7 +1,10 @@
-from typing import Dict
+from typing import Dict, Tuple
 
 import pandas as pd
+import xarray as xr
 from pandas.io.formats.style import Styler
+
+from reductions.statistics_base import EvaluationVsHighResBase
 
 
 def fancy_table(
@@ -28,3 +31,57 @@ def fancy_table(
     # Only show 2 digits after comma
     styled_df = styled_df.format(precision=2)
     return styled_df
+
+
+def open_analysis_file(analysis_folder: str, analysis_type: str, product_var_name: str) -> xr.Dataset:
+    return xr.open_dataset(
+        f"{analysis_folder}/{analysis_type}_WY_2023_2024_SNPP_{product_var_name}_res_375m.nc", decode_cf=True
+    )
+
+
+def sel_evaluation_domain(analyses_dict: Dict[str, xr.Dataset], evaluation_domain: str) -> Tuple[Dict[str, xr.Dataset], str]:
+    if evaluation_domain == "general":
+        title = "December to June > 900 m"
+        selection_dict = {
+            k: v.sel(time=slice("2023-12", "2024-01")).sel(altitude_bins=slice(900, None), drop=True)
+            for k, v in analyses_dict.items()
+        }
+    elif evaluation_domain == "accumulation":
+        title = "Accumulation November to February > 1500 m"
+        selection_dict = {
+            k: v.sel(time=slice("2023-11", "2024-03")).sel(altitude_bins=slice(1500, None), drop=True)
+            for k, v in analyses_dict.items()
+        }
+    elif evaluation_domain == "ablation":
+        title = "Ablation March to July > 2100 m"
+        selection_dict = {
+            k: v.sel(time=slice("2024-03", "2024-07")).sel(altitude_bins=slice(2100, None), drop=True)
+            for k, v in analyses_dict.items()
+        }
+    selection_dict = {
+        k: v.assign_coords(
+            {
+                "aspect_bins": pd.CategoricalIndex(
+                    data=EvaluationVsHighResBase.aspect_bins().labels,
+                    categories=EvaluationVsHighResBase.aspect_bins().labels,
+                    ordered=True,
+                )
+            }
+        )
+        for k, v in selection_dict.items()
+    }
+
+    selection_dict = {
+        k: v.assign_coords(
+            {
+                "aspect_bins": pd.CategoricalIndex(
+                    data=EvaluationVsHighResBase.aspect_bins().labels,
+                    categories=EvaluationVsHighResBase.aspect_bins().labels,
+                    ordered=True,
+                )
+            }
+        )
+        for k, v in selection_dict.items()
+    }
+
+    return selection_dict, title

@@ -137,3 +137,94 @@ def fancy_table_skill_scores(dataframe_to_print: pd.DataFrame) -> Styler:
 
     # Apply gradient coloring
     return fancy_table(dataframe_to_print=dataframe_to_print, color_maps=color_maps, vmins=vmins, vmaxs=vmaxs)
+
+
+if __name__ == "__main__":
+    import xarray as xr
+
+    from postprocess.general_purpose import open_analysis_file, sel_evaluation_domain
+    from products.plot_settings import METEOFRANCE_VAR_NAME, NASA_L3_VAR_NAME, NASA_PSEUDO_L3_VAR_NAME
+    from reductions.statistics_base import EvaluationVsHighResBase
+    from winter_year import WinterYear
+
+    wy = WinterYear(2023, 2024)
+    analysis_folder = "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_4/analyses/confusion_table"
+    analysis_type = "confusion_table"
+    analyses_dict = {
+        METEOFRANCE_VAR_NAME: open_analysis_file(analysis_folder, analysis_type, METEOFRANCE_VAR_NAME),
+        NASA_PSEUDO_L3_VAR_NAME: open_analysis_file(analysis_folder, analysis_type, NASA_PSEUDO_L3_VAR_NAME),
+        NASA_L3_VAR_NAME: open_analysis_file(analysis_folder, analysis_type, NASA_L3_VAR_NAME),
+    }
+
+    evaluation_domain = "ablation"
+    selection_dict, title = sel_evaluation_domain(analyses_dict=analyses_dict, evaluation_domain=evaluation_domain)
+    ################# Launch analysis ###########################
+
+    # Confusion table
+    plot_multiple_confusion_table(metrics_dict=selection_dict, title_complement=f"{title} - {str(wy)}")
+
+    sel_no_vza = selection_dict.copy()
+    sel_no_vza.pop("nasa_l3")
+    # Sensor zenith
+    plot_multiple_scores_sns(
+        metrics_dict=sel_no_vza,
+        variable="sensor_zenith_bins",
+        xlabel="Sensor Zenith Angle [°]",
+        title_complement=f"Sensor zenith angle - Restricted domain- {str(wy)}",
+    )
+
+    # Aspect
+    selection_dict = {
+        k: v.assign_coords(
+            {
+                "aspect_bins": pd.CategoricalIndex(
+                    data=EvaluationVsHighResBase.aspect_bins().labels,
+                    categories=EvaluationVsHighResBase.aspect_bins().labels,
+                    ordered=True,
+                )
+            }
+        )
+        for k, v in selection_dict.items()
+    }
+    plot_multiple_scores_sns(
+        metrics_dict=selection_dict,
+        variable="aspect_bins",
+        xlabel="Aspect",
+        title_complement=f"Aspect - {title} period- {str(wy)}",
+    )
+
+    # Massifs
+    selection_dict = {
+        k: v.assign_coords({"sub_roi": ["", "Alps", "Pyrenees", "Corse", "Massif Central", "Jura", "Vosges"]})
+        for k, v in selection_dict.items()
+    }
+    plot_multiple_scores_sns(
+        metrics_dict=selection_dict,
+        variable="sub_roi",
+        xlabel="Massif",
+        title_complement=f"Massif - {title} - {str(wy)}",
+    )
+
+    # Slope
+    selection_dict = {
+        k: v.sel(slope_bins=slice(None, 50)).assign_coords({"slope_bins": ["0-10", "10-30", "30-50"]})
+        for k, v in selection_dict.items()
+    }
+    plot_multiple_scores_sns(
+        metrics_dict=selection_dict,
+        variable="slope_bins",
+        xlabel="Slope [°]",
+        title_complement=f"Slope - {title} - {str(wy)}",
+    )
+    # vegetation
+    selection_dict = {k: v.assign_coords({"forest_mask": ["no forest", "forest"]}) for k, v in selection_dict.items()}
+    plot_multiple_scores_sns(
+        metrics_dict=selection_dict,
+        variable="forest_mask",
+        xlabel="Landcover",
+        title_complement=f"Landcover - {title} - {str(wy)}",
+    )
+
+    df = compute_results_df(selection_dict)
+    print(df.round(decimals=2))
+    plt.show()
