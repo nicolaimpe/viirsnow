@@ -9,10 +9,10 @@ from fractional_snow_cover import nasa_ndsi_snow_cover_to_fraction
 from geotools import mask_dataarray_with_vector_file, reproject_using_grid, to_rioxarray
 from grids import GeoGrid, UTM375mGrid, georef_data_array
 from harmonisation.daily_composites import create_temporal_composite_nasa
+from harmonisation.reprojections import reprojection_l3_nasa_to_grid
 from logger_setup import default_logger as logger
 from products.classes import NASA_CLASSES
 from products.filenames import get_daily_nasa_filenames_per_product
-from reprojections import reprojection_l3_nasa_to_grid
 from winter_year import WinterYear
 
 

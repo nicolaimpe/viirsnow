@@ -1,5 +1,6 @@
 import abc
 import os
+from datetime import datetime
 from glob import glob
 from typing import Dict, List
 
@@ -8,11 +9,11 @@ import rasterio
 import xarray as xr
 
 from compression import generate_xarray_compression_encodings
-from evaluations.snow_cover_extent_cross_comparison import WinterYear
 from geotools import gdf_to_binary_mask
 from grids import GeoGrid
 from logger_setup import default_logger as logger
 from products.classes import PRODUCT_CLASSES_DICT
+from reductions.snow_cover_extent_cross_comparison import WinterYear
 
 
 class HarmonisationBase:
@@ -28,12 +29,15 @@ class HarmonisationBase:
         pass
 
     @abc.abstractmethod
+    def get_daily_files(self, all_winter_year_files: List[str], day: datetime) -> List[str]:
+        pass
+
+    @abc.abstractmethod
     def create_spatial_composite(self, day_files: List[str]) -> xr.Dataset:
         pass
 
     def check_scf_not_empty(self, daily_composite: xr.Dataset) -> None:
         snow_cover = daily_composite.data_vars["snow_cover_fraction"]
-        snow_cover.to_netcdf("test_empty_snow_cover?.nc")
         if (
             snow_cover.where(snow_cover <= self.classes["clouds"]).count()
             == snow_cover.where(snow_cover == self.classes["clouds"]).count()
@@ -54,13 +58,16 @@ class HarmonisationBase:
         low_value_thresholds: Dict[str, float] | None = None,
     ):
         files = self.get_all_files_of_winter_year(winter_year=winter_year)
-
+        print(files)
         out_tmp_paths = []
 
         for day in winter_year.iterate_days():
             logger.info(f"Processing day {day}")
-            day_files = [file for file in files if day.strftime("%Y%m%d") in file]
-
+            day_files = self.get_daily_files(files, day=day)
+            if day.month < 12:
+                continue
+            if day.day > 6:
+                break
             for day_file in day_files:
                 try:
                     xr.open_dataset(day_file).data_vars["band_data"].values

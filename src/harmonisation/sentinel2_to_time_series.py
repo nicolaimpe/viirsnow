@@ -1,14 +1,15 @@
+from datetime import datetime
 from typing import List
 
 import xarray as xr
 
-from evaluations.snow_cover_extent_cross_comparison import WinterYear
 from grids import GeoGrid, UTM375mGrid
 from harmonisation.daily_composites import create_spatial_s2_composite
 from harmonisation.harmonisation_base import HarmonisationBase
 from logger_setup import default_logger as logger
 from products.filenames import get_all_s2_clms_files_of_winter_year, get_all_s2_theia_files_of_winter_year
 from products.plot_settings import S2_CLMS_VAR_NAME, S2_THEIA_VAR_NAME
+from reductions.snow_cover_extent_cross_comparison import WinterYear
 
 
 class S2CLMSHarmonisation(HarmonisationBase):
@@ -27,6 +28,9 @@ class S2CLMSHarmonisation(HarmonisationBase):
 class S2TheiaHarmonisation(HarmonisationBase):
     def __init__(self, output_grid: GeoGrid, data_folder: str, output_folder: str):
         super().__init__(S2_THEIA_VAR_NAME, output_grid, data_folder, output_folder)
+
+    def get_daily_files(self, all_winter_year_files: List[str], day: datetime):
+        return [file for file in all_winter_year_files if day.strftime("%Y%m%d") in file]
 
     def get_all_files_of_winter_year(self, winter_year: WinterYear) -> List[str]:
         return get_all_s2_theia_files_of_winter_year(s2_folder=self.data_folder, winter_year=winter_year)

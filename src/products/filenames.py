@@ -68,6 +68,21 @@ def get_daily_meteofrance_filenames(day: datetime, data_folder: str) -> List[str
     return glob(f"{data_folder}/VIIRS{day.year}/*{METEOFRANCE_L2['SNPP']}_*{day.strftime('%Y%m%d')}*.LT")
 
 
+def get_all_meteofrance_synopsis_filenames(data_folder: str, winter_year: WinterYear) -> List[str] | None:
+    # Rejeu CMS
+    print(f"{data_folder}/{winter_year.from_year}1[0-2]/*npp*produit_synopsis.tif")
+    meteofrance_files = glob(f"{data_folder}/{winter_year.from_year}1[0-2]/*npp*produit_synopsis.tif")
+    meteofrance_files.extend(glob(f"{data_folder}/{winter_year.to_year}[0-9]*/*npp*produit_synopsis.tif"))
+    return sorted(meteofrance_files)
+
+
+def get_all_meteofrance_sat_angle_filenames(data_folder: str, winter_year: WinterYear) -> List[str] | None:
+    # Rejeu CMS
+    meteofrance_files = glob(f"{data_folder}/{winter_year.from_year}1[0-2]*/*npp*SatelliteZenithAngle.tif")
+    meteofrance_files.extend(glob(f"{data_folder}/{winter_year.to_year}[0-9]*/*npp*SatelliteZenithAngle.tif"))
+    return sorted(meteofrance_files)
+
+
 def get_all_s2_clms_files_of_winter_year(s2_folder: str, winter_year: WinterYear) -> List[str]:
     s2_files = glob(str(Path(s2_folder).joinpath(f"FSC_*{winter_year.from_year}1[0-2]*/*FSCOG.tif")))
     s2_files.extend(glob(str(Path(s2_folder).joinpath(f"FSC_*{winter_year.to_year}0[1-9]*/*FSCOG.tif"))))
