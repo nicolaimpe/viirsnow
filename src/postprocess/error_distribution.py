@@ -39,16 +39,20 @@ def postprocess_uncertainty_analysis(
 def barplots(postprocessed_data_array: xr.DataArray, title: str, ax: Axes):
     plot_dataframe_dict = {}
     colors = []
+    legend = []
     for product in postprocessed_data_array.coords["product"].values:
         plot_dataframe_dict.update({product: postprocessed_data_array.sel(product=product).to_pandas()})
         colors.append(PRODUCT_PLOT_COLORS[product])
+        legend.append(PRODUCT_PLOT_NAMES[product])
     plot_dataframe = pd.DataFrame(plot_dataframe_dict)
     if "month" in title:
         plot_dataframe.index = plot_dataframe.index.strftime("%B")
     if "aspect" in title:
         # That's because to_pandas() reorders the aspect labels alphabetically
         plot_dataframe = plot_dataframe.reindex(index=EvaluationVsHighResBase.aspect_bins().labels)
-    plot_dataframe.plot.bar(figsize=(11, 3), color=colors, width=0.6, title=title, ax=ax)
+
+    plot_dataframe.plot.bar(figsize=(12, 3), color=colors, width=0.6, title=title, ax=ax)
+    ax.legend(legend)
 
 
 def biais_barplots(postprocessed_dataset: xr.Dataset, analysis_var_plot_name: str, title_complement: str):
@@ -75,6 +79,7 @@ def rmse_barplots(postprocessed_dataset: xr.Dataset, analysis_var_plot_name: str
         ax=ax,
     )
     ax.grid(True, axis="y")
+    ax.set_ylabel("RMSE [%]")
 
 
 def unbiaised_rmse_barplots(postprocessed_dataset: xr.Dataset, analysis_var_plot_name: str, title_complement: str):

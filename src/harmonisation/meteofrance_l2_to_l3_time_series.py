@@ -1,4 +1,5 @@
 from datetime import datetime
+from pathlib import Path
 from typing import List
 
 import xarray as xr
@@ -22,7 +23,7 @@ class MeteoFranceSynopsisHarmonisation(HarmonisationBase):
 
     def get_all_files_of_winter_year(self, winter_year: WinterYear) -> List[str]:
         snow_cover_and_sat_angle_file_list = get_all_meteofrance_synopsis_filenames(
-            data_folder=self.data_folder, winter_year=winter_year
+            data_folder=self.data_folder, winter_year=winter_year, suffix=suffix
         )
         snow_cover_and_sat_angle_file_list.extend(
             get_all_meteofrance_sat_angle_filenames(data_folder=self.data_folder, winter_year=winter_year)
@@ -35,8 +36,8 @@ class MeteoFranceSynopsisHarmonisation(HarmonisationBase):
     def create_spatial_composite(self, day_files: List[str]) -> xr.Dataset:
         # day.strftime('%Y%m%d')
         daily_temporal_composite = create_temporal_composite_meteofrance(
-            daily_snow_cover_files=[f for f in day_files if "produit_synopsis" in f],
-            daily_geometry_files=[f for f in day_files if "SatelliteZenithAngle" in f],
+            daily_snow_cover_files=[f for f in day_files if suffix in Path(f).name],
+            daily_geometry_files=[f for f in day_files if "SatelliteZenithAngle" in Path(f).name],
         )
 
         meteofrance_snow_cover = reprojection_l3_meteofrance_to_grid_new(
@@ -60,9 +61,10 @@ class MeteoFranceSynopsisHarmonisation(HarmonisationBase):
 
 if __name__ == "__main__":
     year = WinterYear(2023, 2024)
+    suffix = "synopsis"
     massifs_shapefile = "/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/vectorial/massifs/massifs.shp"
-    meteofrance_cms_folder = "/home/imperatoren/work/VIIRS_S2_comparison/data/CMS_rejeu"
-    output_folder = "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_5/time_series"
+    meteofrance_cms_folder = f"/home/imperatoren/work/VIIRS_S2_comparison/data/CMS_rejeu"
+    output_folder = f"/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_5/time_series/{suffix}"
     grid = UTM375mGrid()
 
     logger.info("Méteo-France processing")

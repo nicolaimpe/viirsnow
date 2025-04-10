@@ -46,25 +46,37 @@ fsc_files = get_all_meteofrance_fsc_filenames(data_folder=folder, winter_year=wy
 cc_mask_files = get_all_meteofrance_cc_mask_filenames(data_folder=folder, winter_year=wy)
 cc_files = get_all_meteofrance_cc_filenames(data_folder=folder, winter_year=wy)
 
-forest_mask = rasterio.open()
-for rejeu_file, cloud_file, fsc, cc_mask_file, cc_file in zip(rejeu_files, cloud_files, fsc_files, cc_mask_files, cc_files):
+forest_mask = rasterio.open(
+    "/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/forest_mask/corine_2006_forest_mask_geo.tif"
+).read(1)
+
+count = 0
+for rejeu_file, cloud_file, fsc_file, cc_mask_file, cc_file in zip(
+    rejeu_files, cloud_files, fsc_files, cc_mask_files, cc_files
+):
+    print("Processing ", rejeu_file)
     profile = rasterio.open(rejeu_file).profile
     rejeu = rasterio.open(rejeu_file).read(1)
     cloud = rasterio.open(cloud_file).read(1)
+    fsc = rasterio.open(fsc_file).read(1)
     cc_mask = rasterio.open(cc_mask_file).read(1)
     cc_nir_800 = rasterio.open(cc_file).read(1)
 
     orig = np.where(cloud == 2, 250, rejeu)
 
     distance_mask = distance_transform_edt(cc_mask)
-    distance_mask[distance_mask < 25] = 1
-    distance_mask[distance_mask >= 25] = 0
-    rejeu_no_cc_mask = np.where(not distance_mask & fsc >= 0 & rejeu <= 215, fsc, rejeu)
-    rejeu_no_cc_mask = np.where(forest_mask & rejeu_no_cc_mask == 0, 215, rejeu_no_cc_mask)
-    rejeu_no_cc_mask = np.where(forest_mask & rejeu_no_cc_mask > 0 & rejeu_no_cc_mask <= 200, 210, rejeu_no_cc_mask)
+    distance_mask[distance_mask < 17] = 1
+    distance_mask[distance_mask >= 17] = 0
+    rejeu_no_cc_mask = np.where((1 - distance_mask) * (fsc >= 0) * (rejeu <= 215), fsc, rejeu)
+    rejeu_no_cc_mask = np.where(forest_mask * (rejeu_no_cc_mask == 0), 215, rejeu_no_cc_mask)
+    rejeu_no_cc_mask = np.where(forest_mask * (rejeu_no_cc_mask > 0) * (rejeu_no_cc_mask <= 200), 210, rejeu_no_cc_mask)
 
-    modified = np.where(rejeu > 210, rejeu, np.where(not cc_nir_800 < 40, rejeu, 0))
-    modified = np.where(modified == 0 & forest_mask, 215, modified)
+    low_refl_mask = (cc_nir_800 < 40) * (fsc <= 100) * (fsc > 0)
+    modified = np.where(rejeu > 210, rejeu, np.where(1 - low_refl_mask, rejeu, 0))
+    modified = np.where((modified == 0) * forest_mask, 215, modified)
+
+    with rasterio.open(rejeu_file.replace("produit_synopsis", "cc_dist_mask"), "w", **profile) as dst:
+        dst.write(distance_mask, 1)
 
     with rasterio.open(rejeu_file.replace("produit_synopsis", "produit_orig"), "w", **profile) as dst:
         dst.write(orig, 1)

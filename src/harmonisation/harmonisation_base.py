@@ -58,16 +58,16 @@ class HarmonisationBase:
         low_value_thresholds: Dict[str, float] | None = None,
     ):
         files = self.get_all_files_of_winter_year(winter_year=winter_year)
-        print(files)
         out_tmp_paths = []
 
         for day in winter_year.iterate_days():
             logger.info(f"Processing day {day}")
+
             day_files = self.get_daily_files(files, day=day)
-            if day.month < 12:
-                continue
-            if day.day > 6:
-                break
+            # if day.month != 9:
+            #     continue
+            # if day.day > 3:
+            #     break
             for day_file in day_files:
                 try:
                     xr.open_dataset(day_file).data_vars["band_data"].values
@@ -81,7 +81,6 @@ class HarmonisationBase:
                 continue
 
             daily_composite = self.create_spatial_composite(day_files=day_files)
-
             if roi_shapefile is not None:
                 roi_mask = gdf_to_binary_mask(gdf=gpd.read_file(roi_shapefile), grid=self.grid)
                 daily_composite = daily_composite.where(roi_mask, self.classes["fill"][0])

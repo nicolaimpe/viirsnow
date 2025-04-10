@@ -92,7 +92,8 @@ class GeoGrid:
 
     @property
     def xarray_coords(self) -> xr.Coordinates:
-        dims = dim_name(self.crs)
+        # dims = dim_name(self.crs)
+        dims = ("y", "x")
         return xr.Coordinates({dims[0]: self.ycoords, dims[1]: self.xcoords})
 
     def bounds_projected_to_epsg(self, to_epsg: int | str):
@@ -143,25 +144,38 @@ class UTM1kmGrid(GeoGrid):
         )
 
 
-def dim_name(crs: pyproj.CRS) -> Tuple[str, str]:
-    if crs.is_geographic:
-        return ("lat", "lon")
-    elif crs.is_projected:
-        return ("y", "x")
+# def dim_name(crs: pyproj.CRS) -> Tuple[str, str]:
+#     if crs.is_geographic:
+#         return ("lat", "lon")
+#     elif crs.is_projected:
+#         return ("y", "x")
 
 
-def georef_data_array(data_array: xr.DataArray | xr.Dataset, crs: pyproj.CRS) -> xr.Dataset | xr.Dataset:
+def georef_netcdf(data_array: xr.DataArray | xr.Dataset, crs: pyproj.CRS) -> xr.Dataset | xr.Dataset:
+    """
+    The strict minimum to georeference in netCDF convention
+
+    Turn a DataArray into a Dataset  for which the GDAL driver (GDAL and QGIS) is able to read the georeferencing
+    https://github.com/pydata/xarray/issues/2288
+    https://gis.stackexchange.com/questions/230093/set-projection-for-netcdf4-in-python
+    """
+
+    # dims = dim_name(crs=crs)
+    data_array.coords["y"].attrs["axis"] = "Y"
+    data_array.coords["x"].attrs["axis"] = "X"
+    data_array.attrs["grid_mapping"] = "spatial_ref"
+
+    georeferenced = data_array.assign_coords(coords={"spatial_ref": 0})
+    georeferenced.coords["spatial_ref"].attrs["spatial_ref"] = crs.to_wkt()
+
+    return georeferenced
+
+
+def georef_netcdf_rioxarray(data_array: xr.DataArray | xr.Dataset, crs: pyproj.CRS) -> xr.Dataset | xr.Dataset:
     """
     Turn a DataArray into a Dataset  for which the GDAL driver (GDAL and QGIS) is able to read the georeferencing
     https://github.com/pydata/xarray/issues/2288
     https://gis.stackexchange.com/questions/230093/set-projection-for-netcdf4-in-python
     """
 
-    dims = dim_name(crs=crs)
-    data_array.coords[dims[0]].attrs["axis"] = "Y"
-    data_array.coords[dims[1]].attrs["axis"] = "X"
-    data_array.attrs["grid_mapping"] = "spatial_ref"
-
-    georeferenced = data_array.rio.write_crs(crs)
-
-    return georeferenced
+    return data_array.rio.write_crs(crs).rio.write_coordinate_system()
