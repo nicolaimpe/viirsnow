@@ -109,18 +109,18 @@ if __name__ == "__main__":
     working_folder = "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_5/"
 
     fsc_threshold = None
-    # evaluation_dict: Dict[str, Dict[str, ConfusionTable]] = {
-    #     "meteofrance_l3": {"evaluator": ConfusionTableMeteoFrance(fsc_threshold=fsc_threshold), "config": config},
-    #     "nasa_pseudo_l3": {"evaluator": ConfusionTableNASA(fsc_threshold=fsc_threshold), "config": config},
-    #     "nasa_l3": {"evaluator": ConfusionTableNASA(fsc_threshold=fsc_threshold), "config": config_nasa_l3},
-    # }
-
     evaluation_dict: Dict[str, Dict[str, ConfusionTable]] = {
-        # "meteofrance_orig": {"evaluator": ConfusionTableMeteoFrance(ref_fsc_threshold=fsc_threshold), "config": config},
-        # "meteofrance_synopsis": {"evaluator": ConfusionTableMeteoFrance(ref_fsc_threshold=fsc_threshold), "config": config},
-        # "meteofrance_no_cc_mask": {"evaluator": ConfusionTableMeteoFrance(ref_fsc_threshold=fsc_threshold), "config": config},
-        "meteofrance_modified": {"evaluator": ConfusionTableMeteoFrance(ref_fsc_threshold=fsc_threshold), "config": config},
+        # "meteofrance_l3": {"evaluator": ConfusionTableMeteoFrance(fsc_threshold=fsc_threshold), "config": config},
+        # "nasa_pseudo_l3": {"evaluator": ConfusionTableNASA(fsc_threshold=fsc_threshold), "config": config},
+        "nasa_l3": {"evaluator": ConfusionTableNASA(fsc_threshold=fsc_threshold), "config": config_nasa_l3},
     }
+
+    # evaluation_dict: Dict[str, Dict[str, ConfusionTable]] = {
+    #     # "meteofrance_orig": {"evaluator": ConfusionTableMeteoFrance(ref_fsc_threshold=fsc_threshold), "config": config},
+    #     # "meteofrance_synopsis": {"evaluator": ConfusionTableMeteoFrance(ref_fsc_threshold=fsc_threshold), "config": config},
+    #     # "meteofrance_no_cc_mask": {"evaluator": ConfusionTableMeteoFrance(ref_fsc_threshold=fsc_threshold), "config": config},
+    #     # "meteofrance_modified": {"evaluator": ConfusionTableMeteoFrance(ref_fsc_threshold=fsc_threshold), "config": config},
+    # }
 
     for product, evaluator in evaluation_dict.items():
         ref_time_series, test_time_series, output_filename = generate_evaluation_io(

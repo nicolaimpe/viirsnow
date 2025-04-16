@@ -222,21 +222,34 @@ def double_variable_barplots(analyses_dict: Dict[str, xr.Dataset], var1: str, va
 
 
 if __name__ == "__main__":
-    from postprocess.general_purpose import open_analysis_file, sel_evaluation_domain
-    from products.plot_settings import METEOFRANCE_VAR_NAME, NASA_L3_VAR_NAME, NASA_PSEUDO_L3_VAR_NAME
+    from postprocess.general_purpose import sel_evaluation_domain
+    from products.plot_settings import MF_NO_CC_MASK_VAR_NAME, MF_ORIG_VAR_NAME, MF_REFL_SCREEN_VAR_NAME, MF_SYNOPSIS_VAR_NAME
     from reductions.statistics_base import EvaluationVsHighResBase
     from winter_year import WinterYear
 
     wy = WinterYear(2023, 2024)
     analysis_type = "uncertainty"
-    analysis_folder = f"/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_4/analyses/{analysis_type}"
+    analysis_folder = f"/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_5/analyses/{analysis_type}"
     analyses_dict = {
-        METEOFRANCE_VAR_NAME: open_analysis_file(analysis_folder, analysis_type, METEOFRANCE_VAR_NAME),
-        NASA_PSEUDO_L3_VAR_NAME: open_analysis_file(analysis_folder, analysis_type, NASA_PSEUDO_L3_VAR_NAME),
-        NASA_L3_VAR_NAME: open_analysis_file(analysis_folder, analysis_type, NASA_L3_VAR_NAME),
+        # MF_ORIG_VAR_NAME: xr.open_dataset(
+        #     f"{analysis_folder}/uncertainty_WY_2023_2024_meteofrance_orig_fsc_vs_s2_theia_sca_fsc_375m.nc",
+        #     decode_cf=True,
+        # ),
+        MF_SYNOPSIS_VAR_NAME: xr.open_dataset(
+            f"{analysis_folder}/uncertainty_WY_2023_2024_meteofrance_synopsis_fsc_vs_s2_theia_sca_fsc_375m.nc",
+            decode_cf=True,
+        ),
+        MF_NO_CC_MASK_VAR_NAME: xr.open_dataset(
+            f"{analysis_folder}/uncertainty_WY_2023_2024_meteofrance_no_cc_mask_fsc_vs_s2_theia_sca_fsc_375m.nc",
+            decode_cf=True,
+        ),
+        MF_REFL_SCREEN_VAR_NAME: xr.open_dataset(
+            f"{analysis_folder}/uncertainty_WY_2023_2024_meteofrance_modified_fsc_vs_s2_theia_sca_fsc_375m.nc",
+            decode_cf=True,
+        ),
     }
 
-    evaluation_domain = "accumulation"
+    evaluation_domain = "general"
     selection_dict, title = sel_evaluation_domain(analyses_dict=analyses_dict, evaluation_domain=evaluation_domain)
 
     ############## Launch analysis
@@ -252,6 +265,11 @@ if __name__ == "__main__":
         analysis_var_plot_name="time (month)",
         title_complement=f"Unbiaised RMSE temporal distribution - {title} - {str(wy)}",
     )
+    rmse_barplots(
+        postprocess_uncertainty_analysis(selection_dict, analysis_var={"time": EvaluationVsHighResBase.month_bins(wy)}),
+        analysis_var_plot_name="time (month)",
+        title_complement=f"Unbiaised RMSE temporal distribution - {title} - {str(wy)}",
+    )
 
     # SAFRAN geometry
     semidistributed_geometry_plot(
@@ -262,7 +280,7 @@ if __name__ == "__main__":
     )
 
     # Barplots aspect
-    double_variable_barplots(selection_dict, "forest_mask", "aspect_bins")
+    double_variable_barplots(selection_dict, "forest_mask_bins", "aspect_bins")
 
     # Boxplots vza
     fig, ax = plt.subplots(figsize=(10, 4))
@@ -273,7 +291,7 @@ if __name__ == "__main__":
     ax.set_ylim(-60, 60)
 
     sel_vza = selection_dict.copy()
-    sel_vza.pop("nasa_l3")
+    # sel_vza.pop("nasa_l3")
     sel_vza = {k: v.sel(sensor_zenith_bins=slice(0, 75)) for k, v in sel_vza.items()}
 
     raw_error_boxplots(metrics_dict=sel_vza, analysis_var="sensor_zenith_bins", ax=ax)

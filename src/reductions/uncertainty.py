@@ -83,7 +83,7 @@ if __name__ == "__main__":
         # Use of forest mask with max resampling because of Météo-France forest with snow class resampling issue.
         # See reprojection_l3_meteofrance_to_grid function
         # In resume, all fractions next to forest with snow class are imprecise because when resampling using average we set this class to 50% FSC
-        forest_mask_path="/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/forest_mask/corine_2006_forest_mask_max.tif",
+        forest_mask_path="/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/forest_mask/corine_2006_forest_mask_utm.tif",
         slope_map_path="/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/dem/SLP_MSF_UTM31_375m_lanczos.tif",
         aspect_map_path="/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/dem/ASP_MSF_UTM31_375m_lanczos.tif",
         sub_roi_mask_path=None,
@@ -93,13 +93,19 @@ if __name__ == "__main__":
     config_nasa_l3 = deepcopy(config)
     config_nasa_l3.sensor_zenith_analysis = False
 
-    working_folder = "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_4/"
+    working_folder = "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_5/"
 
-    fsc_threshold = None
+    # evaluation_dict: Dict[str, Dict[str, Uncertainty]] = {
+    #     "meteofrance_l3": {"evaluator": UncertaintyMeteoFrance(), "config": config},
+    #     "nasa_pseudo_l3": {"evaluator": UncertaintyNASA(), "config": config},
+    #     "nasa_l3": {"evaluator": UncertaintyNASA(), "config": config_nasa_l3},
+    # }
+
     evaluation_dict: Dict[str, Dict[str, Uncertainty]] = {
-        "meteofrance_l3": {"evaluator": UncertaintyMeteoFrance(), "config": config},
-        "nasa_pseudo_l3": {"evaluator": UncertaintyNASA(), "config": config},
-        "nasa_l3": {"evaluator": UncertaintyNASA(), "config": config_nasa_l3},
+        # "meteofrance_orig": {"evaluator": UncertaintyMeteoFrance(), "config": config},
+        # "meteofrance_synopsis": {"evaluator": UncertaintyMeteoFrance(), "config": config},
+        "meteofrance_no_cc_mask": {"evaluator": UncertaintyMeteoFrance(), "config": config},
+        "meteofrance_modified": {"evaluator": UncertaintyMeteoFrance(), "config": config},
     }
 
     for product, evaluator in evaluation_dict.items():
@@ -108,9 +114,9 @@ if __name__ == "__main__":
             working_folder=working_folder,
             year=WinterYear(2023, 2024),
             resolution=375,
-            platform="SNPP",
-            product_name=product,
-            period=None,
+            test_product_name=product,
+            ref_product_name="s2_theia_sca",
+            period=slice("2023-12", "2024-02"),
         )
         logger.info(f"Evaluating product {product}")
         metrics_calcuator = evaluator["evaluator"]

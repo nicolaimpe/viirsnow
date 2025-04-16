@@ -165,9 +165,9 @@ if __name__ == "__main__":
     # }
 
     analyses_dict = {
-        # MF_ORIG_VAR_NAME: xr.open_dataset(
-        #     f"{analysis_folder}/confusion_table_WY_2023_2024_meteofrance_orig_fsc_vs_s2_theia_sca_fsc_375m.nc", decode_cf=True
-        # ),
+        MF_ORIG_VAR_NAME: xr.open_dataset(
+            f"{analysis_folder}/confusion_table_WY_2023_2024_meteofrance_orig_fsc_vs_s2_theia_sca_fsc_375m.nc", decode_cf=True
+        ),
         NASA_L3_VAR_NAME: xr.open_dataset(
             "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_4/analyses/confusion_table/confusion_table_WY_2023_2024_SNPP_nasa_l3_res_375m.nc",
             decode_cf=True,

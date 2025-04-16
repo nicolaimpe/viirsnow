@@ -24,4 +24,8 @@ PRODUCT_PLOT_COLORS = {
     METEOFRANCE_VAR_NAME: "tab:blue",
     NASA_PSEUDO_L3_VAR_NAME: "tab:green",
     NASA_L3_VAR_NAME: "paleturquoise",
+    MF_SYNOPSIS_VAR_NAME: "gray",
+    MF_ORIG_VAR_NAME: "black",
+    MF_NO_CC_MASK_VAR_NAME: "red",
+    MF_REFL_SCREEN_VAR_NAME: "green",
 }
