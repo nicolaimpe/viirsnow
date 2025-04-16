@@ -58,7 +58,7 @@ if __name__ == "__main__":
     massifs_shapefile = "/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/vectorial/massifs/massifs.shp"
     s2_clms_folder = "/home/imperatoren/work/VIIRS_S2_comparison/data/S2_CLMS"
     s2_theia_folder = "/home/imperatoren/work/VIIRS_S2_comparison/data/LIS_FSC_PREOP"
-    output_folder = "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_5/time_series"
+    output_folder = "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_5_no_fsc_screen/time_series"
     grid = UTM375mGrid()
 
     # logger.info('S2 CLMS processing')
@@ -68,5 +68,6 @@ if __name__ == "__main__":
 
     logger.info("S2 Theia processing")
     S2TheiaSCAHarmonisation(output_grid=grid, data_folder=s2_theia_folder, output_folder=output_folder).create_time_series(
-        winter_year=year, roi_shapefile=massifs_shapefile, low_value_thresholds={"snow_cover_fraction": 10}
+        winter_year=year,
+        roi_shapefile=massifs_shapefile,
     )

@@ -5,8 +5,8 @@ from pyresample.geometry import AreaDefinition, SwathDefinition
 from rasterio.enums import Resampling
 
 from compression import generate_xarray_compression_encodings
-from geotools import reproject_dataset, reproject_using_grid, to_rioxarray
-from grids import GeoGrid, georef_data_array
+from geotools import reproject_dataset, reproject_using_grid
+from grids import GeoGrid, georef_netcdf_rioxarray
 from products.classes import METEOFRANCE_CLASSES, NASA_CLASSES, S2_CLASSES
 
 
@@ -60,7 +60,7 @@ def reproject_l2_nasa_to_grid(
         # but then we extract it to be able to use xr.assign later
         reprojected_data_vars.update(
             {
-                data_var_name: georef_data_array(
+                data_var_name: georef_netcdf_rioxarray(
                     xr.DataArray(
                         data=reprojected_l2_data,
                         coords={"y": output_grid.ycoords, "x": output_grid.xcoords},
@@ -84,7 +84,6 @@ def reproject_l2_nasa_to_grid(
 
 def reprojection_l3_nasa_to_grid(nasa_dataset: xr.Dataset, output_grid: GeoGrid) -> xr.Dataset:
     # Validity "zombie mask": wherever there is at least one non valid pixel, the output grid pixel is set as invalid (<-> cloud)
-    nasa_dataset = to_rioxarray(nasa_dataset)
 
     # nasa_dataset = nasa_dataset.where(nasa_dataset <= NASA_CLASSES["snow_cover"][-1], NASA_CLASSES["fill"][0])
 
@@ -127,7 +126,7 @@ def reprojection_l3_nasa_to_grid(nasa_dataset: xr.Dataset, output_grid: GeoGrid)
     nasa_out_image.data_vars[data_array_name].attrs = nasa_dataset.data_vars[data_array_name].attrs
     nasa_out_image.data_vars[data_array_name].rio.write_nodata(NASA_CLASSES["fill"][0], inplace=True)
     nasa_out_image = nasa_out_image.drop_vars("spatial_ref")
-    nasa_out_image = georef_data_array(
+    nasa_out_image = georef_netcdf_rioxarray(
         nasa_out_image.data_vars[data_array_name],
         data_array_name=data_array_name,
         crs=output_grid.crs,
@@ -135,7 +134,7 @@ def reprojection_l3_nasa_to_grid(nasa_dataset: xr.Dataset, output_grid: GeoGrid)
     return nasa_out_image
 
 
-def reprojection_l3_meteofrance_to_grid_new(meteofrance_snow_cover: xr.DataArray, output_grid: GeoGrid) -> xr.Dataset:
+def reprojection_l3_meteofrance_to_grid(meteofrance_snow_cover: xr.DataArray, output_grid: GeoGrid) -> xr.Dataset:
     # Validity "zombie mask": wherever there is at least one non valid pixel, the output grid pixel is set as invalid (<-> cloud)
     # nasa_dataset = nasa_dataset.where(nasa_dataset <= NASA_CLASSES["snow_cover"][-1], NASA_CLASSES["fill"][0])
 
@@ -146,8 +145,15 @@ def reprojection_l3_meteofrance_to_grid_new(meteofrance_snow_cover: xr.DataArray
         nodata=METEOFRANCE_CLASSES["fill"][0],
     )
 
+    # Tricky forest with snow when resampling using average
+    # Whenever a resampled pixel includes forest with snow mask, a quantitative estimation connot be performed unless we choose a FSC value for forest with snow
+    # The solution would be to resample forest with snow using max, but this is problematic when forest with snow is next to no snow because it increases the snow detections
+    # Therefore we set it to 50% FSC.
+    # The contingency analysis will not be biased. The quantitative analysis will be more uncertain and perhaps biaised. The recommendation is to use a forest mask resampled with max for quantitative analysis
     resampled_average = reproject_using_grid(
-        meteofrance_snow_cover.astype("f4"),
+        meteofrance_snow_cover.where(meteofrance_snow_cover <= METEOFRANCE_CLASSES["forest_with_snow"][-1], 0)
+        .where(meteofrance_snow_cover != METEOFRANCE_CLASSES["forest_with_snow"][0], 100)
+        .astype("f4"),
         output_grid=output_grid,
         resampling_method=Resampling.average,
     )
@@ -161,15 +167,15 @@ def reprojection_l3_meteofrance_to_grid_new(meteofrance_snow_cover: xr.DataArray
     water_mask = resampled_nearest == METEOFRANCE_CLASSES["water"][0]
     forest_without_snow_mask = resampled_nearest == METEOFRANCE_CLASSES["forest_without_snow"][0]
     forest_with_snow_mask = resampled_nearest == METEOFRANCE_CLASSES["forest_with_snow"][0]
-    no_snow_mask = resampled_nearest == METEOFRANCE_CLASSES["no_snow"][0]
+    # no_snow_mask = resampled_nearest == METEOFRANCE_CLASSES["no_snow"][0]
 
-    cloud_mask = resampled_max != METEOFRANCE_CLASSES["clouds"][0]
-    nodata_mask = resampled_max != METEOFRANCE_CLASSES["nodata"][0]
+    cloud_mask = resampled_max == METEOFRANCE_CLASSES["clouds"][0]
+    nodata_mask = resampled_max == METEOFRANCE_CLASSES["nodata"][0]
 
     invalid_mask = cloud_mask | nodata_mask
 
     # We exclude these values from the next resampling operations
-    valid_qualitative_mask = water_mask | forest_without_snow_mask | forest_with_snow_mask | no_snow_mask
+    valid_qualitative_mask = water_mask | forest_without_snow_mask | forest_with_snow_mask  # | no_snow_mask
     out_snow_cover = resampled_average.where(valid_qualitative_mask == False, resampled_nearest)
     out_snow_cover = out_snow_cover.where(invalid_mask == False, resampled_max)
     return out_snow_cover.astype("u1")

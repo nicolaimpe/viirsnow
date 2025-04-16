@@ -43,8 +43,7 @@ def sel_evaluation_domain(analyses_dict: Dict[str, xr.Dataset], evaluation_domai
     if evaluation_domain == "general":
         title = "December to June > 900 m"
         selection_dict = {
-            k: v.sel(time=slice("2023-12", "2024-01")).sel(altitude_bins=slice(900, None), drop=True)
-            for k, v in analyses_dict.items()
+            k: v.sel(time=slice("2023-12", "2024-02"), altitude_bins=slice(0, None)) for k, v in analyses_dict.items()
         }
     elif evaluation_domain == "accumulation":
         title = "Accumulation November to February > 1500 m"

@@ -80,7 +80,10 @@ if __name__ == "__main__":
     config = EvaluationConfig(
         ref_fsc_step=99,
         sensor_zenith_analysis=True,
-        forest_mask_path="/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/forest_mask/corine_2006_forest_mask.tif",
+        # Use of forest mask with max resampling because of Météo-France forest with snow class resampling issue.
+        # See reprojection_l3_meteofrance_to_grid function
+        # In resume, all fractions next to forest with snow class are imprecise because when resampling using average we set this class to 50% FSC
+        forest_mask_path="/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/forest_mask/corine_2006_forest_mask_max.tif",
         slope_map_path="/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/dem/SLP_MSF_UTM31_375m_lanczos.tif",
         aspect_map_path="/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/dem/ASP_MSF_UTM31_375m_lanczos.tif",
         sub_roi_mask_path=None,

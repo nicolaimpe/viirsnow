@@ -143,29 +143,73 @@ if __name__ == "__main__":
     import xarray as xr
 
     from postprocess.general_purpose import open_analysis_file, sel_evaluation_domain
-    from products.plot_settings import METEOFRANCE_VAR_NAME, NASA_L3_VAR_NAME, NASA_PSEUDO_L3_VAR_NAME
+    from products.plot_settings import (
+        METEOFRANCE_VAR_NAME,
+        MF_NO_CC_MASK_VAR_NAME,
+        MF_ORIG_VAR_NAME,
+        MF_REFL_SCREEN_VAR_NAME,
+        MF_SYNOPSIS_VAR_NAME,
+        NASA_L3_VAR_NAME,
+        NASA_PSEUDO_L3_VAR_NAME,
+    )
     from reductions.statistics_base import EvaluationVsHighResBase
     from winter_year import WinterYear
 
     wy = WinterYear(2023, 2024)
-    analysis_folder = "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_4/analyses/confusion_table"
+    analysis_folder = "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_5/analyses/confusion_table"
     analysis_type = "confusion_table"
+    # analyses_dict = {
+    #     METEOFRANCE_VAR_NAME: open_analysis_file(analysis_folder, analysis_type, METEOFRANCE_VAR_NAME),
+    #     NASA_PSEUDO_L3_VAR_NAME: open_analysis_file(analysis_folder, analysis_type, NASA_PSEUDO_L3_VAR_NAME),
+    #     NASA_L3_VAR_NAME: open_analysis_file(analysis_folder, analysis_type, NASA_L3_VAR_NAME),
+    # }
+
     analyses_dict = {
-        METEOFRANCE_VAR_NAME: open_analysis_file(analysis_folder, analysis_type, METEOFRANCE_VAR_NAME),
-        NASA_PSEUDO_L3_VAR_NAME: open_analysis_file(analysis_folder, analysis_type, NASA_PSEUDO_L3_VAR_NAME),
-        NASA_L3_VAR_NAME: open_analysis_file(analysis_folder, analysis_type, NASA_L3_VAR_NAME),
+        # MF_ORIG_VAR_NAME: xr.open_dataset(
+        #     f"{analysis_folder}/confusion_table_WY_2023_2024_meteofrance_orig_fsc_vs_s2_theia_sca_fsc_375m.nc", decode_cf=True
+        # ),
+        NASA_L3_VAR_NAME: xr.open_dataset(
+            "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_4/analyses/confusion_table/confusion_table_WY_2023_2024_SNPP_nasa_l3_res_375m.nc",
+            decode_cf=True,
+        ),
+        # "meteofrance_l3": xr.open_dataset(
+        #     "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_4/analyses/confusion_table/confusion_table_WY_2023_2024_SNPP_meteofrance_l3_res_375m.nc",
+        #     decode_cf=True,
+        # ).sel(altitude_bins=slice(1500, None)),
+        MF_SYNOPSIS_VAR_NAME: xr.open_dataset(
+            f"{analysis_folder}/confusion_table_WY_2023_2024_meteofrance_synopsis_fsc_vs_s2_theia_sca_fsc_375m.nc",
+            decode_cf=True,
+        ),
+        MF_NO_CC_MASK_VAR_NAME: xr.open_dataset(
+            f"{analysis_folder}/confusion_table_WY_2023_2024_meteofrance_no_cc_mask_fsc_vs_s2_theia_sca_fsc_375m.nc",
+            decode_cf=True,
+        ),
+        MF_REFL_SCREEN_VAR_NAME: xr.open_dataset(
+            f"{analysis_folder}/confusion_table_WY_2023_2024_meteofrance_modified_fsc_vs_s2_theia_sca_fsc_375m.nc",
+            decode_cf=True,
+        ),
     }
 
-    evaluation_domain = "ablation"
+    evaluation_domain = "general"
     selection_dict, title = sel_evaluation_domain(analyses_dict=analyses_dict, evaluation_domain=evaluation_domain)
     ################# Launch analysis ###########################
 
     # Confusion table
     plot_multiple_confusion_table(metrics_dict=selection_dict, title_complement=f"{title} - {str(wy)}")
 
+    df = compute_results_df(selection_dict)
+    print(df.round(decimals=2))
+    plt.show()
+
     sel_no_vza = selection_dict.copy()
     sel_no_vza.pop("nasa_l3")
     # Sensor zenith
+    sel_no_vza = {
+        k: v.sel(sensor_zenith_bins=slice(None, 90)).assign_coords(
+            {"sensor_zenith_bins": ["0-15", "15-30", "30-45", "45-60", ">60"]}
+        )
+        for k, v in sel_no_vza.items()
+    }
     plot_multiple_scores_sns(
         metrics_dict=sel_no_vza,
         variable="sensor_zenith_bins",
@@ -193,17 +237,17 @@ if __name__ == "__main__":
         title_complement=f"Aspect - {title} period- {str(wy)}",
     )
 
-    # Massifs
-    selection_dict = {
-        k: v.assign_coords({"sub_roi": ["", "Alps", "Pyrenees", "Corse", "Massif Central", "Jura", "Vosges"]})
-        for k, v in selection_dict.items()
-    }
-    plot_multiple_scores_sns(
-        metrics_dict=selection_dict,
-        variable="sub_roi",
-        xlabel="Massif",
-        title_complement=f"Massif - {title} - {str(wy)}",
-    )
+    # # Massifs
+    # selection_dict = {
+    #     k: v.assign_coords({"sub_roi": ["", "Alps", "Pyrenees", "Corse", "Massif Central", "Jura", "Vosges"]})
+    #     for k, v in selection_dict.items()
+    # }
+    # plot_multiple_scores_sns(
+    #     metrics_dict=selection_dict,
+    #     variable="sub_roi",
+    #     xlabel="Massif",
+    #     title_complement=f"Massif - {title} - {str(wy)}",
+    # )
 
     # Slope
     selection_dict = {
@@ -217,14 +261,14 @@ if __name__ == "__main__":
         title_complement=f"Slope - {title} - {str(wy)}",
     )
     # vegetation
-    selection_dict = {k: v.assign_coords({"forest_mask": ["no forest", "forest"]}) for k, v in selection_dict.items()}
-    plot_multiple_scores_sns(
-        metrics_dict=selection_dict,
-        variable="forest_mask",
-        xlabel="Landcover",
-        title_complement=f"Landcover - {title} - {str(wy)}",
-    )
+    # selection_dict = {k: v for k, v in selection_dict.items() if "orig" in k}
+    # plot_multiple_scores_sns(
+    #     metrics_dict=selection_dict,
+    #     variable="forest_mask_bins",
+    #     xlabel="Landcover",
+    #     title_complement=f"Landcover - {title} - {str(wy)}",
+    # )
 
-    df = compute_results_df(selection_dict)
-    print(df.round(decimals=2))
+    # df = compute_results_df(selection_dict)
+    # print(df.round(decimals=2))
     plt.show()

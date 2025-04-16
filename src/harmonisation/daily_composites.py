@@ -8,7 +8,7 @@ import rasterio
 import rioxarray
 import xarray as xr
 
-from geotools import dim_name, extract_netcdf_coords_from_rasterio_raster
+from geotools import extract_netcdf_coords_from_rasterio_raster
 from grids import GeoGrid, georef_netcdf
 from harmonisation.reprojections import resample_s2_to_grid
 from logger_setup import default_logger as logger
@@ -20,7 +20,7 @@ from reductions.completeness import mask_of_pixels_in_range
 
 def create_spatial_l3_nasa_composite(day_files: List[str]) -> xr.Dataset | None:
     day_data_arrays = []
-    dims = dim_name(crs=modis_crs)
+    dims = ("y", "x")
     for filepath in day_files:
         # try:
         logger.info(f"Processing product {Path(filepath).name}")
@@ -67,8 +67,10 @@ def create_spatial_s2_composite_sca(day_files: List[str], output_grid: GeoGrid) 
         logger.info(f"Processing product {Path(filepath).name}")
         s2_image = rioxarray.open_rasterio(filepath)
         s2_image = s2_image.sel(band=1).drop_vars("band")
-        no_snow_mask = 1 - mask_of_pixels_in_range(range=S2_CLASSES["snow_cover"], data_array=s2_image)
-        s2_image = s2_image.where(no_snow_mask, 100)
+        high_fsc_mask = mask_of_pixels_in_range(range=range(51, 101), data_array=s2_image)
+        low_fsc_mask = mask_of_pixels_in_range(range=range(1, 51), data_array=s2_image)
+        s2_image = s2_image.where(1 - high_fsc_mask, 100)
+        s2_image = s2_image.where(1 - low_fsc_mask, 0)
         s2_resampled_image = resample_s2_to_grid(s2_dataset=s2_image, output_grid=output_grid)
         day_data_array = day_data_array.where(day_data_array != S2_CLASSES["nodata"][0], s2_resampled_image)
     day_dataset = xr.Dataset({"snow_cover_fraction": day_data_array})
@@ -274,7 +276,7 @@ def create_temporal_composite_nasa(daily_snow_cover_files: List[str], daily_geom
     output_coords = xr.open_dataset(daily_geometry_files[0]).coords
     nasa_crs = pyproj.CRS(xr.open_dataset(daily_snow_cover_files[0]).data_vars["spatial_ref"].attrs["spatial_ref"])
 
-    dims = dim_name(nasa_crs)
+    dims = ("y", "x")
     day_dataset = georef_netcdf(
         xr.DataArray(out_ndsi_snow_cover, dims=dims, coords=output_coords),
         data_array_name="NDSI_Snow_Cover",

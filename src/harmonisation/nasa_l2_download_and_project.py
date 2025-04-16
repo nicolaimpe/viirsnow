@@ -11,6 +11,7 @@ import xarray as xr
 from compression import generate_xarray_compression_encodings
 from fractional_snow_cover import nasa_ndsi_snow_cover_to_fraction
 from grids import GeoGrid, UTM375mGrid, georef_data_array
+from harmonisation.reprojections import reproject_l2_nasa_to_grid
 from logger_setup import default_logger as logger
 from products.classes import NASA_CLASSES
 from products.filenames import (
@@ -19,7 +20,6 @@ from products.filenames import (
     NASA_L2_SNOW_PRODUCTS_IDS,
     get_datetime_from_viirs_nasa_filepath,
 )
-from reprojections import reproject_l2_nasa_to_grid
 from winter_year import WinterYear
 
 
@@ -170,10 +170,6 @@ if __name__ == "__main__":
 
     bad_days_count = []
     for day in year.iterate_days():
-        if day.year == 2023:
-            continue
-        if day.day_of_year < 164:
-            continue
         try:
             if download_from == "home":
                 daily_products_filenames = download_daily_products_from_home(

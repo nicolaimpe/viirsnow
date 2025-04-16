@@ -64,9 +64,9 @@ class HarmonisationBase:
             logger.info(f"Processing day {day}")
 
             day_files = self.get_daily_files(files, day=day)
-            # if day.month != 9:
-            #     continue
-            # if day.day > 3:
+            if day.month != 12 and day.month != 1 and day.month != 2:
+                continue
+            # if day.day > 5:
             #     break
             for day_file in day_files:
                 try:

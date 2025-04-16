@@ -10,7 +10,7 @@ from reductions.completeness import (
     NASASnowCoverProductCompleteness,
     S2SnowCoverProductCompleteness,
 )
-from reductions.statistics_base import EvaluationConfig, EvaluationVsHighResBase
+from reductions.statistics_base import EvaluationConfig, EvaluationVsHighResBase, generate_evaluation_io
 from winter_year import WinterYear
 
 
@@ -87,12 +87,15 @@ class ScatterMeteoFranceVsNASA(Scatter):
 
 
 if __name__ == "__main__":
-    from products.plot_settings import METEOFRANCE_VAR_NAME, NASA_L3_VAR_NAME, NASA_PSEUDO_L3_VAR_NAME
+    from products.plot_settings import METEOFRANCE_VAR_NAME, MF_ORIG_VAR_NAME, NASA_L3_VAR_NAME, NASA_PSEUDO_L3_VAR_NAME
 
     config_eval = EvaluationConfig(
         ref_fsc_step=1,
         sensor_zenith_analysis=False,
-        forest_mask_path="/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/forest_mask/corine_2006_forest_mask.tif",
+        # Use of forest mask with max resampling because of Météo-France forest with snow class resampling issue.
+        # See reprojection_l3_meteofrance_to_grid function
+        # In resume, all fractions next to forest with snow class are imprecise because when resampling using average we set this class to 50% FSC
+        forest_mask_path="/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/forest_mask/corine_2006_forest_mask_utm_max.tif",
         slope_map_path=None,
         aspect_map_path="/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/dem/ASP_MSF_UTM31_375m_lanczos.tif",
         sub_roi_mask_path=None,
@@ -102,63 +105,62 @@ if __name__ == "__main__":
     config_fit = EvaluationConfig(
         ref_fsc_step=1,
         sensor_zenith_analysis=False,
-        forest_mask_path="/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/forest_mask/corine_2006_forest_mask.tif",
+        forest_mask_path="/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/forest_mask/corine_2006_forest_mask_utm_max.tif",
         slope_map_path=None,
         aspect_map_path="/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/dem/ASP_MSF_UTM31_375m_lanczos.tif",
         sub_roi_mask_path=None,
         dem_path="/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/dem/DEM_MSF_UTM31_375m_lanczos.tif",
     )
 
-    working_folder = "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_4/"
+    working_folder = "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_5/"
 
     evaluation_dict: Dict[str, Dict[str, Scatter]] = {
-        # METEOFRANCE_VAR_NAME: {"evaluator": ScatterMeteoFrance(), "config": config_eval},
-        NASA_PSEUDO_L3_VAR_NAME: {"evaluator": ScatterNASA(), "config": config_eval},
-        NASA_L3_VAR_NAME: {"evaluator": ScatterNASA(), "config": config_eval},
+        MF_ORIG_VAR_NAME: {"evaluator": ScatterMeteoFrance(), "config": config_eval},
+        # NASA_PSEUDO_L3_VAR_NAME: {"evaluator": ScatterNASA(), "config": config_eval},
+        # NASA_L3_VAR_NAME: {"evaluator": ScatterNASA(), "config": config_eval},
     }
 
-    # for product, evaluator in evaluation_dict.items():
-    #     ref_time_series, test_time_series, output_filename = generate_evaluation_io(
-    #         analysis_type="scatter",
-    #         working_folder=working_folder,
-    #         year=WinterYear(2023, 2024),
-    #         resolution=375,
-    #         platform="SNPP",
-    #         ref_product_name="s2_theia",
-    #         test_product_name=product,
-    #         period=None,
-    #     )
-    #     logger.info(f"Evaluating product {product}")
-    #     metrics_calcuator = evaluator["evaluator"]
-    #     metrics_calcuator.scatter_analysis(
-    #         test_time_series=test_time_series,
-    #         ref_time_series=ref_time_series,
-    #         config=evaluation_dict[product]["config"],
-    #         netcdf_export_path=output_filename,
-    #     )
+    for product, evaluator in evaluation_dict.items():
+        ref_time_series, test_time_series, output_filename = generate_evaluation_io(
+            analysis_type="scatter",
+            working_folder=working_folder,
+            year=WinterYear(2023, 2024),
+            resolution=375,
+            ref_product_name="s2_theia_sca",
+            test_product_name=product,
+            period=slice("2023-12", "2024-02"),
+        )
+        logger.info(f"Evaluating product {product}")
+        metrics_calcuator = evaluator["evaluator"]
+        metrics_calcuator.scatter_analysis(
+            test_time_series=test_time_series,
+            ref_time_series=ref_time_series,
+            config=evaluation_dict[product]["config"],
+            netcdf_export_path=output_filename,
+        )
 
     # Cross evaluation MF vs NASA
-    resolution = 375
-    wy = WinterYear(2023, 2024)
-    ref_time_series_name = f"WY_{wy.from_year}_{wy.to_year}_SNPP_nasa_l3_res_{resolution}m.nc"
-    test_time_series_name = f"WY_{wy.from_year}_{wy.to_year}_SNPP_meteofrance_l3_res_{resolution}m.nc"
+    # resolution = 375
+    # wy = WinterYear(2023, 2024)
+    # ref_time_series_name = f"WY_{wy.from_year}_{wy.to_year}_SNPP_nasa_l3_res_{resolution}m.nc"
+    # test_time_series_name = f"WY_{wy.from_year}_{wy.to_year}_SNPP_meteofrance_l3_res_{resolution}m.nc"
 
-    output_filename = (
-        f"{working_folder}/analyses/scatter/scatter_WY_{wy.from_year}_{wy.to_year}_nasa_vs_meteofrance_l3_{resolution}m.nc"
-    )
+    # output_filename = (
+    #     f"{working_folder}/analyses/scatter/scatter_WY_{wy.from_year}_{wy.to_year}_nasa_vs_meteofrance_l3_{resolution}m.nc"
+    # )
 
-    test_time_series = xr.open_dataset(f"{working_folder}/time_series/{test_time_series_name}").data_vars[
-        "snow_cover_fraction"
-    ]
-    ref_time_series = xr.open_dataset(f"{working_folder}/time_series/{ref_time_series_name}").data_vars["snow_cover_fraction"]
-    logger.info("Evaluating products Météo-France vs NASA")
-    metrics_calcuator = ScatterMeteoFranceVsNASA()
-    metrics_calcuator.scatter_analysis(
-        test_time_series=test_time_series,
-        ref_time_series=ref_time_series,
-        config=config_eval,
-        netcdf_export_path=output_filename,
-    )
+    # test_time_series = xr.open_dataset(f"{working_folder}/time_series/{test_time_series_name}").data_vars[
+    #     "snow_cover_fraction"
+    # ]
+    # ref_time_series = xr.open_dataset(f"{working_folder}/time_series/{ref_time_series_name}").data_vars["snow_cover_fraction"]
+    # logger.info("Evaluating products Météo-France vs NASA")
+    # metrics_calcuator = ScatterMeteoFranceVsNASA()
+    # metrics_calcuator.scatter_analysis(
+    #     test_time_series=test_time_series,
+    #     ref_time_series=ref_time_series,
+    #     config=config_eval,
+    #     netcdf_export_path=output_filename,
+    # )
 
     # # Fit NASA NDSI to S2 FSC
     # ref_time_series_name = f"WY_{wy.from_year}_{wy.to_year}_s2_theia_res_{resolution}m.nc"

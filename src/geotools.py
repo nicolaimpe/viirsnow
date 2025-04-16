@@ -10,7 +10,7 @@ import xarray as xr
 from affine import Affine
 from rasterio.features import rasterize
 
-from grids import GeoGrid, dim_name, georef_data_array
+from grids import GeoGrid, georef_netcdf_rioxarray
 
 
 def gdf_to_binary_mask(gdf: gpd.GeoDataFrame, grid: GeoGrid) -> xr.DataArray:
@@ -29,13 +29,13 @@ def gdf_to_binary_mask(gdf: gpd.GeoDataFrame, grid: GeoGrid) -> xr.DataArray:
         dtype="uint8",
     )
 
-    dims = dim_name(grid.crs)
+    dims = ("y", "x")
     binary_mask_data_array = xr.DataArray(
         data=binary_mask,
         dims=(dims[0], dims[1]),
         coords={dims[0]: (dims[0], grid.ycoords), dims[1]: (dims[1], grid.xcoords)},
     )
-    out = georef_data_array(binary_mask_data_array, grid.crs)
+    out = georef_netcdf_rioxarray(binary_mask_data_array, grid.crs)
 
     return out
 
@@ -52,7 +52,6 @@ def reproject_dataset(
     # Wrap rioxarray reproject_dataset so that it's typed
 
     # Rioxarray reproject nearest by default
-    dims = dim_name(new_crs)
     return dataset.rio.reproject(
         dst_crs=new_crs,
         resolution=new_resolution,
@@ -60,7 +59,7 @@ def reproject_dataset(
         transform=transform,
         nodata=nodata,
         shape=shape,
-    ).rename({"x": dims[1], "y": dims[0]})
+    )
 
 
 def reproject_using_grid(
@@ -93,12 +92,7 @@ def extract_netcdf_coords_from_rasterio_raster(raster: rasterio.DatasetReader) -
     # Compensate for it
     x_coord = np.arange(n_cols) * x_scale + x0
     y_coord = np.arange(n_rows) * y_scale + y0
-    dims = dim_name(raster.crs)
-    return {dims[0]: y_coord, dims[1]: x_coord}
-
-
-def to_rioxarray(dataset: xr.Dataset) -> xr.DataArray:
-    return dataset.rio.write_crs(dataset.data_vars["spatial_ref"].attrs["spatial_ref"])
+    return {"y": y_coord, "x": x_coord}
 
 
 def mask_dataarray_with_vector_file(data_array: xr.DataArray, roi_file: str, output_grid: GeoGrid, fill_value: int = 255):
