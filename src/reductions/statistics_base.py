@@ -37,7 +37,6 @@ def generate_evaluation_io(
     analysis_type: str,
     working_folder: str,
     year: WinterYear,
-    resolution: int,
     ref_product_name: str,
     test_product_name: str,
     ref_product_var: str = "snow_cover_fraction",
@@ -45,11 +44,11 @@ def generate_evaluation_io(
     period: slice | None = None,
 ) -> Tuple[xr.Dataset, xr.Dataset, str]:
     output_folder = f"{working_folder}/analyses/{analysis_type}"
-    ref_time_series_name = f"WY_{year.from_year}_{year.to_year}_{ref_product_name}_res_{resolution}m.nc"
-    test_time_series_name = f"WY_{year.from_year}_{year.to_year}_{test_product_name}_res_{resolution}m.nc"
+    ref_time_series_name = f"WY_{year.from_year}_{year.to_year}_{ref_product_name}.nc"
+    test_time_series_name = f"WY_{year.from_year}_{year.to_year}_{test_product_name}.nc"
 
     abbreviated_test, abbreviated_ref = abbreviate_data_var_name(test_product_var), abbreviate_data_var_name(ref_product_var)
-    output_filename = f"{output_folder}/{analysis_type}_WY_{year.from_year}_{year.to_year}_{test_product_name}_{abbreviated_test}_vs_{ref_product_name}_{abbreviated_ref}_{resolution}m.nc"
+    output_filename = f"{output_folder}/{analysis_type}_WY_{year.from_year}_{year.to_year}_{test_product_name}_{abbreviated_test}_vs_{ref_product_name}_{abbreviated_ref}.nc"
 
     test_time_series = xr.open_dataset(f"{working_folder}/time_series/{test_time_series_name}")
     ref_time_series = xr.open_dataset(f"{working_folder}/time_series/{ref_time_series_name}")

@@ -111,8 +111,8 @@ if __name__ == "__main__":
     fsc_threshold = None
     evaluation_dict: Dict[str, Dict[str, ConfusionTable]] = {
         # "meteofrance_l3": {"evaluator": ConfusionTableMeteoFrance(fsc_threshold=fsc_threshold), "config": config},
-        # "nasa_pseudo_l3": {"evaluator": ConfusionTableNASA(fsc_threshold=fsc_threshold), "config": config},
-        "nasa_l3": {"evaluator": ConfusionTableNASA(fsc_threshold=fsc_threshold), "config": config_nasa_l3},
+        "nasa_pseudo_l3": {"evaluator": ConfusionTableNASA(), "config": config},
+        "nasa_l3": {"evaluator": ConfusionTableNASA(), "config": config_nasa_l3},
     }
 
     # evaluation_dict: Dict[str, Dict[str, ConfusionTable]] = {
@@ -127,7 +127,6 @@ if __name__ == "__main__":
             analysis_type="confusion_table",
             working_folder=working_folder,
             year=WinterYear(2023, 2024),
-            resolution=375,
             ref_product_name="s2_theia_sca",
             test_product_name=product,
             period=slice("2023-12", "2024-02"),

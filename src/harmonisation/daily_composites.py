@@ -155,7 +155,6 @@ def create_temporal_composite_meteofrance(daily_snow_cover_files: List[str], dai
             invalid_masks[idx] < invalid_mask_best_observation, view_angles_daily_array[idx], out_view_angle
         )
 
-    # Some boilerplate code to make it compliant with xarray and GDAL drivers...hopefully will change in future iterations
     sample_data = xr.open_dataset(daily_geometry_files[0], decode_cf=True).data_vars["band_data"].sel(band=1).drop_vars("band")
     day_dataset = xr.Dataset(
         {
@@ -220,9 +219,6 @@ def create_temporal_composite_nasa(daily_snow_cover_files: List[str], daily_geom
     This will recover some invalid pixels but at the same time probably introduces false detections
     (more generally "bad" observations)
     """
-    daily_snow_cover_files, daily_geometry_files = match_daily_snow_cover_and_geometry_nasa(
-        daily_snow_cover_files, daily_geometry_files
-    )
 
     # Check that we can suppose to be on the very same grid
     if not xr.open_dataset(daily_geometry_files[0]).coords.equals(xr.open_dataset(daily_snow_cover_files[0]).coords):
@@ -276,16 +272,13 @@ def create_temporal_composite_nasa(daily_snow_cover_files: List[str], daily_geom
             invalid_masks[idx] < invalid_mask_best_observation, view_angles_daily_array[idx], out_view_angle
         )
 
-    # Some boilerplate code to make it compliant with xarray and GDAL drivers...hopefully will change in future iterations
-    output_coords = xr.open_dataset(daily_geometry_files[0]).coords
-    nasa_crs = pyproj.CRS(xr.open_dataset(daily_snow_cover_files[0]).data_vars["spatial_ref"].attrs["spatial_ref"])
+    sample_data = rioxarray.open_rasterio(daily_snow_cover_files[0]).data_vars["NDSI_Snow_Cover"].sel(band=1).drop_vars("band")
 
-    dims = ("y", "x")
-    day_dataset = georef_netcdf(
-        xr.DataArray(out_ndsi_snow_cover, dims=dims, coords=output_coords),
-        data_array_name="NDSI_Snow_Cover",
-        crs=nasa_crs,
-    )
-    day_dataset = day_dataset.assign({"sensor_zenith": xr.DataArray(out_view_angle, dims=dims, coords=output_coords)})
+    day_dataset = xr.Dataset(
+        {
+            "NDSI_Snow_Cover": xr.DataArray(out_ndsi_snow_cover, dims=("y", "x"), coords=sample_data.coords),
+            "sensor_zenith_angle": xr.DataArray(out_view_angle, dims=("y", "x"), coords=sample_data.coords),
+        }
+    ).rio.write_crs(sample_data.rio.crs)
 
     return day_dataset

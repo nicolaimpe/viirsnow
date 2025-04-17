@@ -8,7 +8,8 @@ import rasterio
 
 from winter_year import WinterYear
 
-nasa_format_per_product = {"VNP10A1": "h5", "VNP10_UTM": "nc"}
+nasa_format_per_product = {"VNP10A1": "h5", "VNP10_UTM_375m": "nc", "VNP03IMG_UTM_375m": "nc"}
+nasa_collection_per_product_id = {"VNP10A1": "V10A1", "VNP10_UTM_375m": "V10", "VNP03IMG_UTM_375m": "V03IMG"}
 
 
 def timestamp_nasa_to_datetime(observation_timestamp: str) -> datetime:
@@ -25,7 +26,10 @@ def int_to_year_day(year: int, day: int) -> str:
 
 
 def get_all_nasa_filenames_per_product(product_id: str, data_folder: str) -> List[str] | None:
-    return glob(f"{data_folder}/{product_id}*.{nasa_format_per_product[product_id]}")
+    version_id = "002"
+    return glob(
+        f"{data_folder}/{nasa_collection_per_product_id[product_id]}/{product_id}/{product_id}*.{version_id}*.{nasa_format_per_product[product_id]}"
+    )
 
 
 def get_datetime_from_viirs_meteofrance_filepath(filepath: str) -> str:

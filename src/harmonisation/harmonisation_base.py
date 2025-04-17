@@ -113,7 +113,7 @@ class HarmonisationBase:
         encodings = generate_xarray_compression_encodings(time_series)
         encodings.update(time={"calendar": "gregorian", "units": f"days since {str(winter_year.from_year)}-10-01"})
         time_series.to_netcdf(
-            f"{self.output_folder}/WY_{winter_year.from_year}_{winter_year.to_year}_{self.product_name}_res_{self.grid.resolution}m.nc",
+            f"{self.output_folder}/WY_{winter_year.from_year}_{winter_year.to_year}_{self.product_name}.nc",
             encoding=encodings,
         )
         [os.remove(file) for file in out_tmp_paths]
