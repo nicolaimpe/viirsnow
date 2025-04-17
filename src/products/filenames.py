@@ -8,32 +8,7 @@ import rasterio
 
 from winter_year import WinterYear
 
-NASA_L2_SNOW_PRODUCTS_IDS = ["VNP10", "VJ110", "VNP10_NRT", "VJ110_NRT"]
-NASA_L3_SNOW_PRODUCTS_IDS = ["VNP10A1", "VJ110A1"]
-NASA_L2_GEOMETRY_PRODUCTS_IDS = ["VNP03IMG", "VJ103IMG", "VNP03IMG_NRT", "VJ103IMG_NRT", "VNP03IMG_GEO_250m"]
-NASA_L2_SNOW_PRODUCTS = {
-    "Standard": {"SNPP": NASA_L2_SNOW_PRODUCTS_IDS[0], "JPSS1": NASA_L2_SNOW_PRODUCTS_IDS[1]},
-    "NRT": {"SNPP": NASA_L2_SNOW_PRODUCTS_IDS[2], "JPSS1": NASA_L2_SNOW_PRODUCTS_IDS[3]},
-}
-NASA_L3_SNOW_PRODUCTS = {
-    "Standard": {"SNPP": NASA_L3_SNOW_PRODUCTS_IDS[0], "JPSS1": NASA_L3_SNOW_PRODUCTS_IDS[1]},
-}
-
-NASA_L2_GEOM_PRODUCTS = {
-    "Standard": {"SNPP": NASA_L2_GEOMETRY_PRODUCTS_IDS[0], "JPSS1": NASA_L2_GEOMETRY_PRODUCTS_IDS[1]},
-    "GEO_250m": {"SNPP": NASA_L2_GEOMETRY_PRODUCTS_IDS[4]},
-    "NRT": {"SNPP": NASA_L2_GEOMETRY_PRODUCTS_IDS[2], "JPSS1": NASA_L2_GEOMETRY_PRODUCTS_IDS[3]},
-}
-METEOFRANCE_L2 = {"SNPP": "EOFR62_SNPP"}
-KNOWN_COLLECTIONS = {
-    "V10": NASA_L2_SNOW_PRODUCTS,
-    "V10A1": NASA_L3_SNOW_PRODUCTS,
-    "V03IMG": NASA_L2_GEOM_PRODUCTS,
-    "Meteo-France": METEOFRANCE_L2,
-    "S2": "FSC",
-}
-
-VIIRS_NASA_VERSION = 2
+nasa_format_per_product = {"VNP10A1": "h5", "VNP10_UTM": "nc"}
 
 
 def timestamp_nasa_to_datetime(observation_timestamp: str) -> datetime:
@@ -49,10 +24,8 @@ def int_to_year_day(year: int, day: int) -> str:
     return str(year) + "{:03d}".format(day)
 
 
-def get_daily_nasa_filenames_per_product(
-    product_id: str, day: datetime, data_folder: str, extension: str = ".nc"
-) -> List[str] | None:
-    return glob(f"{data_folder}/{product_id}.A{day.strftime('%Y%j')}*{extension}")
+def get_all_nasa_filenames_per_product(product_id: str, data_folder: str) -> List[str] | None:
+    return glob(f"{data_folder}/{product_id}*.{nasa_format_per_product[product_id]}")
 
 
 def get_datetime_from_viirs_meteofrance_filepath(filepath: str) -> str:
@@ -65,7 +38,7 @@ def get_datetime_from_viirs_meteofrance_filepath(filepath: str) -> str:
 
 
 def get_daily_meteofrance_filenames(day: datetime, data_folder: str) -> List[str] | None:
-    return glob(f"{data_folder}/VIIRS{day.year}/*{METEOFRANCE_L2['SNPP']}_*{day.strftime('%Y%m%d')}*.LT")
+    return glob(f"{data_folder}/VIIRS{day.year}/*EOFR62_SNPP*{day.strftime('%Y%m%d')}*.LT")
 
 
 def get_all_meteofrance_type_filenames(data_folder: str, winter_year: WinterYear, suffix: str) -> List[str] | None:

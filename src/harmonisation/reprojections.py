@@ -82,7 +82,7 @@ def reproject_l2_nasa_to_grid(
     return output_dataset
 
 
-def reprojection_l3_nasa_to_grid(nasa_dataset: xr.Dataset, output_grid: GeoGrid) -> xr.Dataset:
+def reprojection_l3_nasa_to_grid_old(nasa_dataset: xr.DataArray, output_grid: GeoGrid) -> xr.DataArray:
     # Validity "zombie mask": wherever there is at least one non valid pixel, the output grid pixel is set as invalid (<-> cloud)
 
     # nasa_dataset = nasa_dataset.where(nasa_dataset <= NASA_CLASSES["snow_cover"][-1], NASA_CLASSES["fill"][0])
@@ -134,7 +134,41 @@ def reprojection_l3_nasa_to_grid(nasa_dataset: xr.Dataset, output_grid: GeoGrid)
     return nasa_out_image
 
 
-def reprojection_l3_meteofrance_to_grid(meteofrance_snow_cover: xr.DataArray, output_grid: GeoGrid) -> xr.Dataset:
+def reprojection_l3_nasa_to_grid(nasa_snow_cover: xr.DataArray, output_grid: GeoGrid) -> xr.DataArray:
+    # Validity "zombie mask": wherever there is at least one non valid pixel, the output grid pixel is set as invalid (<-> cloud)
+    # nasa_dataset = nasa_dataset.where(nasa_dataset <= NASA_CLASSES["snow_cover"][-1], NASA_CLASSES["fill"][0])
+
+    resampled_max = reproject_using_grid(
+        nasa_snow_cover,
+        output_grid=output_grid,
+        resampling_method=Resampling.max,
+        nodata=NASA_CLASSES["fill"][0],
+    )
+
+    resampled_average = reproject_using_grid(
+        nasa_snow_cover,
+        output_grid=output_grid,
+        resampling_method=Resampling.average,
+    )
+
+    resampled_nearest = reproject_using_grid(
+        nasa_snow_cover,
+        output_grid=output_grid,
+        resampling_method=Resampling.nearest,
+    )
+
+    invalid_mask = resampled_max > NASA_CLASSES["snow_cover"][-1]
+    water_mask = resampled_nearest == NASA_CLASSES["water"][0] | NASA_CLASSES["water"][1]
+    valid_qualitative_mask = water_mask
+
+    out_snow_cover = resampled_average.where(invalid_mask == False, resampled_max)
+    # We readd water resempled with nearest
+    out_snow_cover = out_snow_cover.where(valid_qualitative_mask == False, resampled_nearest)
+
+    return out_snow_cover.astype("u1")
+
+
+def reprojection_l3_meteofrance_to_grid(meteofrance_snow_cover: xr.DataArray, output_grid: GeoGrid) -> xr.DataArray:
     # Validity "zombie mask": wherever there is at least one non valid pixel, the output grid pixel is set as invalid (<-> cloud)
     # nasa_dataset = nasa_dataset.where(nasa_dataset <= NASA_CLASSES["snow_cover"][-1], NASA_CLASSES["fill"][0])
 
@@ -167,7 +201,6 @@ def reprojection_l3_meteofrance_to_grid(meteofrance_snow_cover: xr.DataArray, ou
     water_mask = resampled_nearest == METEOFRANCE_CLASSES["water"][0]
     forest_without_snow_mask = resampled_nearest == METEOFRANCE_CLASSES["forest_without_snow"][0]
     forest_with_snow_mask = resampled_nearest == METEOFRANCE_CLASSES["forest_with_snow"][0]
-    # no_snow_mask = resampled_nearest == METEOFRANCE_CLASSES["no_snow"][0]
 
     cloud_mask = resampled_max == METEOFRANCE_CLASSES["clouds"][0]
     nodata_mask = resampled_max == METEOFRANCE_CLASSES["nodata"][0]

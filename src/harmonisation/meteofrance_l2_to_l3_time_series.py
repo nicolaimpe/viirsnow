@@ -8,7 +8,7 @@ from rasterio.enums import Resampling
 from geotools import GeoGrid, reproject_using_grid
 from grids import UTM375mGrid
 from harmonisation.daily_composites import create_temporal_composite_meteofrance
-from harmonisation.harmonisation_base import HarmonisationBase
+from harmonisation.harmonisation_base import HarmonisationBase, check_input_daily_tif_files
 from harmonisation.reprojections import reprojection_l3_meteofrance_to_grid
 from logger_setup import default_logger as logger
 from products.classes import METEOFRANCE_CLASSES
@@ -32,6 +32,9 @@ class MeteoFranceSynopsisHarmonisation(HarmonisationBase):
 
     def get_daily_files(self, all_winter_year_files: List[str], day: datetime) -> List[str]:
         return [file for file in all_winter_year_files if day.strftime("%Y%m%d") in file]
+
+    def check_daily_files(self, day_files: List[str]) -> List[str]:
+        return check_input_daily_tif_files(input_tif_files=day_files)
 
     def create_spatial_composite(self, day_files: List[str]) -> xr.Dataset:
         # day.strftime('%Y%m%d')

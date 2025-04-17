@@ -18,10 +18,10 @@ from products.georef import modis_crs
 from reductions.completeness import mask_of_pixels_in_range
 
 
-def create_spatial_l3_nasa_composite(day_files: List[str]) -> xr.Dataset | None:
+def create_spatial_l3_nasa_composite(daily_snow_cover_files: List[str]) -> xr.DataArray:
     day_data_arrays = []
     dims = ("y", "x")
-    for filepath in day_files:
+    for filepath in daily_snow_cover_files:
         # try:
         logger.info(f"Processing product {Path(filepath).name}")
 
@@ -42,9 +42,13 @@ def create_spatial_l3_nasa_composite(day_files: List[str]) -> xr.Dataset | None:
             coords={dims[0]: nasa_l3_grid.ycoords, dims[1]: nasa_l3_grid.xcoords}
         )
 
-        day_data_arrays.append(georef_netcdf(data_array=ndsi_snow_cover, data_array_name="NDSI_Snow_Cover", crs=modis_crs))
+        day_data_arrays.append(georef_netcdf(data_array=ndsi_snow_cover, crs=modis_crs))
 
-    merged_day_dataset = xr.combine_by_coords(day_data_arrays, data_vars="minimal").astype(np.uint8)
+    merged_day_dataset = (
+        xr.combine_by_coords(day_data_arrays, data_vars="minimal", fill_value=NASA_CLASSES["fill"][0])
+        .astype(np.uint8)
+        .data_vars["NDSI_Snow_Cover"]
+    ).rio.write_nodata(NASA_CLASSES["fill"][0])
 
     return merged_day_dataset
 

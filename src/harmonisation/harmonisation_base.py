@@ -16,6 +16,17 @@ from products.classes import PRODUCT_CLASSES_DICT
 from reductions.snow_cover_extent_cross_comparison import WinterYear
 
 
+def check_input_daily_tif_files(input_tif_files: List[str]) -> List[str]:
+    for day_file in input_tif_files:
+        try:
+            xr.open_dataset(day_file).data_vars["band_data"].values
+        except (OSError, rasterio.errors.RasterioIOError, rasterio._err.CPLE_AppDefinedError):
+            logger.info(f"Could not open file {day_file}. Removing it from processing")
+            input_tif_files.remove(day_file)
+            continue
+    return input_tif_files
+
+
 class HarmonisationBase:
     def __init__(self, product_name: str, output_grid: GeoGrid, data_folder: str, output_folder: str):
         self.product_name = product_name
@@ -30,6 +41,10 @@ class HarmonisationBase:
 
     @abc.abstractmethod
     def get_daily_files(self, all_winter_year_files: List[str], day: datetime) -> List[str]:
+        pass
+
+    @abc.abstractmethod
+    def check_daily_files(self, day_files: List[str]) -> List[str]:
         pass
 
     @abc.abstractmethod
@@ -66,21 +81,16 @@ class HarmonisationBase:
             day_files = self.get_daily_files(files, day=day)
             if day.month != 12 and day.month != 1 and day.month != 2:
                 continue
-            # if day.day > 5:
+            # if day.day > 6:
             #     break
-            for day_file in day_files:
-                try:
-                    xr.open_dataset(day_file).data_vars["band_data"].values
-                except (OSError, rasterio.errors.RasterioIOError, rasterio._err.CPLE_AppDefinedError):
-                    logger.info(f"Could not open file {day_file}. Removing it from processing")
-                    day_files.remove(day_file)
-                    continue
+
+            day_files = self.check_daily_files(day_files=day_files)
 
             if len(day_files) == 0:
                 logger.info(f"Skip day {day.date()} because 0 files were found on this date")
                 continue
-
             daily_composite = self.create_spatial_composite(day_files=day_files)
+
             if roi_shapefile is not None:
                 roi_mask = gdf_to_binary_mask(gdf=gpd.read_file(roi_shapefile), grid=self.grid)
                 daily_composite = daily_composite.where(roi_mask, self.classes["fill"][0])
