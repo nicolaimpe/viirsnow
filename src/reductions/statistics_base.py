@@ -15,22 +15,12 @@ class EvaluationConfig:
     ref_var_name: str = ("snow_cover_fraction",)
     test_var_name: str = ("snow_cover_fraction",)
     ref_fsc_step: int = (25,)
-    sensor_zenith_analysis: bool = (True,)
-    forest_mask_path: str | None = (None,)
-    sub_roi_mask_path: str | None = (None,)
-    slope_map_path: str | None = (None,)
-    aspect_map_path: str | None = (None,)
-    dem_path: str | None = (None,)
-
-
-def abbreviate_data_var_name(data_var_name: str) -> str:
-    if data_var_name == "snow_cover_fraction":
-        abbreviated = "fsc"
-    elif data_var_name == "NDSI_Snow_Cover":
-        abbreviated = "ndsi"
-    else:
-        abbreviated = data_var_name
-    return abbreviated
+    sensor_zenith_analysis: bool = True
+    forest_mask_path: str | None = None
+    sub_roi_mask_path: str | None = None
+    slope_map_path: str | None = None
+    aspect_map_path: str | None = None
+    dem_path: str | None = None
 
 
 def generate_evaluation_io(
@@ -39,16 +29,15 @@ def generate_evaluation_io(
     year: WinterYear,
     ref_product_name: str,
     test_product_name: str,
-    ref_product_var: str = "snow_cover_fraction",
-    test_product_var: str = "snow_cover_fraction",
     period: slice | None = None,
 ) -> Tuple[xr.Dataset, xr.Dataset, str]:
     output_folder = f"{working_folder}/analyses/{analysis_type}"
     ref_time_series_name = f"WY_{year.from_year}_{year.to_year}_{ref_product_name}.nc"
     test_time_series_name = f"WY_{year.from_year}_{year.to_year}_{test_product_name}.nc"
 
-    abbreviated_test, abbreviated_ref = abbreviate_data_var_name(test_product_var), abbreviate_data_var_name(ref_product_var)
-    output_filename = f"{output_folder}/{analysis_type}_WY_{year.from_year}_{year.to_year}_{test_product_name}_{abbreviated_test}_vs_{ref_product_name}_{abbreviated_ref}.nc"
+    output_filename = (
+        f"{output_folder}/{analysis_type}_WY_{year.from_year}_{year.to_year}_{test_product_name}_vs_{ref_product_name}.nc"
+    )
 
     test_time_series = xr.open_dataset(f"{working_folder}/time_series/{test_time_series_name}")
     ref_time_series = xr.open_dataset(f"{working_folder}/time_series/{ref_time_series_name}")
@@ -134,7 +123,7 @@ class EvaluationVsHighResBase:
     def month_bins(winter_year: WinterYear) -> BinGrouper:
         wy_datetime = winter_year.to_datetime()
         wy_datetime.extend([datetime(year=wy_datetime[-1].year, month=wy_datetime[-1].month + 1, day=1)])
-        return BinGrouper(wy_datetime, labels=[month_datetime for month_datetime in wy_datetime[:-1]])
+        return BinGrouper(wy_datetime[2:10], labels=[month_datetime for month_datetime in wy_datetime[2:9]])
 
     @staticmethod
     def aspect_map_transform(aspect_map: xr.DataArray) -> xr.DataArray:

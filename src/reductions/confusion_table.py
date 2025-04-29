@@ -21,16 +21,35 @@ class ConfusionTable(EvaluationVsHighResBase):
         reference_analyzer: SnowCoverProductCompleteness,
         test_analyzer: SnowCoverProductCompleteness,
         ref_fsc_threshold: float | None = None,
+        test_fsc_threshold: float | None = None,
     ):
         if ref_fsc_threshold == 0:
             raise ValueError("Ref FSC threshold cannot be 0. Select None or an integre between 1 and 100.")
         self.ref_fsc_threshold = ref_fsc_threshold if ref_fsc_threshold is not None else 1
+        if test_fsc_threshold == 0:
+            raise ValueError("Test FSC threshold cannot be 0. Select None or an integre between 1 and 100.")
+        self.test_fsc_threshold = test_fsc_threshold if test_fsc_threshold is not None else 1
         super().__init__(reference_analyzer, test_analyzer)
 
     def compute_binary_metrics(self, dataset: xr.Dataset, bins_dict: Dict[str, xr.groupers.Grouper]):
         logger.info(f"Processing time of the year {dataset.coords['time'].values[0].astype('M8[D]').astype('O')}")
+        quant_mask_ref = self.ref_analyzer.quantitative_mask(dataset.data_vars["ref"])
+        quant_mask_test = self.test_analyzer.quantitative_mask(dataset.data_vars["test"])
+        n_intersecting_pixels = (quant_mask_test & quant_mask_ref).sum()
 
-        snow_test = self.test_analyzer.total_snow_mask(dataset["test"])
+        if n_intersecting_pixels < 2:
+            logger.info("No intersection found on this day. Returning a zeros array.")
+            return xr.Dataset(
+                {
+                    k: xr.DataArray(0, coords=xr.Coordinates({k + "_bins": v.labels for k, v in bins_dict.items()}))
+                    for k in ["true_positive", "true_negative", "false_positive", "false_negative"]
+                }
+            )
+        snow_test = self.test_analyzer.total_snow_mask(data_array=dataset["test"])
+        if self.test_fsc_threshold > 1:
+            snow_test = snow_test ^ mask_of_pixels_in_range(
+                range=range(1, self.test_fsc_threshold), data_array=dataset["test"]
+            )
         no_snow_test = self.test_analyzer.total_no_snow_mask(dataset["test"])
 
         snow_ref = mask_of_pixels_in_range(
@@ -42,7 +61,6 @@ class ConfusionTable(EvaluationVsHighResBase):
         dataset = dataset.assign({"true_negative": no_snow_test & no_snow_ref})
         dataset = dataset.assign({"false_positive": snow_test & no_snow_ref})
         dataset = dataset.assign({"false_negative": no_snow_test & snow_ref})
-
         out_dataset = dataset.groupby(bins_dict).map(self.sum_masks)
         return out_dataset
 
@@ -75,20 +93,22 @@ class ConfusionTable(EvaluationVsHighResBase):
 
 
 class ConfusionTableMeteoFrance(ConfusionTable):
-    def __init__(self, ref_fsc_threshold: float | None = None) -> None:
+    def __init__(self, ref_fsc_threshold: float | None = None, test_fsc_threshold: float | None = None) -> None:
         super().__init__(
             reference_analyzer=S2SnowCoverProductCompleteness(),
             test_analyzer=MeteoFranceSnowCoverProductCompleteness(),
             ref_fsc_threshold=ref_fsc_threshold,
+            test_fsc_threshold=test_fsc_threshold,
         )
 
 
 class ConfusionTableNASA(ConfusionTable):
-    def __init__(self, ref_fsc_threshold: float | None = None) -> None:
+    def __init__(self, ref_fsc_threshold: float | None = None, test_fsc_threshold: float | None = None) -> None:
         super().__init__(
             reference_analyzer=S2SnowCoverProductCompleteness(),
             test_analyzer=NASASnowCoverProductCompleteness(),
             ref_fsc_threshold=ref_fsc_threshold,
+            test_fsc_threshold=test_fsc_threshold,
         )
 
 
@@ -106,30 +126,46 @@ if __name__ == "__main__":
     config_nasa_l3 = deepcopy(config)
     config_nasa_l3.sensor_zenith_analysis = False
 
-    working_folder = "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_5/"
+    working_folder = "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_6/"
 
-    fsc_threshold = None
+    ref_fsc_threshold = 50
+    test_fsc_threshold = 50
+
     evaluation_dict: Dict[str, Dict[str, ConfusionTable]] = {
-        # "meteofrance_l3": {"evaluator": ConfusionTableMeteoFrance(fsc_threshold=fsc_threshold), "config": config},
-        "nasa_pseudo_l3": {"evaluator": ConfusionTableNASA(), "config": config},
-        "nasa_l3": {"evaluator": ConfusionTableNASA(), "config": config_nasa_l3},
+        "meteofrance_orig": {
+            "evaluator": ConfusionTableMeteoFrance(ref_fsc_threshold=ref_fsc_threshold, test_fsc_threshold=test_fsc_threshold),
+            "config": config,
+        },
+        "meteofrance_synopsis": {
+            "evaluator": ConfusionTableMeteoFrance(ref_fsc_threshold=ref_fsc_threshold, test_fsc_threshold=test_fsc_threshold),
+            "config": config,
+        },
+        "meteofrance_no_cc_mask": {
+            "evaluator": ConfusionTableMeteoFrance(ref_fsc_threshold=ref_fsc_threshold, test_fsc_threshold=test_fsc_threshold),
+            "config": config,
+        },
+        "meteofrance_modified": {
+            "evaluator": ConfusionTableMeteoFrance(ref_fsc_threshold=ref_fsc_threshold, test_fsc_threshold=test_fsc_threshold),
+            "config": config,
+        },
+        "nasa_pseudo_l3": {
+            "evaluator": ConfusionTableNASA(ref_fsc_threshold=ref_fsc_threshold, test_fsc_threshold=test_fsc_threshold),
+            "config": config,
+        },
+        "nasa_l3": {
+            "evaluator": ConfusionTableNASA(ref_fsc_threshold=ref_fsc_threshold, test_fsc_threshold=test_fsc_threshold),
+            "config": config_nasa_l3,
+        },
     }
-
-    # evaluation_dict: Dict[str, Dict[str, ConfusionTable]] = {
-    #     # "meteofrance_orig": {"evaluator": ConfusionTableMeteoFrance(ref_fsc_threshold=fsc_threshold), "config": config},
-    #     # "meteofrance_synopsis": {"evaluator": ConfusionTableMeteoFrance(ref_fsc_threshold=fsc_threshold), "config": config},
-    #     # "meteofrance_no_cc_mask": {"evaluator": ConfusionTableMeteoFrance(ref_fsc_threshold=fsc_threshold), "config": config},
-    #     # "meteofrance_modified": {"evaluator": ConfusionTableMeteoFrance(ref_fsc_threshold=fsc_threshold), "config": config},
-    # }
 
     for product, evaluator in evaluation_dict.items():
         ref_time_series, test_time_series, output_filename = generate_evaluation_io(
             analysis_type="confusion_table",
             working_folder=working_folder,
             year=WinterYear(2023, 2024),
-            ref_product_name="s2_theia_sca",
+            ref_product_name="s2_theia",
             test_product_name=product,
-            period=slice("2023-12", "2024-02"),
+            period=None,
         )
         logger.info(f"Evaluating product {product}")
         metrics_calcuator = evaluator["evaluator"]

@@ -65,9 +65,8 @@ def reproject_l2_nasa_to_grid(
                         data=reprojected_l2_data,
                         coords={"y": output_grid.ycoords, "x": output_grid.xcoords},
                     ),
-                    data_array_name=data_var_name,
                     crs=output_grid.crs,
-                ).data_vars[data_var_name]
+                )
             }
         )
 
@@ -182,10 +181,10 @@ def reprojection_l3_meteofrance_to_grid(meteofrance_snow_cover: xr.DataArray, ou
     # Tricky forest with snow when resampling using average
     # Whenever a resampled pixel includes forest with snow mask, a quantitative estimation connot be performed unless we choose a FSC value for forest with snow
     # The solution would be to resample forest with snow using max, but this is problematic when forest with snow is next to no snow because it increases the snow detections
-    # Therefore we set it to 50% FSC.
+    # Therefore we set it to 50% FSC (which means 100 in meteofrance encoding).
     # The contingency analysis will not be biased. The quantitative analysis will be more uncertain and perhaps biaised. The recommendation is to use a forest mask resampled with max for quantitative analysis
     resampled_average = reproject_using_grid(
-        meteofrance_snow_cover.where(meteofrance_snow_cover <= METEOFRANCE_CLASSES["forest_with_snow"][-1], 0)
+        meteofrance_snow_cover.where(meteofrance_snow_cover <= METEOFRANCE_CLASSES["forest_with_snow"][0], 0)
         .where(meteofrance_snow_cover != METEOFRANCE_CLASSES["forest_with_snow"][0], 100)
         .astype("f4"),
         output_grid=output_grid,

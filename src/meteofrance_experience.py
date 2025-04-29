@@ -1,4 +1,7 @@
+import re
+from datetime import datetime
 from glob import glob
+from pathlib import Path
 from typing import List
 
 import numpy as np
@@ -6,38 +9,10 @@ import rasterio
 from scipy.ndimage import distance_transform_edt
 
 from products.classes import METEOFRANCE_CLASSES
-from products.filenames import get_all_meteofrance_type_filenames
+from products.filenames import get_all_meteofrance_type_filenames, get_daily_meteofrance_filenames
 from winter_year import WinterYear
 
 folder = "/home/imperatoren/work/VIIRS_S2_comparison/data/CMS_rejeu"
-
-
-def get_all_meteofrance_cloud_filenames(data_folder: str, winter_year: WinterYear) -> List[str] | None:
-    # Rejeu CMS
-    meteofrance_files = glob(f"{data_folder}/{winter_year.from_year}1[0-2]/*npp*cloud.tif")
-    meteofrance_files.extend(glob(f"{data_folder}/{winter_year.to_year}[0-9]*/*npp*cloud.tif"))
-    return sorted(meteofrance_files)
-
-
-def get_all_meteofrance_fsc_filenames(data_folder: str, winter_year: WinterYear) -> List[str] | None:
-    # Rejeu CMS
-    meteofrance_files = glob(f"{data_folder}/{winter_year.from_year}1[0-2]/*npp*fsc.tif")
-    meteofrance_files.extend(glob(f"{data_folder}/{winter_year.to_year}[0-9]*/*npp*fsc.tif"))
-    return sorted(meteofrance_files)
-
-
-def get_all_meteofrance_cc_mask_filenames(data_folder: str, winter_year: WinterYear) -> List[str] | None:
-    # Rejeu CMS
-    meteofrance_files = glob(f"{data_folder}/{winter_year.from_year}1[0-2]/*npp*CCNPPJSNOW_mask.tif")
-    meteofrance_files.extend(glob(f"{data_folder}/{winter_year.to_year}[0-9]*/*npp*CCNPPJSNOW_mask.tif"))
-    return sorted(meteofrance_files)
-
-
-def get_all_meteofrance_cc_filenames(data_folder: str, winter_year: WinterYear) -> List[str] | None:
-    # Rejeu CMS
-    meteofrance_files = glob(f"{data_folder}/{winter_year.from_year}1[0-2]/*npp*CCNPPJSNOW_reproj.tif")
-    meteofrance_files.extend(glob(f"{data_folder}/{winter_year.to_year}[0-9]*/*npp*CCNPPJSNOW_reproj.tif"))
-    return sorted(meteofrance_files)
 
 
 wy = WinterYear(2023, 2024)
@@ -46,17 +21,31 @@ cloud_files = get_all_meteofrance_type_filenames(data_folder=folder, winter_year
 fsc_files = get_all_meteofrance_type_filenames(data_folder=folder, winter_year=wy, suffix="fsc")
 cc_mask_files = get_all_meteofrance_type_filenames(data_folder=folder, winter_year=wy, suffix="CCNPPJSNOW_mask")
 cc_files = get_all_meteofrance_type_filenames(data_folder=folder, winter_year=wy, suffix="CCNPPJSNOW_reproj")
+ndsi_files = get_all_meteofrance_type_filenames(data_folder=folder, winter_year=wy, suffix="ndsi")
 
 forest_mask = rasterio.open(
     "/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/forest_mask/corine_2006_forest_mask_geo.tif"
 ).read(1)
 
+
 count = 0
-for rejeu_file, cloud_file, fsc_file, cc_mask_file, cc_file in zip(
-    rejeu_files, cloud_files, fsc_files, cc_mask_files, cc_files
-):
+
+
+for rejeu_file in rejeu_files:
+    time = datetime.strptime(Path(rejeu_file).name[:13], "%Y%m%d_%H%M")
+    cloud_file = [f for f in cloud_files if time.strftime("%Y%m%d_%H%M") in f][0]
+    fsc_file = [f for f in fsc_files if time.strftime("%Y%m%d_%H%M") in f][0]
+    cc_mask_file = [f for f in cc_mask_files if time.strftime("%Y%m%d_%H%M") in f][0]
+    cc_file = [f for f in cc_files if time.strftime("%Y%m%d_%H%M") in f][0]
+    ndsi_file = [f for f in ndsi_files if time.strftime("%Y%m%d_%H%M") in f][0]
     print("Processing ", rejeu_file)
-    # if count < 105:
+    print("Processing ", cloud_file)
+    print("Processing ", fsc_file)
+    print("Processing ", cc_mask_file)
+    print("Processing ", cc_file)
+    print("Processing ", ndsi_file)
+
+    # if count < 290:
     #     count += 1
     #     continue
     profile = rasterio.open(rejeu_file).profile
@@ -65,6 +54,7 @@ for rejeu_file, cloud_file, fsc_file, cc_mask_file, cc_file in zip(
     fsc = rasterio.open(fsc_file).read(1)
     cc_mask = rasterio.open(cc_mask_file).read(1)
     cc_nir_800 = rasterio.open(cc_file).read(1)
+    ndsi = rasterio.open(ndsi_file).read(1)
 
     orig = np.where(cloud == 2, METEOFRANCE_CLASSES["clouds"][0], rejeu)
 
@@ -99,3 +89,7 @@ for rejeu_file, cloud_file, fsc_file, cc_mask_file, cc_file in zip(
 
     with rasterio.open(rejeu_file.replace("produit_synopsis", "produit_modified"), "w", **profile) as dst:
         dst.write(modified, 1)
+
+    ndsi_snow_cover = np.where((rejeu > 0) * (rejeu <= 200), (ndsi - 100) * 2, rejeu)
+    with rasterio.open(rejeu_file.replace("produit_synopsis", "ndsi_snow_cover"), "w", **profile) as dst:
+        dst.write(ndsi_snow_cover, 1)

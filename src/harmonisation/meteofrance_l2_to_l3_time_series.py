@@ -18,12 +18,13 @@ from reductions.snow_cover_extent_cross_comparison import WinterYear
 
 
 class MeteoFranceSynopsisHarmonisation(HarmonisationBase):
-    def __init__(self, output_grid: GeoGrid, data_folder: str, output_folder: str):
+    def __init__(self, output_grid: GeoGrid, data_folder: str, output_folder: str, suffix: str):
         super().__init__(METEOFRANCE_VAR_NAME, output_grid, data_folder, output_folder)
+        self.suffix = suffix
 
     def get_all_files_of_winter_year(self, winter_year: WinterYear) -> List[str]:
         snow_cover_and_sat_angle_file_list = get_all_meteofrance_type_filenames(
-            data_folder=self.data_folder, winter_year=winter_year, suffix=suffix
+            data_folder=self.data_folder, winter_year=winter_year, suffix=self.suffix
         )
         snow_cover_and_sat_angle_file_list.extend(
             get_all_meteofrance_sat_angle_filenames(data_folder=self.data_folder, winter_year=winter_year)
@@ -53,9 +54,13 @@ class MeteoFranceSynopsisHarmonisation(HarmonisationBase):
             nodata=METEOFRANCE_CLASSES["nodata"][0],
             resampling_method=Resampling.bilinear,
         )
+        if self.suffix == "ndsi_snow_cover":
+            out_data_var_name = "NDSI_Snow_Cover"
+        else:
+            out_data_var_name = "snow_cover_fraction"
         out_dataset = xr.Dataset(
             {
-                "snow_cover_fraction": meteofrance_snow_cover,
+                out_data_var_name: meteofrance_snow_cover,
                 "sensor_zenith_angle": meteofrance_view_angle.astype("u1"),
             }
         )
@@ -64,13 +69,15 @@ class MeteoFranceSynopsisHarmonisation(HarmonisationBase):
 
 if __name__ == "__main__":
     year = WinterYear(2023, 2024)
-    suffix = "modified"
-    massifs_shapefile = "/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/vectorial/massifs/massifs.shp"
-    meteofrance_cms_folder = f"/home/imperatoren/work/VIIRS_S2_comparison/data/CMS_rejeu"
-    output_folder = f"/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_5/time_series/{suffix}"
-    grid = UTM375mGrid()
 
-    logger.info("Méteo-France processing")
-    MeteoFranceSynopsisHarmonisation(
-        output_grid=grid, data_folder=meteofrance_cms_folder, output_folder=output_folder
-    ).create_time_series(winter_year=year, roi_shapefile=massifs_shapefile)
+    suffixes = ["orig", "modified", "no_cc_mask", "synopsis", "ndsi_snow_cover"]
+    massifs_shapefile = "/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/vectorial/massifs/massifs.shp"
+    meteofrance_cms_folder = "/home/imperatoren/work/VIIRS_S2_comparison/data/CMS_rejeu"
+    grid = UTM375mGrid()
+    for suffix in suffixes:
+        output_folder = f"/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_6/time_series/{suffix}"
+
+        logger.info(f"Méteo-France {suffix} processing")
+        MeteoFranceSynopsisHarmonisation(
+            output_grid=grid, data_folder=meteofrance_cms_folder, output_folder=output_folder, suffix=suffix
+        ).create_time_series(winter_year=year, roi_shapefile=massifs_shapefile)

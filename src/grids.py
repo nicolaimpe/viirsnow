@@ -8,6 +8,8 @@ from pyproj import CRS, Transformer
 from rasterio.enums import Resampling
 from rasterio.transform import from_origin
 
+from products.georef import modis_crs
+
 DEFAULT_CRS_PROJ = 32631
 DEFAULT_CRS = DEFAULT_CRS_PROJ
 OUTPUT_GRID_RES = 375  # m
@@ -131,6 +133,19 @@ class UTM375mGrid(GeoGrid):
         )
 
 
+class SIN375mGrid(GeoGrid):
+    def __init__(self) -> None:
+        super().__init__(
+            crs=modis_crs,
+            resolution=370.650173222222,
+            x0=-420000,
+            y0=5450000,
+            width=3500,
+            height=2600,
+            name="SIN_375m",
+        )
+
+
 class UTM1kmGrid(GeoGrid):
     def __init__(self) -> None:
         super().__init__(
@@ -171,7 +186,7 @@ def georef_netcdf(data_array: xr.DataArray | xr.Dataset, crs: pyproj.CRS) -> xr.
     return georeferenced
 
 
-def georef_netcdf_rioxarray(data_array: xr.DataArray | xr.Dataset, crs: pyproj.CRS) -> xr.Dataset | xr.Dataset:
+def georef_netcdf_rioxarray(data_array: xr.DataArray | xr.Dataset, crs: pyproj.CRS) -> xr.Dataset | xr.DataArray:
     """
     Turn a DataArray into a Dataset  for which the GDAL driver (GDAL and QGIS) is able to read the georeferencing
     https://github.com/pydata/xarray/issues/2288

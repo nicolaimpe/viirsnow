@@ -5,6 +5,13 @@ import xarray as xr
 from xarray.groupers import BinGrouper
 
 from logger_setup import default_logger as logger
+from products.plot_settings import (
+    METEOFRANCE_VAR_NAME,
+    MF_ORIG_VAR_NAME,
+    MF_SYNOPSIS_VAR_NAME,
+    NASA_L3_VAR_NAME,
+    NASA_PSEUDO_L3_VAR_NAME,
+)
 from reductions.completeness import (
     MeteoFranceSnowCoverProductCompleteness,
     NASASnowCoverProductCompleteness,
@@ -29,7 +36,8 @@ class Scatter(EvaluationVsHighResBase):
         quant_mask_ref = self.ref_analyzer.quantitative_mask(dataset.data_vars["ref"])
         quant_mask_test = self.test_analyzer.quantitative_mask(dataset.data_vars["test"])
         n_intersecting_pixels = (quant_mask_test & quant_mask_ref).sum()
-        if n_intersecting_pixels == 0:
+
+        if n_intersecting_pixels < 2:
             logger.info("No intersection found on this day. Returning a zeros array.")
             return xr.DataArray(0, coords=xr.Coordinates({k + "_bins": v.labels for k, v in bins_dict.items()}))
 
@@ -87,37 +95,44 @@ class ScatterMeteoFranceVsNASA(Scatter):
 
 
 if __name__ == "__main__":
-    from products.plot_settings import METEOFRANCE_VAR_NAME, MF_ORIG_VAR_NAME, NASA_L3_VAR_NAME, NASA_PSEUDO_L3_VAR_NAME
-
+    variable_tested = "ndsi"  # fsc, #ndsi
     config_eval = EvaluationConfig(
         ref_fsc_step=1,
         sensor_zenith_analysis=False,
         # Use of forest mask with max resampling because of Météo-France forest with snow class resampling issue.
         # See reprojection_l3_meteofrance_to_grid function
         # In resume, all fractions next to forest with snow class are imprecise because when resampling using average we set this class to 50% FSC
-        forest_mask_path="/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/forest_mask/corine_2006_forest_mask_utm_max.tif",
+        forest_mask_path="/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/forest_mask/corine_2006_forest_mask_utm.tif",
         slope_map_path=None,
         aspect_map_path="/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/dem/ASP_MSF_UTM31_375m_lanczos.tif",
-        sub_roi_mask_path=None,
-        dem_path="/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/dem/DEM_MSF_UTM31_375m_lanczos.tif",
+        sub_roi_mask_path="/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/dem/MSF_MACRO_FRANCE_UTM31_375m.tif",
+        dem_path=None,
     )
 
     config_fit = EvaluationConfig(
         ref_fsc_step=1,
         sensor_zenith_analysis=False,
-        forest_mask_path="/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/forest_mask/corine_2006_forest_mask_utm_max.tif",
+        test_var_name=("NDSI_Snow_Cover",),
+        forest_mask_path="/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/forest_mask/corine_2006_forest_mask_utm.tif",
         slope_map_path=None,
         aspect_map_path="/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/dem/ASP_MSF_UTM31_375m_lanczos.tif",
-        sub_roi_mask_path=None,
-        dem_path="/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/dem/DEM_MSF_UTM31_375m_lanczos.tif",
+        sub_roi_mask_path="/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/dem/MSF_MACRO_FRANCE_UTM31_375m.tif",
+        dem_path=None,
     )
 
-    working_folder = "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_5/"
+    working_folder = "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_6/"
+
+    if variable_tested == "fsc":
+        config = config_eval
+    elif variable_tested == "ndsi":
+        config = config_fit
 
     evaluation_dict: Dict[str, Dict[str, Scatter]] = {
-        MF_ORIG_VAR_NAME: {"evaluator": ScatterMeteoFrance(), "config": config_eval},
-        # NASA_PSEUDO_L3_VAR_NAME: {"evaluator": ScatterNASA(), "config": config_eval},
-        # NASA_L3_VAR_NAME: {"evaluator": ScatterNASA(), "config": config_eval},
+        # MF_ORIG_VAR_NQAME: {"evaluator": ScatterMeteoFrance(), "config": config},
+        # MF_SYNOPSIS_VAR_NAME: {"evaluator": ScatterMeteoFrance(), "config": config},
+        # NASA_PSEUDO_L3_VAR_NAME: {"evaluator": ScatterNASA(), "config": config},
+        # NASA_L3_VAR_NAME: {"evaluator": ScatterNASA(), "config": config},
+        "meteofrance_ndsi_snow_cover": {"evaluator": ScatterMeteoFrance(), "config": config},
     }
 
     for product, evaluator in evaluation_dict.items():
@@ -125,10 +140,9 @@ if __name__ == "__main__":
             analysis_type="scatter",
             working_folder=working_folder,
             year=WinterYear(2023, 2024),
-            resolution=375,
-            ref_product_name="s2_theia_sca",
+            ref_product_name="s2_theia",
             test_product_name=product,
-            period=slice("2023-12", "2024-02"),
+            period=None,
         )
         logger.info(f"Evaluating product {product}")
         metrics_calcuator = evaluator["evaluator"]

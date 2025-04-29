@@ -37,33 +37,20 @@ def sel_evaluation_domain(analyses_dict: Dict[str, xr.Dataset], evaluation_domai
     if evaluation_domain == "general":
         title = "December to June > 900 m"
         selection_dict = {
-            k: v.sel(time=slice("2023-12", "2024-02"), altitude_bins=slice(1500, None)) for k, v in analyses_dict.items()
+            k: v.sel(time=slice("2023-12", "2024-06"), altitude_bins=slice(900, None)) for k, v in analyses_dict.items()
         }
     elif evaluation_domain == "accumulation":
-        title = "Accumulation November to February > 1500 m"
+        title = "Accumulation November to February > 900 m"
         selection_dict = {
-            k: v.sel(time=slice("2023-11", "2024-03")).sel(altitude_bins=slice(1500, None), drop=True)
+            k: v.sel(time=slice("2023-12", "2023-12-31")).sel(altitude_bins=slice(900, None), drop=True)
             for k, v in analyses_dict.items()
         }
     elif evaluation_domain == "ablation":
         title = "Ablation March to July > 2100 m"
         selection_dict = {
-            k: v.sel(time=slice("2024-03", "2024-07")).sel(altitude_bins=slice(2100, None), drop=True)
+            k: v.sel(time=slice("2024-03", "2024-03-31")).sel(altitude_bins=slice(900, None), drop=True)
             for k, v in analyses_dict.items()
         }
-    selection_dict = {
-        k: v.assign_coords(
-            {
-                "aspect_bins": pd.CategoricalIndex(
-                    data=EvaluationVsHighResBase.aspect_bins().labels,
-                    categories=EvaluationVsHighResBase.aspect_bins().labels,
-                    ordered=True,
-                )
-            }
-        )
-        for k, v in selection_dict.items()
-    }
-
     selection_dict = {
         k: v.assign_coords(
             {

@@ -188,22 +188,22 @@ class S2SnowCoverProductCompleteness(SnowCoverProductCompleteness):
 
 
 if __name__ == "__main__":
-    product_to_evaluate = "nasa_l3"
-    output_folder = "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_3"
+    products_to_evaluate = ["nasa_l3", "meteofrance_orgi", "meteofrance_synopsis"]
+    output_folder = "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_6"
 
-    if product_to_evaluate == "meteofrance_l3":
-        time_series_name = "WY_2023_2024_SNPP_meteofrance_l3_res_375m.nc"
-        mf_dataset = xr.open_dataset(f"{output_folder}/{time_series_name}", mask_and_scale=True)
-        mf_analyzer = MeteoFranceSnowCoverProductCompleteness()
-        mf_analyzer.year_temporal_analysis(
-            snow_cover_product_time_series_data_array=mf_dataset.data_vars["snow_cover_fraction"],
-            netcdf_export_path=f"{output_folder}/analyses/completeness/completeness_WY_2023_2024_SNPP_meteofrance_l3_res_375m.nc",
-        )
-    if product_to_evaluate == "nasa_l3":
-        time_series_name = "WY_2023_2024_SNPP_nasa_l3_res_375m.nc"
-        mf_dataset = xr.open_dataset(f"{output_folder}/{time_series_name}", mask_and_scale=True)
-        mf_analyzer = NASASnowCoverProductCompleteness()
-        mf_analyzer.year_temporal_analysis(
-            snow_cover_product_time_series_data_array=mf_dataset.data_vars["snow_cover_fraction"],
-            netcdf_export_path=f"{output_folder}/analyses/completeness/completeness_WY_2023_2024_SNPP_nasa_l3_res_375m.nc",
+    evaluation_dict: Dict[str, Dict[str, SnowCoverProductCompleteness]] = {
+        "meteofrance_orig": {"evaluator": MeteoFranceSnowCoverProductCompleteness()},
+        "meteofrance_synopsis": {"evaluator": MeteoFranceSnowCoverProductCompleteness()},
+        # "meteofrance_no_cc_mask": {"evaluator": MeteoFranceSnowCoverProductCompleteness(), "config": config},
+        # "meteofrance_modified": {"evaluator": MeteoFranceSnowCoverProductCompleteness(), "config": config},
+        # "nasa_pseudo_l3": {"evaluator": NASASnowCoverProductCompleteness(), "config": config},
+        "nasa_l3": {"evaluator": NASASnowCoverProductCompleteness()},
+    }
+
+    for product in products_to_evaluate:
+        analyzer = evaluation_dict[product]["evaluator"]
+        test_series = xr.open_dataset(f"WY_2023_2024_{product}.nc").sel(time="2023-12")
+        analyzer.year_temporal_analysis(
+            snow_cover_product_time_series_data_array=test_series["snow_cover_fraction"],
+            netcdf_export_path=f"{output_folder}/analyses/completeness/completeness_WY_2023_2024_{product}.nc",
         )

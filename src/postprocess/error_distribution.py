@@ -10,9 +10,21 @@ from matplotlib.axes import Axes
 from pandas.io.formats.style import Styler
 from xarray.groupers import BinGrouper
 
-from postprocess.general_purpose import fancy_table
-from products.plot_settings import PRODUCT_PLOT_COLORS, PRODUCT_PLOT_NAMES
+from postprocess.general_purpose import fancy_table, sel_evaluation_domain
+from products.plot_settings import (
+    MF_NO_CC_MASK_VAR_NAME,
+    MF_NO_S2_FSC_SCREEN,
+    MF_ORIG_VAR_NAME,
+    MF_REFL_SCREEN_VAR_NAME,
+    MF_S2_FSC_SCREEN,
+    MF_SYNOPSIS_VAR_NAME,
+    NASA_L3_VAR_NAME,
+    NASA_PSEUDO_L3_VAR_NAME,
+    PRODUCT_PLOT_COLORS,
+    PRODUCT_PLOT_NAMES,
+)
 from reductions.statistics_base import EvaluationVsHighResBase
+from winter_year import WinterYear
 
 
 def histograms_to_biais_rmse(metrics_dataset: xr.Dataset) -> xr.Dataset:
@@ -131,9 +143,9 @@ def semidistributed_geometry_plot(
                 np.deg2rad(EvaluationVsHighResBase.aspect_bins().bins),
                 altitude_ticks,
                 dataset_reduced.data_vars[variable_to_plot].sel(slope_bins=slope).transpose().values,
-                cmap="coolwarm",
-                vmin=-30,
-                vmax=30,
+                cmap="coolwarm" if variable_to_plot == "biais" else "Reds",
+                vmin=-15 if variable_to_plot == "biais" else 0,
+                vmax=15 if variable_to_plot == "biais" else 25,
             )
 
             fig.colorbar(im, ax=ax[i], orientation="horizontal", label=variable_to_plot, fraction=0.05, pad=0.1)
@@ -222,32 +234,47 @@ def double_variable_barplots(analyses_dict: Dict[str, xr.Dataset], var1: str, va
 
 
 if __name__ == "__main__":
-    from postprocess.general_purpose import sel_evaluation_domain
-    from products.plot_settings import MF_NO_CC_MASK_VAR_NAME, MF_ORIG_VAR_NAME, MF_REFL_SCREEN_VAR_NAME, MF_SYNOPSIS_VAR_NAME
-    from reductions.statistics_base import EvaluationVsHighResBase
-    from winter_year import WinterYear
-
     wy = WinterYear(2023, 2024)
     analysis_type = "uncertainty"
-    analysis_folder = f"/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_5/analyses/{analysis_type}"
+    analysis_folder = (
+        f"/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_5_complete/analyses/{analysis_type}"
+    )
     analyses_dict = {
-        # MF_ORIG_VAR_NAME: xr.open_dataset(
-        #     f"{analysis_folder}/uncertainty_WY_2023_2024_meteofrance_orig_fsc_vs_s2_theia_sca_fsc_375m.nc",
+        MF_ORIG_VAR_NAME: xr.open_dataset(
+            f"{analysis_folder}/uncertainty_WY_2023_2024_meteofrance_orig_vs_s2_theia.nc",
+            decode_cf=True,
+        ),
+        MF_SYNOPSIS_VAR_NAME: xr.open_dataset(
+            f"{analysis_folder.replace('version_5_complete', 'version_6')}/uncertainty_WY_2023_2024_meteofrance_synopsis_vs_s2_theia.nc",
+            decode_cf=True,
+        ),
+        # MF_REFL_SCREEN_VAR_NAME: xr.open_dataset(
+        #     f"{analysis_folder}/uncertainty_WY_2023_2024_meteofrance_modified_vs_s2_theia.nc",
         #     decode_cf=True,
         # ),
-        MF_SYNOPSIS_VAR_NAME: xr.open_dataset(
-            f"{analysis_folder}/uncertainty_WY_2023_2024_meteofrance_synopsis_fsc_vs_s2_theia_sca_fsc_375m.nc",
-            decode_cf=True,
-        ),
-        MF_NO_CC_MASK_VAR_NAME: xr.open_dataset(
-            f"{analysis_folder}/uncertainty_WY_2023_2024_meteofrance_no_cc_mask_fsc_vs_s2_theia_sca_fsc_375m.nc",
-            decode_cf=True,
-        ),
-        MF_REFL_SCREEN_VAR_NAME: xr.open_dataset(
-            f"{analysis_folder}/uncertainty_WY_2023_2024_meteofrance_modified_fsc_vs_s2_theia_sca_fsc_375m.nc",
-            decode_cf=True,
-        ),
+        # NASA_PSEUDO_L3_VAR_NAME: xr.open_dataset(
+        #     f"{analysis_folder}/uncertainty_WY_2023_2024_nasa_pseudo_l3_vs_s2_theia.nc",
+        #     decode_cf=True,
+        # ),
+        # NASA_L3_VAR_NAME: xr.open_dataset(
+        #     f"{analysis_folder}/uncertainty_WY_2023_2024_nasa_l3_vs_s2_theia.nc",
+        #     decode_cf=True,
+        # ),
+        # MF_NO_CC_MASK_VAR_NAME: xr.open_dataset(
+        #     f"{analysis_folder}/uncertainty_WY_2023_2024_meteofrance_no_cc_mask_vs_s2_theia.nc",
+        #     decode_cf=True,
+        # ),
     }
+
+    # analyses_dict = {
+    #     MF_S2_FSC_SCREEN: xr.open_dataset(
+    #         f"{analysis_folder.replace('version_5_complete', 'version_5_fsc_screen_harmo')}/uncertainty_WY_2023_2024_meteofrance_synopsis_vs_s2_theia_sca.nc",
+    #         decode_cf=True,
+    #     ),
+    #     MF_NO_S2_FSC_SCREEN: xr.open_dataset(
+    #         f"{analysis_folder}/uncertainty_WY_2023_2024_meteofrance_synopsis_vs_s2_theia.nc", decode_cf=True
+    #     ),
+    # }
 
     evaluation_domain = "general"
     selection_dict, title = sel_evaluation_domain(analyses_dict=analyses_dict, evaluation_domain=evaluation_domain)
@@ -272,12 +299,12 @@ if __name__ == "__main__":
     )
 
     # SAFRAN geometry
-    semidistributed_geometry_plot(
-        selection_dict, "biais", title_complement=f"Semidistributed geometry biais distribution- {title}"
-    )
-    semidistributed_geometry_plot(
-        selection_dict, "unbiaised_rmse", title_complement=f"Semidistributed geometry unbiaised RMSE distribution - {title}"
-    )
+    # semidistributed_geometry_plot(
+    #     selection_dict, "biais", title_complement=f"Semidistributed geometry biais distribution- {title}"
+    # )
+    # semidistributed_geometry_plot(
+    #     selection_dict, "unbiaised_rmse", title_complement=f"Semidistributed geometry unbiaised RMSE distribution - {title}"
+    # )
 
     # Barplots aspect
     double_variable_barplots(selection_dict, "forest_mask_bins", "aspect_bins")
@@ -291,7 +318,8 @@ if __name__ == "__main__":
     ax.set_ylim(-60, 60)
 
     sel_vza = selection_dict.copy()
-    # sel_vza.pop("nasa_l3")
+    if "nasa_l3" in selection_dict:
+        sel_vza.pop("nasa_l3")
     sel_vza = {k: v.sel(sensor_zenith_bins=slice(0, 75)) for k, v in sel_vza.items()}
 
     raw_error_boxplots(metrics_dict=sel_vza, analysis_var="sensor_zenith_bins", ax=ax)

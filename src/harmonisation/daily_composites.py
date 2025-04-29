@@ -3,7 +3,6 @@ from pathlib import Path
 from typing import List
 
 import numpy as np
-import pyproj
 import rasterio
 import rioxarray
 import xarray as xr
@@ -13,7 +12,7 @@ from grids import GeoGrid, georef_netcdf
 from harmonisation.reprojections import resample_s2_to_grid
 from logger_setup import default_logger as logger
 from products.classes import METEOFRANCE_CLASSES, NASA_CLASSES, S2_CLASSES
-from products.filenames import get_datetime_from_viirs_meteofrance_filepath, get_datetime_from_viirs_nasa_filepath
+from products.filenames import get_datetime_from_viirs_nasa_filepath
 from products.georef import modis_crs
 from reductions.completeness import mask_of_pixels_in_range
 
@@ -155,7 +154,9 @@ def create_temporal_composite_meteofrance(daily_snow_cover_files: List[str], dai
             invalid_masks[idx] < invalid_mask_best_observation, view_angles_daily_array[idx], out_view_angle
         )
 
-    sample_data = xr.open_dataset(daily_geometry_files[0], decode_cf=True).data_vars["band_data"].sel(band=1).drop_vars("band")
+    sample_data = (
+        xr.open_dataset(daily_snow_cover_files[0], decode_cf=True).data_vars["band_data"].sel(band=1).drop_vars("band")
+    )
     day_dataset = xr.Dataset(
         {
             "snow_cover_fraction": xr.DataArray(out_snow_cover, dims=sample_data.dims, coords=sample_data.coords),

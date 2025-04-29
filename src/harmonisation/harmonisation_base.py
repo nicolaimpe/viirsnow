@@ -52,7 +52,11 @@ class HarmonisationBase:
         pass
 
     def check_scf_not_empty(self, daily_composite: xr.Dataset) -> None:
-        snow_cover = daily_composite.data_vars["snow_cover_fraction"]
+        snow_cover = (
+            daily_composite.data_vars["snow_cover_fraction"]
+            if "snow_cover_fraction" in daily_composite.data_vars
+            else daily_composite.data_vars["NDSI_Snow_Cover"]
+        )
         if (
             snow_cover.where(snow_cover <= self.classes["clouds"]).count()
             == snow_cover.where(snow_cover == self.classes["clouds"]).count()
@@ -79,9 +83,9 @@ class HarmonisationBase:
             logger.info(f"Processing day {day}")
 
             day_files = self.get_daily_files(files, day=day)
-            if day.month != 12 and day.month != 1 and day.month != 2:
-                continue
-            # if day.day > 6:
+            # if day.month != 12 and day.month != 1 and day.month != 2:
+            #     continue
+            # if day.day > 3:
             #     break
 
             day_files = self.check_daily_files(day_files=day_files)
