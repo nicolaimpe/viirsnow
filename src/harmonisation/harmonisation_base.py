@@ -28,12 +28,13 @@ def check_input_daily_tif_files(input_tif_files: List[str]) -> List[str]:
 
 
 class HarmonisationBase:
-    def __init__(self, product_name: str, output_grid: GeoGrid, data_folder: str, output_folder: str):
+    def __init__(self, product_name: str, output_grid: GeoGrid, data_folder: str, output_folder: str, platform: str):
         self.product_name = product_name
         self.grid = output_grid
         self.data_folder = data_folder
         self.output_folder = output_folder
         self.classes = PRODUCT_CLASSES_DICT[product_name]
+        self.platform = platform
 
     @abc.abstractmethod
     def get_all_files_of_winter_year(self, winter_year: WinterYear) -> List[str]:
@@ -85,7 +86,7 @@ class HarmonisationBase:
             day_files = self.get_daily_files(files, day=day)
             # if day.month != 12 and day.month != 1 and day.month != 2:
             #     continue
-            # if day.day > 3:
+            # if day.day > 6:
             #     break
 
             day_files = self.check_daily_files(day_files=day_files)
@@ -117,7 +118,7 @@ class HarmonisationBase:
         encodings = generate_xarray_compression_encodings(time_series)
         encodings.update(time={"calendar": "gregorian", "units": f"days since {str(winter_year.from_year)}-10-01"})
         time_series.to_netcdf(
-            f"{self.output_folder}/WY_{winter_year.from_year}_{winter_year.to_year}_{self.product_name}.nc",
+            f"{self.output_folder}/WY_{winter_year.from_year}_{winter_year.to_year}_{self.product_name}_{self.platform}.nc",
             encoding=encodings,
         )
         [os.remove(file) for file in out_tmp_paths]

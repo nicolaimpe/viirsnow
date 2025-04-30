@@ -106,7 +106,7 @@ class SnowCoverProductCompleteness:
         return n_pixels_tot
 
     def _all_statistics(self, data_array: xr.DataArray, exclude_nodata: bool = False) -> Dict[str, float]:
-        logger.info(f"Processing time: {data_array.coords['time'].values[0]}")
+        logger.info(f"Processing time: {data_array.coords['time'].values[0].astype('M8[D]').astype('O')}")
 
         results_coords = xr.Coordinates({"class_name": list(self.classes.keys())})
 
@@ -188,7 +188,7 @@ class S2SnowCoverProductCompleteness(SnowCoverProductCompleteness):
 
 
 if __name__ == "__main__":
-    products_to_evaluate = ["nasa_l3", "meteofrance_orgi", "meteofrance_synopsis"]
+    products_to_evaluate = ["nasa_l3", "meteofrance_orig", "meteofrance_synopsis"]
     output_folder = "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_6"
 
     evaluation_dict: Dict[str, Dict[str, SnowCoverProductCompleteness]] = {
@@ -202,7 +202,9 @@ if __name__ == "__main__":
 
     for product in products_to_evaluate:
         analyzer = evaluation_dict[product]["evaluator"]
-        test_series = xr.open_dataset(f"WY_2023_2024_{product}.nc").sel(time="2023-12")
+        test_series = xr.open_dataset(f"{output_folder}/time_series/WY_2023_2024_{product}.nc").sel(
+            time=slice("2023-12", "2024-06")
+        )
         analyzer.year_temporal_analysis(
             snow_cover_product_time_series_data_array=test_series["snow_cover_fraction"],
             netcdf_export_path=f"{output_folder}/analyses/completeness/completeness_WY_2023_2024_{product}.nc",

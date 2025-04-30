@@ -11,7 +11,7 @@ from scores.categorical import BasicContingencyManager
 from sklearn.metrics import ConfusionMatrixDisplay
 
 from postprocess.general_purpose import fancy_table
-from products.plot_settings import MF_NO_S2_FSC_SCREEN, MF_S2_FSC_SCREEN, PRODUCT_PLOT_NAMES
+from products.plot_settings import MF_NO_FOREST_VAR_NAME, PRODUCT_PLOT_NAMES
 
 SCORES = ["accuracy", "precision", "recall", "f1_score", "commission_error", "omission_error"]
 
@@ -161,29 +161,32 @@ if __name__ == "__main__":
 
     analyses_dict = {
         # MF_ORIG_VAR_NAME: xr.open_dataset(
-        #     f"{analysis_folder}/confusion_table_WY_2023_2024_meteofrance_synopsis_vs_s2_theia.nc", decode_cf=True
+        #     f"{analysis_folder}/confusion_table_WY_2023_2024_meteofrance_orig_vs_s2_theia.nc", decode_cf=True
         # ),
         MF_SYNOPSIS_VAR_NAME: xr.open_dataset(
             f"{analysis_folder}/confusion_table_WY_2023_2024_meteofrance_synopsis_vs_s2_theia.nc",
             decode_cf=True,
         ),
-        MF_NO_CC_MASK_VAR_NAME: xr.open_dataset(
-            f"{analysis_folder}/confusion_table_WY_2023_2024_meteofrance_no_cc_mask_vs_s2_theia.nc",
+        MF_NO_FOREST_VAR_NAME: xr.open_dataset(
+            f"{analysis_folder}/confusion_table_WY_2023_2024_meteofrance_no_forest_vs_s2_theia.nc",
             decode_cf=True,
         ),
-        MF_REFL_SCREEN_VAR_NAME: xr.open_dataset(
-            f"{analysis_folder}/confusion_table_WY_2023_2024_meteofrance_modified_vs_s2_theia.nc",
-            decode_cf=True,
-        ),
-        # NASA_PSEUDO_L3_VAR_NAME: xr.open_dataset(
+        # MF_NO_CC_MASK_VAR_NAME: xr.open_dataset(
+        #     f"{analysis_folder}/confusion_table_WY_2023_2024_meteofrance_no_cc_mask_vs_s2_theia.nc",
+        #     decode_cf=True,
+        # ),
+        # MF_REFL_SCREEN_VAR_NAME: xr.open_dataset(
         #     f"{analysis_folder}/confusion_table_WY_2023_2024_meteofrance_modified_vs_s2_theia.nc",
         #     decode_cf=True,
         # ),
-        # NASA_L3_VAR_NAME: xr.open_dataset(
-        #     f"{analysis_folder}/confusion_table_WY_2023_2024_nasa_l3_vs_s2_theia.nc",
+        # NASA_PSEUDO_L3_VAR_NAME: xr.open_dataset(
+        #     f"{analysis_folder}/confusion_table_WY_2023_2024_nasa_pseudo_l3_vs_s2_theia.nc",
         #     decode_cf=True,
         # ),
-        # ),
+        NASA_L3_VAR_NAME: xr.open_dataset(
+            f"{analysis_folder}/confusion_table_WY_2023_2024_nasa_l3_vs_s2_theia.nc",
+            decode_cf=True,
+        ),
     }
 
     # analyses_dict = {
@@ -195,7 +198,7 @@ if __name__ == "__main__":
     #         f"{analysis_folder}/confusion_table_WY_2023_2024_meteofrance_synopsis_vs_s2_theia.nc", decode_cf=True
     #     ),
     # }
-    evaluation_domain = "general"
+    evaluation_domain = "accumulation"
     selection_dict, title = sel_evaluation_domain(analyses_dict=analyses_dict, evaluation_domain=evaluation_domain)
     ################# Launch analysis ###########################
 
@@ -209,7 +212,7 @@ if __name__ == "__main__":
     sel_no_vza = selection_dict.copy()
     if "nasa_l3" in sel_no_vza:
         sel_no_vza.pop("nasa_l3")
-        sel_no_vza.pop(MF_NO_CC_MASK_VAR_NAME)
+
     # Sensor zenith
     sel_no_vza = {
         k: v.sel(sensor_zenith_bins=slice(None, 90)).assign_coords(
@@ -257,16 +260,16 @@ if __name__ == "__main__":
     # )
 
     # Slope
-    selection_dict = {
-        k: v.sel(slope_bins=slice(None, 50)).assign_coords({"slope_bins": ["0-10", "10-30", "30-50"]})
-        for k, v in selection_dict.items()
-    }
-    plot_multiple_scores_sns(
-        metrics_dict=selection_dict,
-        variable="slope_bins",
-        xlabel="Slope [°]",
-        title_complement=f"Slope - {title} - {str(wy)}",
-    )
+    # selection_dict = {
+    #     k: v.sel(slope_bins=slice(None, 50)).assign_coords({"slope_bins": ["0-10", "10-30", "30-50"]})
+    #     for k, v in selection_dict.items()
+    # }
+    # plot_multiple_scores_sns(
+    #     metrics_dict=selection_dict,
+    #     variable="slope_bins",
+    #     xlabel="Slope [°]",
+    #     title_complement=f"Slope - {title} - {str(wy)}",
+    # )
     # vegetation
     plot_multiple_scores_sns(
         metrics_dict=selection_dict,

@@ -106,12 +106,13 @@ if __name__ == "__main__":
     working_folder = "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_6/"
 
     evaluation_dict: Dict[str, Dict[str, Uncertainty]] = {
-        "meteofrance_orig": {"evaluator": UncertaintyMeteoFrance(), "config": config},
-        "meteofrance_synopsis": {"evaluator": UncertaintyMeteoFrance(), "config": config},
-        "meteofrance_no_cc_mask": {"evaluator": UncertaintyMeteoFrance(), "config": config},
-        "meteofrance_modified": {"evaluator": UncertaintyMeteoFrance(), "config": config},
+        # "meteofrance_orig": {"evaluator": UncertaintyMeteoFrance(), "config": config},
+        # "meteofrance_synopsis": {"evaluator": UncertaintyMeteoFrance(), "config": config},
+        # "meteofrance_no_cc_mask": {"evaluator": UncertaintyMeteoFrance(), "config": config},
+        # "meteofrance_modified": {"evaluator": UncertaintyMeteoFrance(), "config": config},
         # "nasa_pseudo_l3": {"evaluator": UncertaintyNASA(), "config": config},
-        # "nasa_l3": {"evaluator": UncertaintyNASA(), "config": config_nasa_l3},
+        "nasa_l3_snpp": {"evaluator": UncertaintyNASA(), "config": config_nasa_l3},
+        "nasa_l3_jpss1": {"evaluator": UncertaintyNASA(), "config": config_nasa_l3},
     }
 
     for product, evaluator in evaluation_dict.items():
@@ -121,7 +122,7 @@ if __name__ == "__main__":
             year=WinterYear(2023, 2024),
             test_product_name=product,
             ref_product_name="s2_theia",
-            period=None,
+            period=slice("2023-11", "2024-06"),
         )
         logger.info(f"Evaluating product {product}")
         metrics_calcuator = evaluator["evaluator"]

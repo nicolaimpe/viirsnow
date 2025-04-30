@@ -58,38 +58,42 @@ for rejeu_file in rejeu_files:
 
     orig = np.where(cloud == 2, METEOFRANCE_CLASSES["clouds"][0], rejeu)
 
-    distance_mask = distance_transform_edt(cc_mask)
-    distance_mask[distance_mask < 17] = 1
-    distance_mask[distance_mask >= 17] = 0
-    rejeu_no_cc_mask = np.where((1 - distance_mask) * (fsc > 0) * (rejeu < METEOFRANCE_CLASSES["water"][0]), fsc, rejeu)
+    # distance_mask = distance_transform_edt(cc_mask)
+    # distance_mask[distance_mask < 17] = 1
+    # distance_mask[distance_mask >= 17] = 0
+    # rejeu_no_cc_mask = np.where((1 - distance_mask) * (fsc > 0) * (rejeu < METEOFRANCE_CLASSES["water"][0]), fsc, rejeu)
 
-    rejeu_no_cc_mask = np.where(
-        forest_mask * (rejeu_no_cc_mask > 0) * (rejeu_no_cc_mask <= METEOFRANCE_CLASSES["snow_cover"][-1]),
-        METEOFRANCE_CLASSES["forest_with_snow"][0],
-        rejeu_no_cc_mask,
-    )
+    # rejeu_no_cc_mask = np.where(
+    #     forest_mask * (rejeu_no_cc_mask > 0) * (rejeu_no_cc_mask <= METEOFRANCE_CLASSES["snow_cover"][-1]),
+    #     METEOFRANCE_CLASSES["forest_with_snow"][0],
+    #     rejeu_no_cc_mask,
+    # )
 
     # FSC<100 approx NDSI 0.66
-    low_refl_mask = (cc_nir_800 < 40) * (fsc <= 100) * (fsc > 0)
-    modified = np.where(
-        rejeu > METEOFRANCE_CLASSES["forest_with_snow"][0],
-        rejeu,
-        np.where(1 - low_refl_mask, rejeu, METEOFRANCE_CLASSES["no_snow"][0]),
-    )
-    modified = np.where((modified == 0) * forest_mask, METEOFRANCE_CLASSES["forest_without_snow"][0], modified)
+    # low_refl_mask = (cc_nir_800 < 40) * (fsc <= 100) * (fsc > 0)
+    # modified = np.where(
+    #     rejeu > METEOFRANCE_CLASSES["forest_with_snow"][0],
+    #     rejeu,
+    #     np.where(1 - low_refl_mask, rejeu, METEOFRANCE_CLASSES["no_snow"][0]),
+    # )
+    # modified = np.where((modified == 0) * forest_mask, METEOFRANCE_CLASSES["forest_without_snow"][0], modified)
 
-    with rasterio.open(rejeu_file.replace("produit_synopsis", "cc_dist_mask"), "w", **profile) as dst:
-        dst.write(distance_mask, 1)
+    # with rasterio.open(rejeu_file.replace("produit_synopsis", "cc_dist_mask"), "w", **profile) as dst:
+    #     dst.write(distance_mask, 1)
 
-    with rasterio.open(rejeu_file.replace("produit_synopsis", "produit_orig"), "w", **profile) as dst:
-        dst.write(orig, 1)
+    # with rasterio.open(rejeu_file.replace("produit_synopsis", "produit_orig"), "w", **profile) as dst:
+    #     dst.write(orig, 1)
 
-    with rasterio.open(rejeu_file.replace("produit_synopsis", "produit_no_cc_mask"), "w", **profile) as dst:
-        dst.write(rejeu_no_cc_mask, 1)
+    # with rasterio.open(rejeu_file.replace("produit_synopsis", "produit_no_cc_mask"), "w", **profile) as dst:
+    #     dst.write(rejeu_no_cc_mask, 1)
 
-    with rasterio.open(rejeu_file.replace("produit_synopsis", "produit_modified"), "w", **profile) as dst:
-        dst.write(modified, 1)
+    # with rasterio.open(rejeu_file.replace("produit_synopsis", "produit_modified"), "w", **profile) as dst:
+    #     dst.write(modified, 1)
 
-    ndsi_snow_cover = np.where((rejeu > 0) * (rejeu <= 200), (ndsi - 100) * 2, rejeu)
-    with rasterio.open(rejeu_file.replace("produit_synopsis", "ndsi_snow_cover"), "w", **profile) as dst:
-        dst.write(ndsi_snow_cover, 1)
+    # ndsi_snow_cover = np.where((rejeu > 0) * (rejeu <= 200), (ndsi - 100) * 2, rejeu)
+    # with rasterio.open(rejeu_file.replace("produit_synopsis", "ndsi_snow_cover"), "w", **profile) as dst:
+    #     dst.write(ndsi_snow_cover, 1)
+
+    no_forest = np.where(rejeu == METEOFRANCE_CLASSES["forest_with_snow"], fsc, rejeu)
+    with rasterio.open(rejeu_file.replace("produit_synopsis", "no_forest"), "w", **profile) as dst:
+        dst.write(no_forest, 1)

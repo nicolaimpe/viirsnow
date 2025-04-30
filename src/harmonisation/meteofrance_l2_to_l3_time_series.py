@@ -70,7 +70,7 @@ class MeteoFranceSynopsisHarmonisation(HarmonisationBase):
 if __name__ == "__main__":
     year = WinterYear(2023, 2024)
 
-    suffixes = ["orig", "modified", "no_cc_mask", "synopsis", "ndsi_snow_cover"]
+    suffixes = ["no_forest"]
     massifs_shapefile = "/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/vectorial/massifs/massifs.shp"
     meteofrance_cms_folder = "/home/imperatoren/work/VIIRS_S2_comparison/data/CMS_rejeu"
     grid = UTM375mGrid()

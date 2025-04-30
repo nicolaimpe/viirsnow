@@ -19,11 +19,14 @@ from reductions.snow_cover_extent_cross_comparison import WinterYear
 
 
 class NASAL3Harmonisation(HarmonisationBase):
-    def __init__(self, output_grid: GeoGrid, data_folder: str, output_folder: str):
-        super().__init__(NASA_L3_VAR_NAME, output_grid, data_folder, output_folder)
+    def __init__(self, output_grid: GeoGrid, data_folder: str, output_folder: str, platform: str):
+        super().__init__(NASA_L3_VAR_NAME, output_grid, data_folder, output_folder, platform)
 
     def get_all_files_of_winter_year(self, winter_year: WinterYear) -> List[str]:
-        snow_cover_file_list = get_all_nasa_filenames_per_product(data_folder=self.data_folder, product_id="VNP10A1")
+        platform_product_id = {"snpp": "VNP10A1", "jpss1": "VJ110A1"}
+        snow_cover_file_list = get_all_nasa_filenames_per_product(
+            data_folder=self.data_folder, product_id=platform_product_id[self.platform]
+        )
         return snow_cover_file_list
 
     def get_daily_files(self, all_winter_year_files: List[str], day: datetime) -> List[str]:
@@ -124,11 +127,11 @@ if __name__ == "__main__":
     nasa_l3_folder = "/home/imperatoren/work/VIIRS_S2_comparison/data/"
     output_folder = "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_6/time_series/"
     grid = UTM375mGrid()
-
+    platform = "jpss1"
     logger.info("NASA L3 processing")
-    NASAL3Harmonisation(output_grid=grid, data_folder=nasa_l3_folder, output_folder=output_folder).create_time_series(
-        winter_year=year, roi_shapefile=massifs_shapefile
-    )
+    NASAL3Harmonisation(
+        output_grid=grid, data_folder=nasa_l3_folder, output_folder=output_folder, platform=platform
+    ).create_time_series(winter_year=year, roi_shapefile=massifs_shapefile)
 
     # logger.info("NASA psuedo L3 processing")
     # NASAPseudoL3Harmonisation(output_grid=grid, data_folder=nasa_l3_folder, output_folder=output_folder).create_time_series(

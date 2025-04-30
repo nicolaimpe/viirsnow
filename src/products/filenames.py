@@ -8,8 +8,13 @@ import rasterio
 
 from winter_year import WinterYear
 
-nasa_format_per_product = {"VNP10A1": "h5", "VNP10_UTM_375m": "nc", "VNP03IMG_UTM_375m": "nc"}
-nasa_collection_per_product_id = {"VNP10A1": "V10A1", "VNP10_UTM_375m": "V10", "VNP03IMG_UTM_375m": "V03IMG"}
+nasa_format_per_product = {"VNP10A1": "h5", "VJ110A1": "h5", "VNP10_UTM_375m": "nc", "VNP03IMG_UTM_375m": "nc"}
+nasa_collection_per_product_id = {
+    "VNP10A1": "V10A1",
+    "VJ110A1": "V10A1",
+    "VNP10_UTM_375m": "V10",
+    "VNP03IMG_UTM_375m": "V03IMG",
+}
 
 
 def timestamp_nasa_to_datetime(observation_timestamp: str) -> datetime:

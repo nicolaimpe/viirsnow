@@ -24,10 +24,10 @@ class ConfusionTable(EvaluationVsHighResBase):
         test_fsc_threshold: float | None = None,
     ):
         if ref_fsc_threshold == 0:
-            raise ValueError("Ref FSC threshold cannot be 0. Select None or an integre between 1 and 100.")
+            raise ValueError("Ref FSC threshold cannot be 0. Select None or an integer between 1 and 100.")
         self.ref_fsc_threshold = ref_fsc_threshold if ref_fsc_threshold is not None else 1
         if test_fsc_threshold == 0:
-            raise ValueError("Test FSC threshold cannot be 0. Select None or an integre between 1 and 100.")
+            raise ValueError("Test FSC threshold cannot be 0. Select None or an integer between 1 and 100.")
         self.test_fsc_threshold = test_fsc_threshold if test_fsc_threshold is not None else 1
         super().__init__(reference_analyzer, test_analyzer)
 
@@ -46,21 +46,29 @@ class ConfusionTable(EvaluationVsHighResBase):
                 }
             )
         snow_test = self.test_analyzer.total_snow_mask(data_array=dataset["test"])
-        if self.test_fsc_threshold > 1:
-            snow_test = snow_test ^ mask_of_pixels_in_range(
-                range=range(1, self.test_fsc_threshold), data_array=dataset["test"]
-            )
         no_snow_test = self.test_analyzer.total_no_snow_mask(dataset["test"])
 
-        snow_ref = mask_of_pixels_in_range(
-            range=range(self.ref_fsc_threshold, self.ref_analyzer.max_fsc + 1), data_array=dataset["ref"]
-        )
+        if self.test_fsc_threshold > 1:
+            mask_snow_0_50_test = mask_of_pixels_in_range(
+                range=range(1, self.test_fsc_threshold * int(self.test_analyzer.max_fsc / 100)), data_array=dataset["test"]
+            )
+            snow_test = snow_test ^ mask_snow_0_50_test
+            no_snow_test = no_snow_test + mask_snow_0_50_test
+
+        snow_ref = self.ref_analyzer.total_snow_mask(data_array=dataset["ref"])
         no_snow_ref = self.ref_analyzer.total_no_snow_mask(dataset["ref"])
+        if self.ref_fsc_threshold > 1:
+            mask_snow_0_50_ref = mask_of_pixels_in_range(
+                range=range(1, self.ref_fsc_threshold * int(self.ref_analyzer.max_fsc / 100)), data_array=dataset["ref"]
+            )
+            snow_ref = snow_ref ^ mask_snow_0_50_ref
+            no_snow_ref = no_snow_ref + mask_snow_0_50_ref
 
         dataset = dataset.assign({"true_positive": snow_test & snow_ref})
         dataset = dataset.assign({"true_negative": no_snow_test & no_snow_ref})
         dataset = dataset.assign({"false_positive": snow_test & no_snow_ref})
         dataset = dataset.assign({"false_negative": no_snow_test & snow_ref})
+
         out_dataset = dataset.groupby(bins_dict).map(self.sum_masks)
         return out_dataset
 
@@ -114,10 +122,10 @@ class ConfusionTableNASA(ConfusionTable):
 
 if __name__ == "__main__":
     config = EvaluationConfig(
-        ref_fsc_step=10,
+        ref_fsc_step=99,
         sensor_zenith_analysis=True,
         forest_mask_path="/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/forest_mask/corine_2006_forest_mask_utm.tif",
-        slope_map_path="/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/dem/SLP_MSF_UTM31_375m_lanczos.tif",
+        slope_map_path=None,
         aspect_map_path="/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/dem/ASP_MSF_UTM31_375m_lanczos.tif",
         sub_roi_mask_path=None,
         dem_path="/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/dem/DEM_MSF_UTM31_375m_lanczos.tif",
@@ -128,8 +136,8 @@ if __name__ == "__main__":
 
     working_folder = "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_6/"
 
-    ref_fsc_threshold = 50
-    test_fsc_threshold = 50
+    ref_fsc_threshold = None
+    test_fsc_threshold = None
 
     evaluation_dict: Dict[str, Dict[str, ConfusionTable]] = {
         "meteofrance_orig": {
@@ -137,6 +145,10 @@ if __name__ == "__main__":
             "config": config,
         },
         "meteofrance_synopsis": {
+            "evaluator": ConfusionTableMeteoFrance(ref_fsc_threshold=ref_fsc_threshold, test_fsc_threshold=test_fsc_threshold),
+            "config": config,
+        },
+        "meteofrance_no_forest": {
             "evaluator": ConfusionTableMeteoFrance(ref_fsc_threshold=ref_fsc_threshold, test_fsc_threshold=test_fsc_threshold),
             "config": config,
         },
@@ -165,9 +177,12 @@ if __name__ == "__main__":
             year=WinterYear(2023, 2024),
             ref_product_name="s2_theia",
             test_product_name=product,
-            period=None,
+            period=slice("2023-11", "2024-06"),
         )
         logger.info(f"Evaluating product {product}")
+        config_to_print = config.__dict__
+        config_to_print.update(ref_fsc_threshold=ref_fsc_threshold, test_fsc_threshold=test_fsc_threshold)
+        logger.info(f"Config: {config_to_print}")
         metrics_calcuator = evaluator["evaluator"]
         metrics_calcuator.contingency_analysis(
             test_time_series=test_time_series,
