@@ -188,7 +188,6 @@ class S2SnowCoverProductCompleteness(SnowCoverProductCompleteness):
 
 
 if __name__ == "__main__":
-    products_to_evaluate = ["nasa_l3", "meteofrance_orig", "meteofrance_synopsis"]
     output_folder = "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_6"
 
     evaluation_dict: Dict[str, Dict[str, SnowCoverProductCompleteness]] = {
@@ -196,14 +195,16 @@ if __name__ == "__main__":
         "meteofrance_synopsis": {"evaluator": MeteoFranceSnowCoverProductCompleteness()},
         # "meteofrance_no_cc_mask": {"evaluator": MeteoFranceSnowCoverProductCompleteness(), "config": config},
         # "meteofrance_modified": {"evaluator": MeteoFranceSnowCoverProductCompleteness(), "config": config},
-        # "nasa_pseudo_l3": {"evaluator": NASASnowCoverProductCompleteness(), "config": config},
-        "nasa_l3": {"evaluator": NASASnowCoverProductCompleteness()},
+        "nasa_pseudo_l3": {"evaluator": NASASnowCoverProductCompleteness()},
+        "nasa_l3_snpp": {"evaluator": NASASnowCoverProductCompleteness()},
+        "nasa_l3_jpss1": {"evaluator": NASASnowCoverProductCompleteness()},
     }
 
-    for product in products_to_evaluate:
+    for product in evaluation_dict:
+        logger.info(f"Evaluating product {product}")
         analyzer = evaluation_dict[product]["evaluator"]
         test_series = xr.open_dataset(f"{output_folder}/time_series/WY_2023_2024_{product}.nc").sel(
-            time=slice("2023-12", "2024-06")
+            time=slice("2023-11", "2024-06")
         )
         analyzer.year_temporal_analysis(
             snow_cover_product_time_series_data_array=test_series["snow_cover_fraction"],

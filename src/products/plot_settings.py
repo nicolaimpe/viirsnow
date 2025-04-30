@@ -3,12 +3,14 @@
     NASA_PSEUDO_L3_VAR_NAME,
     NASA_L3_SNPP_VAR_NAME,
     NASA_L3_JPSS1_VAR_NAME,
+    NASA_L3_MULTIPLATFORM_VAR_NAME,
     S2_THEIA_VAR_NAME,
 ) = (
     "meteofrance_l3",
     "nasa_pseudo_l3_snpp",
     "nasa_l3_snpp",
     "nasa_l3_jpss1",
+    "nasa_l3_multiplatform",
     "s2_theia",
 )
 
@@ -23,17 +25,19 @@ PRODUCT_PLOT_NAMES = {
     NASA_PSEUDO_L3_VAR_NAME: "NASA pseudo L3 SNPP",
     NASA_L3_SNPP_VAR_NAME: "NASA SNPP",
     NASA_L3_JPSS1_VAR_NAME: "NASA JPSS1",
+    NASA_L3_MULTIPLATFORM_VAR_NAME: "NASA multiplatform",
     MF_SYNOPSIS_VAR_NAME: "MF Cloud mask relaxed",
     MF_ORIG_VAR_NAME: "MF archive",
-    MF_NO_CC_MASK_VAR_NAME: "No CC mask",
-    MF_REFL_SCREEN_VAR_NAME: "CC band R screen",
-    MF_NO_FOREST_VAR_NAME: "No forest mask",
+    MF_NO_CC_MASK_VAR_NAME: "MF No CC mask",
+    MF_REFL_SCREEN_VAR_NAME: "MF CC band R screen",
+    MF_NO_FOREST_VAR_NAME: "MF No forest mask",
 }
 PRODUCT_PLOT_COLORS = {
     METEOFRANCE_VAR_NAME: "tab:blue",
     NASA_PSEUDO_L3_VAR_NAME: "tab:green",
     NASA_L3_SNPP_VAR_NAME: "paleturquoise",
     NASA_L3_JPSS1_VAR_NAME: "darkcyan",
+    NASA_L3_MULTIPLATFORM_VAR_NAME: "steelblue",
     MF_SYNOPSIS_VAR_NAME: "tan",
     MF_ORIG_VAR_NAME: "linen",
     MF_NO_CC_MASK_VAR_NAME: "darkorange",

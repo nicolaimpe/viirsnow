@@ -110,9 +110,10 @@ if __name__ == "__main__":
         # "meteofrance_synopsis": {"evaluator": UncertaintyMeteoFrance(), "config": config},
         # "meteofrance_no_cc_mask": {"evaluator": UncertaintyMeteoFrance(), "config": config},
         # "meteofrance_modified": {"evaluator": UncertaintyMeteoFrance(), "config": config},
+        "meteofrance_no_forest": {"evaluator": UncertaintyMeteoFrance(), "config": config},
         # "nasa_pseudo_l3": {"evaluator": UncertaintyNASA(), "config": config},
-        "nasa_l3_snpp": {"evaluator": UncertaintyNASA(), "config": config_nasa_l3},
-        "nasa_l3_jpss1": {"evaluator": UncertaintyNASA(), "config": config_nasa_l3},
+        # "nasa_l3_snpp": {"evaluator": UncertaintyNASA(), "config": config_nasa_l3},
+        # "nasa_l3_jpss1": {"evaluator": UncertaintyNASA(), "config": config_nasa_l3},
     }
 
     for product, evaluator in evaluation_dict.items():

@@ -120,15 +120,25 @@ class ConfusionTableNASA(ConfusionTable):
         )
 
 
+class ConfusionTableMeteoFGranceVsNASA(ConfusionTable):
+    def __init__(self, ref_fsc_threshold: float | None = None, test_fsc_threshold: float | None = None) -> None:
+        super().__init__(
+            reference_analyzer=MeteoFranceSnowCoverProductCompleteness(),
+            test_analyzer=NASASnowCoverProductCompleteness(),
+            ref_fsc_threshold=ref_fsc_threshold,
+            test_fsc_threshold=test_fsc_threshold,
+        )
+
+
 if __name__ == "__main__":
     config = EvaluationConfig(
         ref_fsc_step=99,
         sensor_zenith_analysis=True,
-        forest_mask_path="/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/forest_mask/corine_2006_forest_mask_utm.tif",
+        forest_mask_path=None,
         slope_map_path=None,
-        aspect_map_path="/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/dem/ASP_MSF_UTM31_375m_lanczos.tif",
+        aspect_map_path=None,
         sub_roi_mask_path=None,
-        dem_path="/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/dem/DEM_MSF_UTM31_375m_lanczos.tif",
+        dem_path=None,
     )
 
     config_nasa_l3 = deepcopy(config)
@@ -136,35 +146,46 @@ if __name__ == "__main__":
 
     working_folder = "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_6/"
 
-    ref_fsc_threshold = None
-    test_fsc_threshold = None
+    ref_fsc_threshold = 15
+    test_fsc_threshold = 15
 
     evaluation_dict: Dict[str, Dict[str, ConfusionTable]] = {
-        "meteofrance_orig": {
-            "evaluator": ConfusionTableMeteoFrance(ref_fsc_threshold=ref_fsc_threshold, test_fsc_threshold=test_fsc_threshold),
-            "config": config,
-        },
-        "meteofrance_synopsis": {
-            "evaluator": ConfusionTableMeteoFrance(ref_fsc_threshold=ref_fsc_threshold, test_fsc_threshold=test_fsc_threshold),
-            "config": config,
-        },
-        "meteofrance_no_forest": {
-            "evaluator": ConfusionTableMeteoFrance(ref_fsc_threshold=ref_fsc_threshold, test_fsc_threshold=test_fsc_threshold),
-            "config": config,
-        },
-        "meteofrance_no_cc_mask": {
-            "evaluator": ConfusionTableMeteoFrance(ref_fsc_threshold=ref_fsc_threshold, test_fsc_threshold=test_fsc_threshold),
-            "config": config,
-        },
-        "meteofrance_modified": {
-            "evaluator": ConfusionTableMeteoFrance(ref_fsc_threshold=ref_fsc_threshold, test_fsc_threshold=test_fsc_threshold),
-            "config": config,
-        },
-        "nasa_pseudo_l3": {
-            "evaluator": ConfusionTableNASA(ref_fsc_threshold=ref_fsc_threshold, test_fsc_threshold=test_fsc_threshold),
-            "config": config,
-        },
-        "nasa_l3": {
+        # "meteofrance_orig": {
+        #     "evaluator": ConfusionTableMeteoFrance(ref_fsc_threshold=ref_fsc_threshold, test_fsc_threshold=test_fsc_threshold),
+        #     "config": config,
+        # },
+        # "meteofrance_synopsis": {
+        #     "evaluator": ConfusionTableMeteoFrance(ref_fsc_threshold=ref_fsc_threshold, test_fsc_threshold=test_fsc_threshold),
+        #     "config": config,
+        # },
+        # "meteofrance_no_forest": {
+        #     "evaluator": ConfusionTableMeteoFrance(ref_fsc_threshold=ref_fsc_threshold, test_fsc_threshold=test_fsc_threshold),
+        #     "config": config,
+        # },
+        # "meteofrance_no_cc_mask": {
+        #     "evaluator": ConfusionTableMeteoFrance(ref_fsc_threshold=ref_fsc_threshold, test_fsc_threshold=test_fsc_threshold),
+        #     "config": config,
+        # },
+        # "meteofrance_modified": {
+        #     "evaluator": ConfusionTableMeteoFrance(ref_fsc_threshold=ref_fsc_threshold, test_fsc_threshold=test_fsc_threshold),
+        #     "config": config,
+        # },
+        # "nasa_pseudo_l3": {
+        #     "evaluator": ConfusionTableNASA(ref_fsc_threshold=ref_fsc_threshold, test_fsc_threshold=test_fsc_threshold),
+        #     "config": config,
+        # },
+        # "nasa_l3_snpp": {
+        #     "evaluator": ConfusionTableNASA(ref_fsc_threshold=ref_fsc_threshold, test_fsc_threshold=test_fsc_threshold),
+        #     "config": config_nasa_l3,
+        # },
+        # "nasa_l3_jpss1": {
+        #     "evaluator": ConfusionTableNASA(ref_fsc_threshold=ref_fsc_threshold, test_fsc_threshold=test_fsc_threshold),
+        #     "config": config_nasa_l3,
+        # },
+    }
+
+    evaluation_dict: Dict[str, Dict[str, ConfusionTable]] = {
+        "meteofrance_vs_nasa_snpp": {
             "evaluator": ConfusionTableNASA(ref_fsc_threshold=ref_fsc_threshold, test_fsc_threshold=test_fsc_threshold),
             "config": config_nasa_l3,
         },
@@ -175,8 +196,8 @@ if __name__ == "__main__":
             analysis_type="confusion_table",
             working_folder=working_folder,
             year=WinterYear(2023, 2024),
-            ref_product_name="s2_theia",
-            test_product_name=product,
+            ref_product_name="meteofrance_synopsis",
+            test_product_name="nasa_l3_snpp",
             period=slice("2023-11", "2024-06"),
         )
         logger.info(f"Evaluating product {product}")

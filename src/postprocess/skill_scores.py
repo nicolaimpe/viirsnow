@@ -11,7 +11,7 @@ from scores.categorical import BasicContingencyManager
 from sklearn.metrics import ConfusionMatrixDisplay
 
 from postprocess.general_purpose import fancy_table
-from products.plot_settings import MF_NO_FOREST_VAR_NAME, PRODUCT_PLOT_NAMES
+from products.plot_settings import MF_NO_FOREST_VAR_NAME, NASA_L3_JPSS1_VAR_NAME, PRODUCT_PLOT_NAMES
 
 SCORES = ["accuracy", "precision", "recall", "f1_score", "commission_error", "omission_error"]
 
@@ -149,24 +149,26 @@ if __name__ == "__main__":
         MF_ORIG_VAR_NAME,
         MF_REFL_SCREEN_VAR_NAME,
         MF_SYNOPSIS_VAR_NAME,
-        NASA_L3_VAR_NAME,
+        NASA_L3_SNPP_VAR_NAME,
         NASA_PSEUDO_L3_VAR_NAME,
     )
     from reductions.statistics_base import EvaluationVsHighResBase
     from winter_year import WinterYear
 
     wy = WinterYear(2023, 2024)
-    analysis_folder = "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_6/analyses/confusion_table"
+    analysis_folder = (
+        "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_6_conf_table_50/analyses/confusion_table"
+    )
     analysis_type = "confusion_table"
 
     analyses_dict = {
         # MF_ORIG_VAR_NAME: xr.open_dataset(
         #     f"{analysis_folder}/confusion_table_WY_2023_2024_meteofrance_orig_vs_s2_theia.nc", decode_cf=True
         # ),
-        MF_SYNOPSIS_VAR_NAME: xr.open_dataset(
-            f"{analysis_folder}/confusion_table_WY_2023_2024_meteofrance_synopsis_vs_s2_theia.nc",
-            decode_cf=True,
-        ),
+        # MF_SYNOPSIS_VAR_NAME: xr.open_dataset(
+        #     f"{analysis_folder}/confusion_table_WY_2023_2024_meteofrance_synopsis_vs_s2_theia.nc",
+        #     decode_cf=True,
+        # ),
         MF_NO_FOREST_VAR_NAME: xr.open_dataset(
             f"{analysis_folder}/confusion_table_WY_2023_2024_meteofrance_no_forest_vs_s2_theia.nc",
             decode_cf=True,
@@ -179,12 +181,16 @@ if __name__ == "__main__":
         #     f"{analysis_folder}/confusion_table_WY_2023_2024_meteofrance_modified_vs_s2_theia.nc",
         #     decode_cf=True,
         # ),
-        # NASA_PSEUDO_L3_VAR_NAME: xr.open_dataset(
-        #     f"{analysis_folder}/confusion_table_WY_2023_2024_nasa_pseudo_l3_vs_s2_theia.nc",
-        #     decode_cf=True,
-        # ),
-        NASA_L3_VAR_NAME: xr.open_dataset(
-            f"{analysis_folder}/confusion_table_WY_2023_2024_nasa_l3_vs_s2_theia.nc",
+        NASA_PSEUDO_L3_VAR_NAME: xr.open_dataset(
+            f"{analysis_folder}/confusion_table_WY_2023_2024_nasa_pseudo_l3_vs_s2_theia.nc",
+            decode_cf=True,
+        ),
+        NASA_L3_SNPP_VAR_NAME: xr.open_dataset(
+            f"{analysis_folder}/confusion_table_WY_2023_2024_nasa_l3_snpp_vs_s2_theia.nc",
+            decode_cf=True,
+        ),
+        NASA_L3_JPSS1_VAR_NAME: xr.open_dataset(
+            f"{analysis_folder}/confusion_table_WY_2023_2024_nasa_l3_jpss1_vs_s2_theia.nc",
             decode_cf=True,
         ),
     }
@@ -210,9 +216,10 @@ if __name__ == "__main__":
     plt.show()
 
     sel_no_vza = selection_dict.copy()
-    if "nasa_l3" in sel_no_vza:
-        sel_no_vza.pop("nasa_l3")
-
+    if "nasa_l3_snpp" in sel_no_vza:
+        sel_no_vza.pop("nasa_l3_snpp")
+    if "nasa_l3_jpss1" in sel_no_vza:
+        sel_no_vza.pop("nasa_l3_jpss1")
     # Sensor zenith
     sel_no_vza = {
         k: v.sel(sensor_zenith_bins=slice(None, 90)).assign_coords(
