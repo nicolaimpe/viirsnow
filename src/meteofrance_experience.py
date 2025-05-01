@@ -44,6 +44,7 @@ for rejeu_file in rejeu_files:
     print("Processing ", cc_mask_file)
     print("Processing ", cc_file)
     print("Processing ", ndsi_file)
+    print(" ")
 
     # if count < 290:
     #     count += 1
@@ -70,7 +71,7 @@ for rejeu_file in rejeu_files:
     # )
 
     # FSC<100 approx NDSI 0.66
-    # low_refl_mask = (cc_nir_800 < 40) * (fsc <= 100) * (fsc > 0)
+    low_refl_mask = (cc_nir_800 < 40) * (fsc <= 100) * (fsc > 0)
     # modified = np.where(
     #     rejeu > METEOFRANCE_CLASSES["forest_with_snow"][0],
     #     rejeu,
@@ -95,5 +96,20 @@ for rejeu_file in rejeu_files:
     #     dst.write(ndsi_snow_cover, 1)
 
     no_forest = np.where(rejeu == METEOFRANCE_CLASSES["forest_with_snow"], fsc, rejeu)
-    with rasterio.open(rejeu_file.replace("produit_synopsis", "no_forest"), "w", **profile) as dst:
-        dst.write(no_forest, 1)
+    # with rasterio.open(rejeu_file.replace("produit_synopsis", "no_forest"), "w", **profile) as dst:
+    #     dst.write(no_forest, 1)
+
+    ndsi_no_forest = np.where((no_forest > 0) * (no_forest <= 200), (ndsi - 100) * 2, no_forest)
+    with rasterio.open(rejeu_file.replace("produit_synopsis", "ndsi_no_forest"), "w", **profile) as dst:
+        dst.write(ndsi_no_forest, 1)
+
+    # no_forest_modified = np.where(
+    #     no_forest > METEOFRANCE_CLASSES["forest_with_snow"][0],
+    #     no_forest,
+    #     np.where(1 - low_refl_mask, no_forest, METEOFRANCE_CLASSES["no_snow"][0]),
+    # )
+    # no_forest_modified = np.where(
+    #     (no_forest_modified == 0) * forest_mask, METEOFRANCE_CLASSES["forest_without_snow"][0], no_forest_modified
+    # )
+    # with rasterio.open(rejeu_file.replace("produit_synopsis", "no_forest_modified"), "w", **profile) as dst:
+    #     dst.write(no_forest_modified, 1)

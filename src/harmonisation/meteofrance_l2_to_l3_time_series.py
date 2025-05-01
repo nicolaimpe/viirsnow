@@ -54,7 +54,7 @@ class MeteoFranceSynopsisHarmonisation(HarmonisationBase):
             nodata=METEOFRANCE_CLASSES["nodata"][0],
             resampling_method=Resampling.bilinear,
         )
-        if self.suffix == "ndsi_snow_cover":
+        if "ndsi" in self.suffix:
             out_data_var_name = "NDSI_Snow_Cover"
         else:
             out_data_var_name = "snow_cover_fraction"
@@ -70,7 +70,7 @@ class MeteoFranceSynopsisHarmonisation(HarmonisationBase):
 if __name__ == "__main__":
     year = WinterYear(2023, 2024)
 
-    suffixes = ["no_forest"]
+    suffixes = ["ndsi_no_forest"]
     massifs_shapefile = "/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/vectorial/massifs/massifs.shp"
     meteofrance_cms_folder = "/home/imperatoren/work/VIIRS_S2_comparison/data/CMS_rejeu"
     grid = UTM375mGrid()

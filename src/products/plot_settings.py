@@ -19,6 +19,7 @@ MF_ORIG_VAR_NAME = "meteofrance_orig"
 MF_NO_CC_MASK_VAR_NAME = "meteofrance_no_cc_mask"
 MF_REFL_SCREEN_VAR_NAME = "meteofrance_modified"
 MF_NO_FOREST_VAR_NAME = "meteofrance_no_forest"
+MF_NO_FOREST_MODIFIED_VAR_NAME = "meteofrance_no_forest_modified"
 
 PRODUCT_PLOT_NAMES = {
     METEOFRANCE_VAR_NAME: "Météo-France",
@@ -31,6 +32,7 @@ PRODUCT_PLOT_NAMES = {
     MF_NO_CC_MASK_VAR_NAME: "MF No CC mask",
     MF_REFL_SCREEN_VAR_NAME: "MF CC band R screen",
     MF_NO_FOREST_VAR_NAME: "MF No forest mask",
+    MF_NO_FOREST_MODIFIED_VAR_NAME: "MF No forest mask CC band R screen",
 }
 PRODUCT_PLOT_COLORS = {
     METEOFRANCE_VAR_NAME: "tab:blue",
@@ -43,4 +45,5 @@ PRODUCT_PLOT_COLORS = {
     MF_NO_CC_MASK_VAR_NAME: "darkorange",
     MF_REFL_SCREEN_VAR_NAME: "gold",
     MF_NO_FOREST_VAR_NAME: "darkkhaki",
+    MF_NO_FOREST_MODIFIED_VAR_NAME: "khaki",
 }

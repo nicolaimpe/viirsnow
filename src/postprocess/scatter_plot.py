@@ -11,9 +11,11 @@ from fractional_snow_cover import gascoin, salomonson_appel
 from postprocess.general_purpose import sel_evaluation_domain
 from products.plot_settings import (
     METEOFRANCE_VAR_NAME,
+    MF_NO_FOREST_VAR_NAME,
     MF_ORIG_VAR_NAME,
     MF_SYNOPSIS_VAR_NAME,
-    NASA_L3_VAR_NAME,
+    NASA_L3_JPSS1_VAR_NAME,
+    NASA_L3_SNPP_VAR_NAME,
     NASA_PSEUDO_L3_VAR_NAME,
     PRODUCT_PLOT_NAMES,
 )
@@ -91,27 +93,36 @@ if __name__ == "__main__":
     #     {"forest_mask": "forest_mask_bins"}
     # )
 
-    analysis_folder = (
-        f"/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_5_complete/analyses/{analysis_type}"
-    )
-    mf_synopsis_metrics_ds = xr.open_dataset(
-        f"{analysis_folder}/{analysis_type}_WY_2023_2024_meteofrance_synopsis_vs_s2_theia.nc",
+    analysis_folder = f"/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_6/analyses/{analysis_type}"
+    # mf_synopsis_metrics_ds = xr.open_dataset(
+    #     f"{analysis_folder}/{analysis_type}_WY_2023_2024_meteofrance_synopsis_vs_s2_theia.nc",
+    #     decode_cf=True,
+    # )
+
+    mf_no_forest_metrics_ds = xr.open_dataset(
+        f"{analysis_folder}/{analysis_type}_WY_2023_2024_meteofrance_no_forest_vs_s2_theia.nc",
         decode_cf=True,
     )
 
-    nasa_l3_metrics_ds = xr.open_dataset(
-        f"{analysis_folder}/{analysis_type}_WY_2023_2024_nasa_l3_vs_s2_theia.nc", decode_cf=True
+    nasa_l3_snpp_metrics_ds = xr.open_dataset(
+        f"{analysis_folder}/{analysis_type}_WY_2023_2024_nasa_l3_snpp_vs_s2_theia.nc", decode_cf=True
     )
-    nasa_l3_metrics_ds = nasa_l3_metrics_ds.where(nasa_l3_metrics_ds > 0, drop=True)
-    nasa_pseudo_l3_metrics_ds = xr.open_dataset(
-        f"{analysis_folder}/{analysis_type}_WY_2023_2024_nasa_pseudo_l3_vs_s2_theia.nc", decode_cf=True
-    )
-    nasa_pseudo_l3_metrics_ds = nasa_pseudo_l3_metrics_ds.where(nasa_pseudo_l3_metrics_ds > 0, drop=True)
+    nasa_l3_snpp_metrics_ds = nasa_l3_snpp_metrics_ds.where(nasa_l3_snpp_metrics_ds > 0, drop=True)
 
-    meteofrance_ndsi = xr.open_dataset(
-        f"{analysis_folder}/{analysis_type}_WY_2023_2024_meteofrance_ndsi_snow_cover_vs_s2_theia_short.nc",
-        decode_cf=True,
+    nasa_l3_jpss1_metrics_ds = xr.open_dataset(
+        f"{analysis_folder}/{analysis_type}_WY_2023_2024_nasa_l3_jpss1_vs_s2_theia.nc", decode_cf=True
     )
+    nasa_l3_jpss1_metrics_ds = nasa_l3_snpp_metrics_ds.where(nasa_l3_jpss1_metrics_ds > 0, drop=True)
+
+    # nasa_pseudo_l3_metrics_ds = xr.open_dataset(
+    #     f"{analysis_folder}/{analysis_type}_WY_2023_2024_nasa_pseudo_l3_vs_s2_theia.nc", decode_cf=True
+    # )
+    # nasa_pseudo_l3_metrics_ds = nasa_pseudo_l3_metrics_ds.where(nasa_pseudo_l3_metrics_ds > 0, drop=True)
+
+    # meteofrance_ndsi = xr.open_dataset(
+    #     f"{analysis_folder}/{analysis_type}_WY_2023_2024_meteofrance_ndsi_snow_cover_vs_s2_theia_short.nc",
+    #     decode_cf=True,
+    # )
     #############
 
     analyses_dict = {
@@ -119,62 +130,64 @@ if __name__ == "__main__":
         # MF_ORIG_VAR_NAME: mf_orig_metrics_ds,
         # MF_SYNOPSIS_VAR_NAME: mf_synopsis_metrics_ds,
         # NASA_PSEUDO_L3_VAR_NAME: nasa_pseudo_l3_metrics_ds,
-        NASA_L3_VAR_NAME: nasa_l3_metrics_ds,
-        MF_SYNOPSIS_VAR_NAME: meteofrance_ndsi,
+        NASA_L3_SNPP_VAR_NAME: nasa_l3_snpp_metrics_ds,
+        # NASA_L3_JPSS1_VAR_NAME: nasa_l3_jpss1_metrics_ds,
+        MF_NO_FOREST_VAR_NAME: mf_no_forest_metrics_ds,
+        # MF_SYNOPSIS_VAR_NAME: meteofrance_ndsi,
     }
 
     title = "accumulation"
-    selection_dict = {k: v.sel(time=slice("2023-12-01", "2023-12-31"), drop=True) for k, v in analyses_dict.items()}
+    selection_dict = {k: v.sel(time=slice("2023-11", "2024-03"), drop=True) for k, v in analyses_dict.items()}
 
     ####################### Launch analysis
     #### FSC corelation
-    # fig, ax = plt.subplots(1, len(selection_dict), figsize=(6 * len(selection_dict), 5))
-    # n_min = 12
-    # fig.suptitle(f"Scatter analysis {title} - thresh N_min = {n_min}")
-    # for i, (k, v) in enumerate(selection_dict.items()):
-    #     reduced_v = (
-    #         v.sel(ref_bins=slice(1, 95), forest_mask_bins=["no_forest"], test_bins=slice(1, 95))
-    #         .sum(dim=("forest_mask_bins", "time", "aspect_bins", "sub_roi_bins"))
-    #         .data_vars["n_occurrences"]
-    #     )
-    #     scatter_plot = fancy_scatter_plot(
-    #         data_to_plt=reduced_v.rename({"ref_bins": "x", "test_bins": "y"}),
-    #         ax=ax[i],
-    #         figure=fig,
-    #         low_threshold=n_min,
-    #         smoothing_window_size=0,
-    #     )
-    #     ax[i].set_title(PRODUCT_PLOT_NAMES[k])
-    #     ax[i].set_xlabel("S2 FSC [%]")
-    #     ax[i].set_ylabel(f"{PRODUCT_PLOT_NAMES[k]} FSC [%]")
-
-    #### NDSI-FSC regression
     fig, ax = plt.subplots(1, len(selection_dict), figsize=(6 * len(selection_dict), 5))
-    n_min = 3
+    n_min = 12
     fig.suptitle(f"Scatter analysis {title} - thresh N_min = {n_min}")
     for i, (k, v) in enumerate(selection_dict.items()):
         reduced_v = (
-            v.sel(
-                ref_bins=slice(1, 95),
-                forest_mask_bins=["no_forest"],
-                test_bins=slice(1, 95),
-            )
+            v.sel(ref_bins=slice(1, 95), forest_mask_bins=["forest"], test_bins=slice(1, 95))
             .sum(dim=("forest_mask_bins", "time", "aspect_bins", "sub_roi_bins"))
             .data_vars["n_occurrences"]
         )
-        xax = reduced_v.test_bins.values
-        fit_g = gascoin(xax * 0.01, f_veg=0) * 100
-        ax[i].plot(xax, fit_g, "g--", linewidth=1, label="gascoin at al. fveg=0")
-        ax[i].plot(xax, salomonson_appel(xax), "k", linewidth=1, label="salomonson_appel")
         scatter_plot = fancy_scatter_plot(
-            data_to_plt=reduced_v.rename({"ref_bins": "y", "test_bins": "x"}),
+            data_to_plt=reduced_v.rename({"ref_bins": "x", "test_bins": "y"}),
             ax=ax[i],
             figure=fig,
             low_threshold=n_min,
             smoothing_window_size=0,
         )
         ax[i].set_title(PRODUCT_PLOT_NAMES[k])
-        ax[i].set_ylabel("S2 FSC [%]")
-        ax[i].set_xlabel(f"{PRODUCT_PLOT_NAMES[k]} NDSI [%]")
+        ax[i].set_xlabel("S2 FSC [%]")
+        ax[i].set_ylabel(f"{PRODUCT_PLOT_NAMES[k]} FSC [%]")
+
+    #### NDSI-FSC regression
+    # fig, ax = plt.subplots(1, len(selection_dict), figsize=(6 * len(selection_dict), 5))
+    # n_min = 3
+    # fig.suptitle(f"Scatter analysis {title} - thresh N_min = {n_min}")
+    # for i, (k, v) in enumerate(selection_dict.items()):
+    #     reduced_v = (
+    #         v.sel(
+    #             ref_bins=slice(1, 95),
+    #             forest_mask_bins=["forest"],
+    #             test_bins=slice(1, 95),
+    #         )
+    #         .sum(dim=("forest_mask_bins", "time", "aspect_bins", "sub_roi_bins"))
+    #         .data_vars["n_occurrences"]
+    #     )
+    #     xax = reduced_v.test_bins.values
+    #     fit_g = gascoin(xax * 0.01, f_veg=0) * 100
+    #     ax[i].plot(xax, fit_g, "g--", linewidth=1, label="gascoin at al. fveg=0")
+    #     ax[i].plot(xax, salomonson_appel(xax), "k", linewidth=1, label="salomonson_appel")
+    #     scatter_plot = fancy_scatter_plot(
+    #         data_to_plt=reduced_v.rename({"ref_bins": "y", "test_bins": "x"}),
+    #         ax=ax[i],
+    #         figure=fig,
+    #         low_threshold=n_min,
+    #         smoothing_window_size=0,
+    #     )
+    #     ax[i].set_title(PRODUCT_PLOT_NAMES[k])
+    #     ax[i].set_ylabel("S2 FSC [%]")
+    #     ax[i].set_xlabel(f"{PRODUCT_PLOT_NAMES[k]} NDSI [%]")
 
     plt.show()
