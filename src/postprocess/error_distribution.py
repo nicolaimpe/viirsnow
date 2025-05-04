@@ -19,6 +19,7 @@ from products.plot_settings import (
     MF_REFL_SCREEN_VAR_NAME,
     MF_SYNOPSIS_VAR_NAME,
     NASA_L3_JPSS1_VAR_NAME,
+    NASA_L3_MULTIPLATFORM_VAR_NAME,
     NASA_L3_SNPP_VAR_NAME,
     NASA_PSEUDO_L3_VAR_NAME,
     PRODUCT_PLOT_COLORS,
@@ -251,9 +252,10 @@ if __name__ == "__main__":
     analysis_folder = f"/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_6/analyses/{analysis_type}"
 
     path_dict = {
-        MF_NO_FOREST_VAR_NAME: f"{analysis_folder}/uncertainty_WY_2023_2024_meteofrance_no_forest_vs_s2_theia.nc",
+        # MF_NO_FOREST_VAR_NAME: f"{analysis_folder}/uncertainty_WY_2023_2024_meteofrance_no_forest_vs_s2_theia.nc",
         NASA_L3_SNPP_VAR_NAME: f"{analysis_folder}/uncertainty_WY_2023_2024_nasa_l3_snpp_vs_s2_theia.nc",
-        NASA_L3_JPSS1_VAR_NAME: f"{analysis_folder}/uncertainty_WY_2023_2024_nasa_l3_jpss1_vs_s2_theia.nc",
+        # NASA_L3_JPSS1_VAR_NAME: f"{analysis_folder}/uncertainty_WY_2023_2024_nasa_l3_jpss1_vs_s2_theia.nc",
+        NASA_L3_MULTIPLATFORM_VAR_NAME: f"{analysis_folder}/uncertainty_WY_2023_2024_nasa_l3_multiplatform_vs_s2_theia.nc",
     }
     analyses_dict = {
         # MF_ORIG_VAR_NAME: xr.open_dataset(
@@ -300,21 +302,21 @@ if __name__ == "__main__":
     ############## Launch analysis
 
     # Temporal analysis
-    biais_barplots(
-        postprocess_uncertainty_analysis(selection_dict, analysis_var={"time": EvaluationVsHighResBase.month_bins(wy)}),
-        analysis_var_plot_name="time (month)",
-        title_complement=f"Biais temporal distribution - {title} - {str(wy)}",
-    )
-    unbiaised_rmse_barplots(
-        postprocess_uncertainty_analysis(selection_dict, analysis_var={"time": EvaluationVsHighResBase.month_bins(wy)}),
-        analysis_var_plot_name="time (month)",
-        title_complement=f"Unbiaised RMSE temporal distribution - {title} - {str(wy)}",
-    )
-    rmse_barplots(
-        postprocess_uncertainty_analysis(selection_dict, analysis_var={"time": EvaluationVsHighResBase.month_bins(wy)}),
-        analysis_var_plot_name="time (month)",
-        title_complement=f"Unbiaised RMSE temporal distribution - {title} - {str(wy)}",
-    )
+    # biais_barplots(
+    #     postprocess_uncertainty_analysis(selection_dict, analysis_var={"time": EvaluationVsHighResBase.month_bins(wy)}),
+    #     analysis_var_plot_name="time (month)",
+    #     title_complement=f"Biais temporal distribution - {title} - {str(wy)}",
+    # )
+    # unbiaised_rmse_barplots(
+    #     postprocess_uncertainty_analysis(selection_dict, analysis_var={"time": EvaluationVsHighResBase.month_bins(wy)}),
+    #     analysis_var_plot_name="time (month)",
+    #     title_complement=f"Unbiaised RMSE temporal distribution - {title} - {str(wy)}",
+    # )
+    # rmse_barplots(
+    #     postprocess_uncertainty_analysis(selection_dict, analysis_var={"time": EvaluationVsHighResBase.month_bins(wy)}),
+    #     analysis_var_plot_name="time (month)",
+    #     title_complement=f"Unbiaised RMSE temporal distribution - {title} - {str(wy)}",
+    # )
 
     # SAFRAN geometry
     # semidistributed_geometry_plot(
@@ -325,25 +327,26 @@ if __name__ == "__main__":
     # )
 
     # Barplots aspect
-    double_variable_barplots(selection_dict, "forest_mask_bins", "aspect_bins")
+    # double_variable_barplots(selection_dict, "forest_mask_bins", "aspect_bins")
 
     # Boxplots vza
-    fig, ax = plt.subplots(figsize=(10, 4))
-    fig.suptitle(f"Error distribution vs VZA - {title} - {str(wy)}")
-    ax.set_xticklabels(["0-15", "15-30", "30-45", "45-60", ">60"])
-    ax.set_xlabel("Sensor zenith angle [°]")
-    ax.set_ylabel("FSC [%]")
-    ax.set_ylim(-60, 60)
+    # fig, ax = plt.subplots(figsize=(10, 4))
+    # fig.suptitle(f"Error distribution vs VZA - {title} - {str(wy)}")
+    # ax.set_xticklabels(["0-15", "15-30", "30-45", "45-60", ">60"])
+    # ax.set_xlabel("Sensor zenith angle [°]")
+    # ax.set_ylabel("FSC [%]")
+    # ax.set_ylim(-60, 60)
 
-    sel_vza = selection_dict.copy()
-    if "nasa_l3_snpp" in selection_dict:
-        sel_vza.pop("nasa_l3_snpp")
-    if "nasa_l3_jpss1" in selection_dict:
-        sel_vza.pop("nasa_l3_jpss1")
+    # sel_vza = selection_dict.copy()
+    # if "nasa_l3_snpp" in selection_dict:
+    #     sel_vza.pop("nasa_l3_snpp")
+    # if "nasa_l3_jpss1" in selection_dict:
+    #     sel_vza.pop("nasa_l3_jpss1")
+    # if "nasa_l3_multiplatform" in selection_dict:
+    #     sel_vza.pop("nasa_l3_multiplatform")
+    # sel_vza = {k: v.sel(sensor_zenith_bins=slice(0, 75)) for k, v in sel_vza.items()}
 
-    sel_vza = {k: v.sel(sensor_zenith_bins=slice(0, 75)) for k, v in sel_vza.items()}
-
-    raw_error_boxplots(metrics_dict=sel_vza, analysis_var="sensor_zenith_bins", ax=ax)
+    # raw_error_boxplots(metrics_dict=sel_vza, analysis_var="sensor_zenith_bins", ax=ax)
 
     # # Boxplots slope
     fig, ax = plt.subplots(figsize=(10, 4))
@@ -353,13 +356,19 @@ if __name__ == "__main__":
     ax.set_ylabel("FSC [%]")
     ax.set_ylim(-60, 60)
     ax.plot()
-    selection_dict = {k: v.sel(slope_bins=slice(0, 60)) for k, v in selection_dict.items()}
-    raw_error_boxplots(metrics_dict=selection_dict, analysis_var="slope_bins", ax=ax)
+    selection_slope_dict = {k: v.sel(slope_bins=slice(0, 60)) for k, v in selection_dict.items()}
+    raw_error_boxplots(metrics_dict=selection_slope_dict, analysis_var="slope_bins", ax=ax)
 
     # Boxplots ref FSC
-    ref_bins_resampling = BinGrouper(
-        np.array([-1, *np.arange(0, 100, 10), 100]),
-        labels=[
+
+    fig, ax = plt.subplots(figsize=(10, 4))
+    fig.suptitle("Error distribution vs FSC")
+    ax.set_xlabel("Ref FSC bin [%]")
+    ax.set_ylabel("biais [%]")
+    ax.set_ylim(-80, 80)
+    ax.set_yticks(np.arange(-80, 81, 10))
+    ax.set_xticklabels(
+        [
             "0",
             "[1-10]",
             "[11-20]",
@@ -372,21 +381,10 @@ if __name__ == "__main__":
             "[81-90]",
             "[91-99]",
             "100",
-        ],
+        ]
     )
-
-    fig, ax = plt.subplots(figsize=(10, 4))
-    fig.suptitle(f"Error distribution vs FSC - All pixels - {str(wy)}")
-    ax.set_xticklabels(ref_bins_resampling.labels)
-    ax.set_xlabel("Ref FSC bin [%]")
-    ax.set_ylabel("biais [%]")
-    ax.set_ylim(-60, 60)
-    ax.set_yticks(np.arange(-80, 81, 10))
-
-    scatter_dict = {k: xr.open_dataset(v.replace("uncertainty", "scatter"), decode_cf=True) for k, v in path_dict.items()}
-    scatter_dict = {k: v.groupby(ref_bins=ref_bins_resampling).map(scatter_to_biais) for k, v in scatter_dict.items()}
-    raw_error_boxplots(metrics_dict=scatter_dict, analysis_var="ref_bins_bins", ax=ax)
-
+    selection_ref_fsc_dict = {k: v.sel(ref_bins=slice(None, 101)) for k, v in selection_dict.items()}
+    raw_error_boxplots(metrics_dict=selection_ref_fsc_dict, analysis_var="ref_bins", ax=ax)
     # Print resume table
     reduced_datasets = []
     for dataset in selection_dict.values():
