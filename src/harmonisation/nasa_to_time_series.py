@@ -1,20 +1,29 @@
+import os
 from datetime import datetime
+from glob import glob
 from typing import List
 
 import xarray as xr
 
+from compression import generate_xarray_compression_encodings
 from fractional_snow_cover import nasa_ndsi_snow_cover_to_fraction
 from grids import GeoGrid, UTM375mGrid
 from harmonisation.daily_composites import (
     create_spatial_l3_nasa_composite,
     create_temporal_composite_nasa,
+    create_temporal_l3_naive_composite_nasa,
     match_daily_snow_cover_and_geometry_nasa,
 )
 from harmonisation.harmonisation_base import HarmonisationBase
 from harmonisation.reprojections import reprojection_l3_nasa_to_grid
 from logger_setup import default_logger as logger
 from products.filenames import get_all_nasa_filenames_per_product
-from products.plot_settings import NASA_PSEUDO_L3_VAR_NAME
+from products.plot_settings import (
+    NASA_L3_JPSS1_VAR_NAME,
+    NASA_L3_MULTIPLATFORM_VAR_NAME,
+    NASA_L3_SNPP_VAR_NAME,
+    NASA_PSEUDO_L3_VAR_NAME,
+)
 from reductions.snow_cover_extent_cross_comparison import WinterYear
 
 
@@ -124,6 +133,72 @@ class NASAPseudoL3Harmonisation(HarmonisationBase):
         return out_dataset
 
 
+class NASAL3MultiplatformHarmonisation:
+    def __init__(self, data_folder: str, output_folder: str):
+        self.data_folder = data_folder
+        self.output_folder = output_folder
+        self.product_name = NASA_L3_MULTIPLATFORM_VAR_NAME
+
+    # def open_day_data(time_series: xr.Dataset, day: datetime)->xr.DataArray:
+    #     try:
+    #         time_series.data_vars["NDSI_Snow_Cover"].sel(time=day)
+    #     except KeyError:
+
+    def create_multiplatform_composite(self, winter_year: WinterYear) -> xr.Dataset:
+        snpp_year = xr.open_dataset(
+            f"{self.data_folder}/time_series/WY_{winter_year.from_year}_{winter_year.to_year}_{NASA_L3_SNPP_VAR_NAME}.nc",
+            mask_and_scale=False,
+        )
+        jpss1_year = xr.open_dataset(
+            f"{self.data_folder}/time_series/WY_{winter_year.from_year}_{winter_year.to_year}_{NASA_L3_JPSS1_VAR_NAME}.nc",
+            mask_and_scale=False,
+        )
+
+        out_tmp_paths = []
+        for day in winter_year.iterate_days():
+            logger.info(f"Processing day {day}")
+
+            # if day.month != 12:  # and day.month != 9:  # and day.month != 2:
+            #     continue
+            # if day.day > 6:
+            #     break
+
+            day_data_arrays = []
+            if day in snpp_year.coords["time"].values:
+                day_data_arrays.append(snpp_year.data_vars["NDSI_Snow_Cover"].sel(time=day))
+            if day in jpss1_year.coords["time"].values:
+                day_data_arrays.append(jpss1_year.data_vars["NDSI_Snow_Cover"].sel(time=day))
+
+            if len(day_data_arrays) == 0:
+                logger.info(f"Skip day {day.date()} because 0 files were found on this date")
+                continue
+            daily_temporal_ndsi_composite = create_temporal_l3_naive_composite_nasa(daily_data_arrays=day_data_arrays)
+            daily_composite = xr.Dataset(
+                {
+                    "NDSI_Snow_Cover": daily_temporal_ndsi_composite,
+                    "snow_cover_fraction": xr.DataArray(
+                        nasa_ndsi_snow_cover_to_fraction(nasa_ndsi_snow_cover_product=daily_temporal_ndsi_composite.values),
+                        coords=daily_temporal_ndsi_composite.coords,
+                    ),
+                }
+            )
+
+            out_path = f"{str(self.output_folder)}/{day.strftime('%Y%m%d')}.nc"
+            out_tmp_paths.append(out_path)
+
+            daily_composite = daily_composite.expand_dims(time=[day])
+            daily_composite.to_netcdf(out_path)
+        out_tmp_paths = glob(f"{str(self.output_folder)}/[{winter_year.from_year}-{winter_year.to_year}]*.nc")
+        time_series = xr.open_mfdataset(out_tmp_paths, mask_and_scale=False)
+        encodings = generate_xarray_compression_encodings(time_series)
+        encodings.update(time={"calendar": "gregorian", "units": f"days since {str(winter_year.from_year)}-10-01"})
+        time_series.to_netcdf(
+            f"{self.output_folder}/WY_{winter_year.from_year}_{winter_year.to_year}_{self.product_name}.nc",
+            encoding=encodings,
+        )
+        [os.remove(file) for file in out_tmp_paths]
+
+
 if __name__ == "__main__":
     year = WinterYear(2023, 2024)
     massifs_shapefile = "/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/vectorial/massifs/massifs.shp"
@@ -131,12 +206,16 @@ if __name__ == "__main__":
     output_folder = "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_6/time_series/"
     grid = UTM375mGrid()
     platform = "multiplatform"
-    logger.info(f"NASA L3 processing {platform}")
-    NASAL3Harmonisation(
-        output_grid=grid, data_folder=nasa_l3_folder, output_folder=output_folder, platform=platform
-    ).create_time_series(winter_year=year, roi_shapefile=massifs_shapefile)
+    # logger.info(f"NASA L3 processing {platform}")
+    # NASAL3Harmonisation(
+    #     output_grid=grid, data_folder=nasa_l3_folder, output_folder=output_folder, platform=platform
+    # ).create_time_series(winter_year=year, roi_shapefile=massifs_shapefile)
 
     # logger.info("NASA psuedo L3 processing")
     # NASAPseudoL3Harmonisation(output_grid=grid, data_folder=nasa_l3_folder, output_folder=output_folder).create_time_series(
     #     winter_year=year, roi_shapefile=massifs_shapefile
     # )
+    logger.info("NASA multiplatform processing")
+    NASAL3MultiplatformHarmonisation(
+        data_folder="/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_6", output_folder=output_folder
+    ).create_multiplatform_composite(winter_year=year)

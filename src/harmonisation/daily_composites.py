@@ -8,7 +8,7 @@ import rioxarray
 import xarray as xr
 
 from geotools import extract_netcdf_coords_from_rasterio_raster
-from grids import GeoGrid, georef_netcdf
+from grids import GeoGrid, georef_netcdf, georef_netcdf_rioxarray
 from harmonisation.reprojections import resample_s2_to_grid
 from logger_setup import default_logger as logger
 from products.classes import METEOFRANCE_CLASSES, NASA_CLASSES, S2_CLASSES
@@ -191,6 +191,33 @@ def create_temporal_l2_naive_composite_meteofrance(daily_files: List[str]) -> xr
         xr.DataArray(day_data.astype(np.uint8), coords=extract_netcdf_coords_from_rasterio_raster(first_image_raster)),
         data_array_name="snow_cover",
         crs=first_image_raster.crs,
+    )
+
+    return day_dataset
+
+
+def create_temporal_l3_naive_composite_nasa(daily_data_arrays: List[xr.DataArray]) -> xr.Dataset:
+    first_day_data = daily_data_arrays[0]
+    day_data = first_day_data.values
+
+    for day_data_array in daily_data_arrays:
+        new_acquisition = day_data_array.values
+
+        no_data_mask = day_data == NASA_CLASSES["fill"]
+        day_data = np.where(no_data_mask, new_acquisition, day_data)
+
+        cloud_mask_old = day_data == NASA_CLASSES["clouds"]
+
+        cloud_mask_new = new_acquisition == NASA_CLASSES["clouds"]
+        nodata_mask_new = new_acquisition == NASA_CLASSES["fill"]
+        no_observation_mask_new = cloud_mask_new | nodata_mask_new
+        observation_mask_new = no_observation_mask_new == False
+        new_observations_mask = cloud_mask_old & observation_mask_new
+        day_data = np.where(new_observations_mask, new_acquisition, day_data)
+
+    day_dataset = georef_netcdf_rioxarray(
+        xr.DataArray(day_data.astype(np.uint8), coords=first_day_data.coords),
+        crs=first_day_data.rio.crs,
     )
 
     return day_dataset

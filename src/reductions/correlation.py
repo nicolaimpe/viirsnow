@@ -11,6 +11,7 @@ from products.plot_settings import (
     MF_ORIG_VAR_NAME,
     MF_SYNOPSIS_VAR_NAME,
     NASA_L3_JPSS1_VAR_NAME,
+    NASA_L3_MULTIPLATFORM_VAR_NAME,
     NASA_L3_SNPP_VAR_NAME,
     NASA_PSEUDO_L3_VAR_NAME,
 )
@@ -97,7 +98,7 @@ class ScatterMeteoFranceVsNASA(Scatter):
 
 
 if __name__ == "__main__":
-    variable_tested = "ndsi"  # fsc, #ndsi
+    variable_tested = "fsc"  # fsc, #ndsi
     config_eval = EvaluationConfig(
         ref_fsc_step=1,
         sensor_zenith_analysis=False,
@@ -130,13 +131,15 @@ if __name__ == "__main__":
         config = config_fit
 
     evaluation_dict: Dict[str, Dict[str, Scatter]] = {
+        MF_ORIG_VAR_NAME: {"evaluator": ScatterMeteoFrance(), "config": config},
         # MF_SYNOPSIS_VAR_NAME: {"evaluator": ScatterMeteoFrance(), "config": config},
         # MF_NO_FOREST_VAR_NAME: {"evaluator": ScatterMeteoFrance(), "config": config},
         # NASA_PSEUDO_L3_VAR_NAME: {"evaluator": ScatterNASA(), "config": config},
         # NASA_L3_SNPP_VAR_NAME: {"evaluator": ScatterNASA(), "config": config},
         # NASA_L3_JPSS1_VAR_NAME: {"evaluator": ScatterNASA(), "config": config},
+        # NASA_L3_MULTIPLATFORM_VAR_NAME: {"evaluator": ScatterNASA(), "config": config},
         # "meteofrance_ndsi_snow_cover": {"evaluator": ScatterMeteoFrance(), "config": config},
-        "meteofrance_ndsi_no_forest": {"evaluator": ScatterMeteoFrance(), "config": config},
+        # "meteofrance_ndsi_no_forest": {"evaluator": ScatterMeteoFrance(), "config": config},
     }
 
     for product, evaluator in evaluation_dict.items():

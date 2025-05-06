@@ -15,6 +15,7 @@ from products.plot_settings import (
     MF_ORIG_VAR_NAME,
     MF_SYNOPSIS_VAR_NAME,
     NASA_L3_JPSS1_VAR_NAME,
+    NASA_L3_MULTIPLATFORM_VAR_NAME,
     NASA_L3_SNPP_VAR_NAME,
     NASA_PSEUDO_L3_VAR_NAME,
     PRODUCT_PLOT_NAMES,
@@ -86,19 +87,16 @@ if __name__ == "__main__":
     # )
 
     # # Errors in the data correction
-    # mf_archive_metrics_ds = xr.open_dataset(
-    #     f"{analysis_folder}/{analysis_type}_WY_2023_2024_SNPP_meteofrance_l3_res_375m.nc", decode_cf=True
-    # )
-    # mf_archive_metrics_ds = mf_archive_metrics_ds.assign_coords({"forest_mask": ["no_forest", "forest"]}).rename(
-    #     {"forest_mask": "forest_mask_bins"}
-    # )
 
     analysis_folder = f"/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_6/analyses/{analysis_type}"
     # mf_synopsis_metrics_ds = xr.open_dataset(
     #     f"{analysis_folder}/{analysis_type}_WY_2023_2024_meteofrance_synopsis_vs_s2_theia.nc",
     #     decode_cf=True,
     # )
-
+    mf_orig_metrics_ds = xr.open_dataset(
+        f"{analysis_folder}/{analysis_type}_WY_2023_2024_meteofrance_orig_vs_s2_theia.nc",
+        decode_cf=True,
+    )
     mf_no_forest_metrics_ds = xr.open_dataset(
         f"{analysis_folder}/{analysis_type}_WY_2023_2024_meteofrance_no_forest_vs_s2_theia.nc",
         decode_cf=True,
@@ -109,10 +107,15 @@ if __name__ == "__main__":
     )
     nasa_l3_snpp_metrics_ds = nasa_l3_snpp_metrics_ds.where(nasa_l3_snpp_metrics_ds > 0, drop=True)
 
+    nasa_l3_multiplatform_metrics_ds = xr.open_dataset(
+        f"{analysis_folder}/{analysis_type}_WY_2023_2024_nasa_l3_multiplatform_vs_s2_theia.nc", decode_cf=True
+    )
+    nasa_l3_multiplatform_metrics_ds = nasa_l3_multiplatform_metrics_ds.where(nasa_l3_multiplatform_metrics_ds > 0, drop=True)
+
     nasa_l3_jpss1_metrics_ds = xr.open_dataset(
         f"{analysis_folder}/{analysis_type}_WY_2023_2024_nasa_l3_jpss1_vs_s2_theia.nc", decode_cf=True
     )
-    nasa_l3_jpss1_metrics_ds = nasa_l3_snpp_metrics_ds.where(nasa_l3_jpss1_metrics_ds > 0, drop=True)
+    nasa_l3_jpss1_metrics_ds = nasa_l3_jpss1_metrics_ds.where(nasa_l3_jpss1_metrics_ds > 0, drop=True)
 
     # nasa_pseudo_l3_metrics_ds = xr.open_dataset(
     #     f"{analysis_folder}/{analysis_type}_WY_2023_2024_nasa_pseudo_l3_vs_s2_theia.nc", decode_cf=True
@@ -130,23 +133,24 @@ if __name__ == "__main__":
         # MF_ORIG_VAR_NAME: mf_orig_metrics_ds,
         # MF_SYNOPSIS_VAR_NAME: mf_synopsis_metrics_ds,
         # NASA_PSEUDO_L3_VAR_NAME: nasa_pseudo_l3_metrics_ds,
-        NASA_L3_SNPP_VAR_NAME: nasa_l3_snpp_metrics_ds,
-        # NASA_L3_JPSS1_VAR_NAME: nasa_l3_jpss1_metrics_ds,
         MF_NO_FOREST_VAR_NAME: mf_no_forest_metrics_ds,
+        NASA_L3_SNPP_VAR_NAME: nasa_l3_snpp_metrics_ds,
+        # NASA_L3_MULTIPLATFORM_VAR_NAME: nasa_l3_multiplatform_metrics_ds,
+        # NASA_L3_JPSS1_VAR_NAME: nasa_l3_jpss1_metrics_ds,
         # MF_SYNOPSIS_VAR_NAME: meteofrance_ndsi,
     }
 
-    title = "accumulation"
-    selection_dict = {k: v.sel(time=slice("2023-11", "2024-03"), drop=True) for k, v in analyses_dict.items()}
+    # title = "accumulation"
+    selection_dict = {k: v.sel(time=slice("2023-11", "2024-06"), drop=True) for k, v in analyses_dict.items()}
 
     ####################### Launch analysis
     #### FSC corelation
     fig, ax = plt.subplots(1, len(selection_dict), figsize=(6 * len(selection_dict), 5))
     n_min = 12
-    fig.suptitle(f"Scatter analysis {title} - thresh N_min = {n_min}")
+    fig.suptitle(f"Scatter analysis - thresh N_min = {n_min}")
     for i, (k, v) in enumerate(selection_dict.items()):
         reduced_v = (
-            v.sel(ref_bins=slice(1, 95), forest_mask_bins=["forest"], test_bins=slice(1, 95))
+            v.sel(ref_bins=slice(0, 95), forest_mask_bins=["forest", "no_forest"], test_bins=slice(0, 95))
             .sum(dim=("forest_mask_bins", "time", "aspect_bins", "sub_roi_bins"))
             .data_vars["n_occurrences"]
         )

@@ -37,11 +37,11 @@ PRODUCT_PLOT_NAMES = {
 PRODUCT_PLOT_COLORS = {
     METEOFRANCE_VAR_NAME: "tab:blue",
     NASA_PSEUDO_L3_VAR_NAME: "tab:green",
-    NASA_L3_SNPP_VAR_NAME: "paleturquoise",
+    NASA_L3_SNPP_VAR_NAME: "darkturquoise",
     NASA_L3_JPSS1_VAR_NAME: "darkcyan",
     NASA_L3_MULTIPLATFORM_VAR_NAME: "steelblue",
     MF_SYNOPSIS_VAR_NAME: "tan",
-    MF_ORIG_VAR_NAME: "linen",
+    MF_ORIG_VAR_NAME: "tab:orange",
     MF_NO_CC_MASK_VAR_NAME: "darkorange",
     MF_REFL_SCREEN_VAR_NAME: "gold",
     MF_NO_FOREST_VAR_NAME: "darkkhaki",

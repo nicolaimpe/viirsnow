@@ -86,7 +86,7 @@ class EvaluationVsHighResBase:
             ),
             labels=np.array(
                 [
-                    *np.arange(0, self.ref_analyzer.max_fsc, ref_fsc_step),
+                    *np.arange(0, self.ref_analyzer.max_fsc - 1, ref_fsc_step),
                     self.ref_analyzer.max_fsc - 1,
                     self.ref_analyzer.max_fsc,
                     self.ref_analyzer.max_value,

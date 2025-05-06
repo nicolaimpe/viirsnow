@@ -252,49 +252,14 @@ if __name__ == "__main__":
     analysis_folder = f"/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_6/analyses/{analysis_type}"
 
     path_dict = {
-        # MF_NO_FOREST_VAR_NAME: f"{analysis_folder}/uncertainty_WY_2023_2024_meteofrance_no_forest_vs_s2_theia.nc",
+        # MF_ORIG_VAR_NAME: f"{analysis_folder}/uncertainty_WY_2023_2024_meteofrance_orig_vs_s2_theia.nc",
+        # MF_SYNOPSIS_VAR_NAME: f"{analysis_folder}/uncertainty_WY_2023_2024_meteofrance_synopsis_vs_s2_theia.nc",
+        MF_NO_FOREST_VAR_NAME: f"{analysis_folder}/uncertainty_WY_2023_2024_meteofrance_no_forest_vs_s2_theia.nc",
         NASA_L3_SNPP_VAR_NAME: f"{analysis_folder}/uncertainty_WY_2023_2024_nasa_l3_snpp_vs_s2_theia.nc",
         # NASA_L3_JPSS1_VAR_NAME: f"{analysis_folder}/uncertainty_WY_2023_2024_nasa_l3_jpss1_vs_s2_theia.nc",
-        NASA_L3_MULTIPLATFORM_VAR_NAME: f"{analysis_folder}/uncertainty_WY_2023_2024_nasa_l3_multiplatform_vs_s2_theia.nc",
+        # NASA_L3_MULTIPLATFORM_VAR_NAME: f"{analysis_folder}/uncertainty_WY_2023_2024_nasa_l3_multiplatform_vs_s2_theia.nc",
     }
-    analyses_dict = {
-        # MF_ORIG_VAR_NAME: xr.open_dataset(
-        #     f"{analysis_folder}/uncertainty_WY_2023_2024_meteofrance_orig_vs_s2_theia.nc",
-        #     decode_cf=True,
-        # ),
-        # MF_SYNOPSIS_VAR_NAME: xr.open_dataset(
-        #     f"{analysis_folder}/uncertainty_WY_2023_2024_meteofrance_synopsis_vs_s2_theia.nc",
-        #     decode_cf=True,
-        # ),
-        # MF_REFL_SCREEN_VAR_NAME: xr.open_dataset(
-        #     f"{analysis_folder}/uncertainty_WY_2023_2024_meteofrance_modified_vs_s2_theia.nc",
-        #     decode_cf=True,
-        # ),
-        # MF_NO_CC_MASK_VAR_NAME: xr.open_dataset(
-        #     f"{analysis_folder}/uncertainty_WY_2023_2024_meteofrance_no_cc_mask_vs_s2_theia.nc",
-        #     decode_cf=True,
-        # ),
-        # MF_NO_FOREST_VAR_NAME: xr.open_dataset(
-        #     f"{analysis_folder}/uncertainty_WY_2023_2024_meteofrance_no_forest_vs_s2_theia.nc",
-        #     decode_cf=True,
-        # ),
-        # MF_NO_FOREST_MODIFIED_VAR_NAME: xr.open_dataset(
-        #     f"{analysis_folder}/uncertainty_WY_2023_2024_meteofrance_no_forest_modified_vs_s2_theia.nc",
-        #     decode_cf=True,
-        # ),
-        # NASA_PSEUDO_L3_VAR_NAME: xr.open_dataset(
-        #     f"{analysis_folder}/uncertainty_WY_2023_2024_nasa_pseudo_l3_vs_s2_theia.nc",
-        #     decode_cf=True,
-        # ),
-        # NASA_L3_SNPP_VAR_NAME: xr.open_dataset(
-        #     f"{analysis_folder}/uncertainty_WY_2023_2024_nasa_l3_snpp_vs_s2_theia.nc",
-        #     decode_cf=True,
-        # ),
-        # NASA_L3_JPSS1_VAR_NAME: xr.open_dataset(
-        #     f"{analysis_folder}/uncertainty_WY_2023_2024_nasa_l3_jpss1_vs_s2_theia.nc",
-        #     decode_cf=True,
-        # ),
-    }
+
     analyses_dict = {k: xr.open_dataset(v, decode_cf=True) for k, v in path_dict.items()}
     evaluation_domain = "general"
     selection_dict, title = sel_evaluation_domain(analyses_dict=analyses_dict, evaluation_domain=evaluation_domain)
@@ -302,21 +267,21 @@ if __name__ == "__main__":
     ############## Launch analysis
 
     # Temporal analysis
-    # biais_barplots(
-    #     postprocess_uncertainty_analysis(selection_dict, analysis_var={"time": EvaluationVsHighResBase.month_bins(wy)}),
-    #     analysis_var_plot_name="time (month)",
-    #     title_complement=f"Biais temporal distribution - {title} - {str(wy)}",
-    # )
-    # unbiaised_rmse_barplots(
-    #     postprocess_uncertainty_analysis(selection_dict, analysis_var={"time": EvaluationVsHighResBase.month_bins(wy)}),
-    #     analysis_var_plot_name="time (month)",
-    #     title_complement=f"Unbiaised RMSE temporal distribution - {title} - {str(wy)}",
-    # )
-    # rmse_barplots(
-    #     postprocess_uncertainty_analysis(selection_dict, analysis_var={"time": EvaluationVsHighResBase.month_bins(wy)}),
-    #     analysis_var_plot_name="time (month)",
-    #     title_complement=f"Unbiaised RMSE temporal distribution - {title} - {str(wy)}",
-    # )
+    biais_barplots(
+        postprocess_uncertainty_analysis(selection_dict, analysis_var={"time": EvaluationVsHighResBase.month_bins(wy)}),
+        analysis_var_plot_name="time (month)",
+        title_complement=f"Biais temporal distribution - {title} - {str(wy)}",
+    )
+    unbiaised_rmse_barplots(
+        postprocess_uncertainty_analysis(selection_dict, analysis_var={"time": EvaluationVsHighResBase.month_bins(wy)}),
+        analysis_var_plot_name="time (month)",
+        title_complement=f"Unbiaised RMSE temporal distribution - {title} - {str(wy)}",
+    )
+    rmse_barplots(
+        postprocess_uncertainty_analysis(selection_dict, analysis_var={"time": EvaluationVsHighResBase.month_bins(wy)}),
+        analysis_var_plot_name="time (month)",
+        title_complement=f"Unbiaised RMSE temporal distribution - {title} - {str(wy)}",
+    )
 
     # SAFRAN geometry
     # semidistributed_geometry_plot(
@@ -349,15 +314,15 @@ if __name__ == "__main__":
     # raw_error_boxplots(metrics_dict=sel_vza, analysis_var="sensor_zenith_bins", ax=ax)
 
     # # Boxplots slope
-    fig, ax = plt.subplots(figsize=(10, 4))
-    fig.suptitle(f"Error distribution vs slope - {title} - {str(wy)}")
-    ax.set_xticklabels(["0-10", "10-30", "30-50"])
-    ax.set_xlabel("Slope [°]")
-    ax.set_ylabel("FSC [%]")
-    ax.set_ylim(-60, 60)
-    ax.plot()
-    selection_slope_dict = {k: v.sel(slope_bins=slice(0, 60)) for k, v in selection_dict.items()}
-    raw_error_boxplots(metrics_dict=selection_slope_dict, analysis_var="slope_bins", ax=ax)
+    # fig, ax = plt.subplots(figsize=(10, 4))
+    # fig.suptitle(f"Error distribution vs slope - {title} - {str(wy)}")
+    # ax.set_xticklabels(["0-10", "10-30", "30-50"])
+    # ax.set_xlabel("Slope [°]")
+    # ax.set_ylabel("FSC [%]")
+    # ax.set_ylim(-60, 60)
+    # ax.plot()
+    # selection_slope_dict = {k: v.sel(slope_bins=slice(0, 60)) for k, v in selection_dict.items()}
+    # raw_error_boxplots(metrics_dict=selection_slope_dict, analysis_var="slope_bins", ax=ax)
 
     # Boxplots ref FSC
 

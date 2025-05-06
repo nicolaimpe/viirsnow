@@ -4,6 +4,7 @@ from typing import Dict
 import xarray as xr
 
 from logger_setup import default_logger as logger
+from products.plot_settings import NASA_L3_MULTIPLATFORM_VAR_NAME
 from reductions.completeness import (
     MeteoFranceSnowCoverProductCompleteness,
     NASASnowCoverProductCompleteness,
@@ -132,7 +133,7 @@ class ConfusionTableMeteoFGranceVsNASA(ConfusionTable):
 
 if __name__ == "__main__":
     config = EvaluationConfig(
-        ref_fsc_step=99,
+        ref_fsc_step=98,
         sensor_zenith_analysis=True,
         forest_mask_path=None,
         slope_map_path=None,
@@ -178,6 +179,10 @@ if __name__ == "__main__":
         #     "evaluator": ConfusionTableNASA(ref_fsc_threshold=ref_fsc_threshold, test_fsc_threshold=test_fsc_threshold),
         #     "config": config_nasa_l3,
         # },
+        # NASA_L3_MULTIPLATFORM_VAR_NAME: {
+        #     "evaluator": ConfusionTableNASA(ref_fsc_threshold=ref_fsc_threshold, test_fsc_threshold=test_fsc_threshold),
+        #     "config": config_nasa_l3,
+        # },
         # "nasa_l3_jpss1": {
         #     "evaluator": ConfusionTableNASA(ref_fsc_threshold=ref_fsc_threshold, test_fsc_threshold=test_fsc_threshold),
         #     "config": config_nasa_l3,
@@ -185,7 +190,7 @@ if __name__ == "__main__":
     }
 
     evaluation_dict: Dict[str, Dict[str, ConfusionTable]] = {
-        "meteofrance_vs_nasa_snpp": {
+        "meteofrance_orig_vs_nasa_snpp": {
             "evaluator": ConfusionTableNASA(ref_fsc_threshold=ref_fsc_threshold, test_fsc_threshold=test_fsc_threshold),
             "config": config_nasa_l3,
         },
@@ -196,7 +201,7 @@ if __name__ == "__main__":
             analysis_type="confusion_table",
             working_folder=working_folder,
             year=WinterYear(2023, 2024),
-            ref_product_name="meteofrance_synopsis",
+            ref_product_name="meteofrance_orig",
             test_product_name="nasa_l3_snpp",
             period=slice("2023-11", "2024-06"),
         )

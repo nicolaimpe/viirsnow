@@ -88,7 +88,7 @@ class UncertaintyNASA(Uncertainty):
 
 if __name__ == "__main__":
     config = EvaluationConfig(
-        ref_fsc_step=99,
+        ref_fsc_step=10,
         sensor_zenith_analysis=True,
         # Use of forest mask with max resampling because of Météo-France forest with snow class resampling issue.
         # See reprojection_l3_meteofrance_to_grid function
@@ -111,10 +111,11 @@ if __name__ == "__main__":
         # "meteofrance_no_cc_mask": {"evaluator": UncertaintyMeteoFrance(), "config": config},
         # "meteofrance_modified": {"evaluator": UncertaintyMeteoFrance(), "config": config},
         # "meteofrance_no_forest": {"evaluator": UncertaintyMeteoFrance(), "config": config},
-        "meteofrance_no_forest_modified": {"evaluator": UncertaintyMeteoFrance(), "config": config},
-        # "nasa_pseudo_l3": {"evaluator": UncertaintyNASA(), "config": config},
-        # "nasa_l3_snpp": {"evaluator": UncertaintyNASA(), "config": config_nasa_l3},
-        # "nasa_l3_jpss1": {"evaluator": UncertaintyNASA(), "config": config_nasa_l3},
+        # "meteofrance_no_forest_modified": {"evaluator": UncertaintyMeteoFrance(), "config": config},
+        "nasa_pseudo_l3_snpp": {"evaluator": UncertaintyNASA(), "config": config},
+        "nasa_l3_snpp": {"evaluator": UncertaintyNASA(), "config": config_nasa_l3},
+        "nasa_l3_jpss1": {"evaluator": UncertaintyNASA(), "config": config_nasa_l3},
+        "nasa_l3_multiplatform": {"evaluator": UncertaintyNASA(), "config": config_nasa_l3},
     }
 
     for product, evaluator in evaluation_dict.items():

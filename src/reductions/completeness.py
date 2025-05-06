@@ -191,13 +191,14 @@ if __name__ == "__main__":
     output_folder = "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_6"
 
     evaluation_dict: Dict[str, Dict[str, SnowCoverProductCompleteness]] = {
-        "meteofrance_orig": {"evaluator": MeteoFranceSnowCoverProductCompleteness()},
-        "meteofrance_synopsis": {"evaluator": MeteoFranceSnowCoverProductCompleteness()},
+        # "meteofrance_orig": {"evaluator": MeteoFranceSnowCoverProductCompleteness()},
+        # "meteofrance_synopsis": {"evaluator": MeteoFranceSnowCoverProductCompleteness()},
         # "meteofrance_no_cc_mask": {"evaluator": MeteoFranceSnowCoverProductCompleteness(), "config": config},
         # "meteofrance_modified": {"evaluator": MeteoFranceSnowCoverProductCompleteness(), "config": config},
-        "nasa_pseudo_l3": {"evaluator": NASASnowCoverProductCompleteness()},
-        "nasa_l3_snpp": {"evaluator": NASASnowCoverProductCompleteness()},
-        "nasa_l3_jpss1": {"evaluator": NASASnowCoverProductCompleteness()},
+        # "nasa_pseudo_l3": {"evaluator": NASASnowCoverProductCompleteness()},
+        # "nasa_l3_snpp": {"evaluator": NASASnowCoverProductCompleteness()},
+        # "nasa_l3_jpss1": {"evaluator": NASASnowCoverProductCompleteness()},
+        "nasa_l3_multiplatform": {"evaluator": NASASnowCoverProductCompleteness()},
     }
 
     for product in evaluation_dict:

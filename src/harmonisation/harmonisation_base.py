@@ -83,9 +83,9 @@ class HarmonisationBase:
             logger.info(f"Processing day {day}")
 
             day_files = self.get_daily_files(files, day=day)
-            # if day.month != 8 and day.month != 9:  # and day.month != 2:
-            #     continue
-            # if day.day == 19:
+            if day.month != 12:  # and day.month != 9:  # and day.month != 2:
+                continue
+            # if day.day > 6:
             #     continue
 
             day_files = self.check_daily_files(day_files=day_files)
@@ -112,7 +112,7 @@ class HarmonisationBase:
 
             daily_composite = daily_composite.expand_dims(time=[day])
             daily_composite.to_netcdf(out_path)
-        out_tmp_paths = glob(f"{str(self.output_folder)}/202[3-4]*.nc")
+        out_tmp_paths = glob(f"{str(self.output_folder)}/[{winter_year.from_year}-{winter_year.to_year}]*.nc")
         time_series = xr.open_mfdataset(out_tmp_paths, mask_and_scale=False)
         encodings = generate_xarray_compression_encodings(time_series)
         encodings.update(time={"calendar": "gregorian", "units": f"days since {str(winter_year.from_year)}-10-01"})

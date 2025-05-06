@@ -15,13 +15,20 @@ from winter_year import WinterYear
 folder = "/home/imperatoren/work/VIIRS_S2_comparison/data/CMS_rejeu"
 
 
+def get_all_meteofrance_type_rejeu_filenames(data_folder: str, winter_year: WinterYear, suffix: str) -> List[str] | None:
+    # Rejeu CMS
+    meteofrance_files = glob(f"{data_folder}/{winter_year.from_year}1[0-2]/*npp*{suffix}.tif")
+    meteofrance_files.extend(glob(f"{data_folder}/{winter_year.to_year}[0-9]*/*npp*{suffix}.tif"))
+    return sorted(meteofrance_files)
+
+
 wy = WinterYear(2023, 2024)
-rejeu_files = get_all_meteofrance_type_filenames(data_folder=folder, winter_year=wy, suffix="synopsis")
-cloud_files = get_all_meteofrance_type_filenames(data_folder=folder, winter_year=wy, suffix="cloud")
-fsc_files = get_all_meteofrance_type_filenames(data_folder=folder, winter_year=wy, suffix="fsc")
-cc_mask_files = get_all_meteofrance_type_filenames(data_folder=folder, winter_year=wy, suffix="CCNPPJSNOW_mask")
-cc_files = get_all_meteofrance_type_filenames(data_folder=folder, winter_year=wy, suffix="CCNPPJSNOW_reproj")
-ndsi_files = get_all_meteofrance_type_filenames(data_folder=folder, winter_year=wy, suffix="ndsi")
+rejeu_files = get_all_meteofrance_type_rejeu_filenames(data_folder=folder, winter_year=wy, suffix="synopsis")
+cloud_files = get_all_meteofrance_type_rejeu_filenames(data_folder=folder, winter_year=wy, suffix="cloud")
+fsc_files = get_all_meteofrance_type_rejeu_filenames(data_folder=folder, winter_year=wy, suffix="fsc")
+cc_mask_files = get_all_meteofrance_type_rejeu_filenames(data_folder=folder, winter_year=wy, suffix="CCNPPJSNOW_mask")
+cc_files = get_all_meteofrance_type_rejeu_filenames(data_folder=folder, winter_year=wy, suffix="CCNPPJSNOW_reproj")
+ndsi_files = get_all_meteofrance_type_rejeu_filenames(data_folder=folder, winter_year=wy, suffix="ndsi")
 
 forest_mask = rasterio.open(
     "/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/forest_mask/corine_2006_forest_mask_geo.tif"
@@ -29,8 +36,6 @@ forest_mask = rasterio.open(
 
 
 count = 0
-
-
 for rejeu_file in rejeu_files:
     time = datetime.strptime(Path(rejeu_file).name[:13], "%Y%m%d_%H%M")
     cloud_file = [f for f in cloud_files if time.strftime("%Y%m%d_%H%M") in f][0]
@@ -46,9 +51,11 @@ for rejeu_file in rejeu_files:
     print("Processing ", ndsi_file)
     print(" ")
 
-    # if count < 290:
+    # if count < 110:
     #     count += 1
     #     continue
+    # if count > 112:
+    #     break
     profile = rasterio.open(rejeu_file).profile
     rejeu = rasterio.open(rejeu_file).read(1)
     cloud = rasterio.open(cloud_file).read(1)
@@ -57,7 +64,7 @@ for rejeu_file in rejeu_files:
     cc_nir_800 = rasterio.open(cc_file).read(1)
     ndsi = rasterio.open(ndsi_file).read(1)
 
-    orig = np.where(cloud == 2, METEOFRANCE_CLASSES["clouds"][0], rejeu)
+    # orig = np.where(cloud == 2, METEOFRANCE_CLASSES["clouds"][0], rejeu)
 
     # distance_mask = distance_transform_edt(cc_mask)
     # distance_mask[distance_mask < 17] = 1
@@ -71,7 +78,7 @@ for rejeu_file in rejeu_files:
     # )
 
     # FSC<100 approx NDSI 0.66
-    low_refl_mask = (cc_nir_800 < 40) * (fsc <= 100) * (fsc > 0)
+    low_refl_mask = (cc_nir_800 < 80) * (fsc <= 20) * (fsc > 0)
     # modified = np.where(
     #     rejeu > METEOFRANCE_CLASSES["forest_with_snow"][0],
     #     rejeu,
@@ -99,17 +106,23 @@ for rejeu_file in rejeu_files:
     # with rasterio.open(rejeu_file.replace("produit_synopsis", "no_forest"), "w", **profile) as dst:
     #     dst.write(no_forest, 1)
 
-    ndsi_no_forest = np.where((no_forest > 0) * (no_forest <= 200), (ndsi - 100) * 2, no_forest)
-    with rasterio.open(rejeu_file.replace("produit_synopsis", "ndsi_no_forest"), "w", **profile) as dst:
-        dst.write(ndsi_no_forest, 1)
+    # ndsi_no_forest = np.where((no_forest > 0) * (no_forest <= 200), (ndsi - 100) * 2, no_forest)
+    # with rasterio.open(rejeu_file.replace("produit_synopsis", "ndsi_no_forest"), "w", **profile) as dst:
+    #     dst.write(ndsi_no_forest, 1)
 
-    # no_forest_modified = np.where(
-    #     no_forest > METEOFRANCE_CLASSES["forest_with_snow"][0],
-    #     no_forest,
-    #     np.where(1 - low_refl_mask, no_forest, METEOFRANCE_CLASSES["no_snow"][0]),
-    # )
-    # no_forest_modified = np.where(
-    #     (no_forest_modified == 0) * forest_mask, METEOFRANCE_CLASSES["forest_without_snow"][0], no_forest_modified
-    # )
-    # with rasterio.open(rejeu_file.replace("produit_synopsis", "no_forest_modified"), "w", **profile) as dst:
-    #     dst.write(no_forest_modified, 1)
+    no_forest_modified = np.where(
+        no_forest > METEOFRANCE_CLASSES["forest_with_snow"][0],
+        no_forest,
+        np.where(1 - low_refl_mask, no_forest, METEOFRANCE_CLASSES["no_snow"][0]),
+    )
+    no_forest_modified = np.where(
+        (no_forest_modified == 0) * forest_mask, METEOFRANCE_CLASSES["forest_without_snow"][0], no_forest_modified
+    )
+    with rasterio.open(
+        rejeu_file.replace("produit_synopsis", "no_forest_modified_new").replace(
+            "CMS_rejeu", "CMS_rejeu/no_forest_modified_new"
+        ),
+        "w",
+        **profile,
+    ) as dst:
+        dst.write(no_forest_modified, 1)

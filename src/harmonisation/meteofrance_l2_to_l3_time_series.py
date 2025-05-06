@@ -70,12 +70,14 @@ class MeteoFranceSynopsisHarmonisation(HarmonisationBase):
 if __name__ == "__main__":
     year = WinterYear(2023, 2024)
 
-    suffixes = ["ndsi_no_forest"]
+    suffixes = ["no_forest_modified_new"]
     massifs_shapefile = "/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/vectorial/massifs/massifs.shp"
     meteofrance_cms_folder = "/home/imperatoren/work/VIIRS_S2_comparison/data/CMS_rejeu"
     grid = UTM375mGrid()
     for suffix in suffixes:
-        output_folder = f"/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_6/time_series/{suffix}"
+        output_folder = (
+            f"/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_6_new_threshold/time_series/{suffix}"
+        )
 
         logger.info(f"Méteo-France {suffix} processing")
         MeteoFranceSynopsisHarmonisation(

@@ -156,9 +156,7 @@ if __name__ == "__main__":
     from winter_year import WinterYear
 
     wy = WinterYear(2023, 2024)
-    analysis_folder = (
-        "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_6_conf_table_50/analyses/confusion_table"
-    )
+    analysis_folder = "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_6/analyses/confusion_table"
     analysis_type = "confusion_table"
 
     analyses_dict = {
@@ -181,18 +179,18 @@ if __name__ == "__main__":
         #     f"{analysis_folder}/confusion_table_WY_2023_2024_meteofrance_modified_vs_s2_theia.nc",
         #     decode_cf=True,
         # ),
-        NASA_PSEUDO_L3_VAR_NAME: xr.open_dataset(
-            f"{analysis_folder}/confusion_table_WY_2023_2024_nasa_pseudo_l3_vs_s2_theia.nc",
-            decode_cf=True,
-        ),
+        # NASA_PSEUDO_L3_VAR_NAME: xr.open_dataset(
+        #     f"{analysis_folder}/confusion_table_WY_2023_2024_nasa_pseudo_l3_vs_s2_theia.nc",
+        #     decode_cf=True,
+        # ),
         NASA_L3_SNPP_VAR_NAME: xr.open_dataset(
             f"{analysis_folder}/confusion_table_WY_2023_2024_nasa_l3_snpp_vs_s2_theia.nc",
             decode_cf=True,
         ),
-        NASA_L3_JPSS1_VAR_NAME: xr.open_dataset(
-            f"{analysis_folder}/confusion_table_WY_2023_2024_nasa_l3_jpss1_vs_s2_theia.nc",
-            decode_cf=True,
-        ),
+        # NASA_L3_JPSS1_VAR_NAME: xr.open_dataset(
+        #     f"{analysis_folder}/confusion_table_WY_2023_2024_nasa_l3_jpss1_vs_s2_theia.nc",
+        #     decode_cf=True,
+        # ),
     }
 
     # analyses_dict = {
@@ -213,7 +211,6 @@ if __name__ == "__main__":
 
     df = compute_results_df(selection_dict)
     print(df.round(decimals=2))
-    plt.show()
 
     sel_no_vza = selection_dict.copy()
     if "nasa_l3_snpp" in sel_no_vza:

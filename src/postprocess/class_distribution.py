@@ -3,6 +3,7 @@ from typing import List
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import seaborn as sns
 import xarray as xr
 from matplotlib.axes import Axes
 
@@ -10,6 +11,7 @@ from products.plot_settings import (
     MF_ORIG_VAR_NAME,
     MF_SYNOPSIS_VAR_NAME,
     NASA_L3_JPSS1_VAR_NAME,
+    NASA_L3_MULTIPLATFORM_VAR_NAME,
     NASA_L3_SNPP_VAR_NAME,
     PRODUCT_PLOT_COLORS,
     PRODUCT_PLOT_NAMES,
@@ -85,89 +87,98 @@ if __name__ == "__main__":
     wy = WinterYear(2023, 2024)
     analysis_type = "completeness"
     analysis_folder = f"/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_6/analyses/{analysis_type}"
-    # analyses_dict = {
-    #     MF_ORIG_VAR_NAME: xr.open_dataset(
-    #         f"{analysis_folder}/completeness_WY_2023_2024_meteofrance_orig.nc",
-    #         decode_cf=True,
-    #     ),
-    #     MF_SYNOPSIS_VAR_NAME: xr.open_dataset(
-    #         f"{analysis_folder}/completeness_WY_2023_2024_meteofrance_synopsis.nc",
-    #         decode_cf=True,
-    #     ),
-    #     NASA_L3_SNPP_VAR_NAME: xr.open_dataset(
-    #         f"{analysis_folder}/completeness_WY_2023_2024_nasa_l3_snpp.nc",
-    #         decode_cf=True,
-    #     ),
-    #     NASA_L3_JPSS1_VAR_NAME: xr.open_dataset(
-    #         f"{analysis_folder}/completeness_WY_2023_2024_nasa_l3_jpss1.nc",
-    #         decode_cf=True,
-    #     ),
-    # }
+    analyses_dict = {
+        MF_ORIG_VAR_NAME: xr.open_dataset(f"{analysis_folder}/completeness_WY_2023_2024_meteofrance_orig.nc"),
+        MF_SYNOPSIS_VAR_NAME: xr.open_dataset(f"{analysis_folder}/completeness_WY_2023_2024_meteofrance_synopsis.nc"),
+        NASA_L3_SNPP_VAR_NAME: xr.open_dataset(f"{analysis_folder}/completeness_WY_2023_2024_nasa_l3_snpp.nc"),
+        # NASA_L3_JPSS1_VAR_NAME: xr.open_dataset(
+        #     f"{analysis_folder}/completeness_WY_2023_2024_nasa_l3_jpss1.nc",
+        #     decode_cf=True,
+        # ),
+        # NASA_L3_MULTIPLATFORM_VAR_NAME: xr.open_dataset(
+        #     f"{analysis_folder}/completeness_WY_2023_2024_nasa_l3_multiplatform.nc",
+        #     decode_cf=True,
+        # ),
+    }
 
-    # if len(analyses_dict) > 1:
-    #     common_days = np.intersect1d(*[v.coords["time"] for v in analyses_dict.values()][:2])
+    if len(analyses_dict) > 1:
+        common_days = np.intersect1d(*[v.coords["time"] for v in analyses_dict.values()][:2])
 
-    # if len(analyses_dict) > 2:
-    #     for v in analyses_dict.values():
-    #         common_days = np.intersect1d(common_days, v.coords["time"])
+    if len(analyses_dict) > 2:
+        for v in analyses_dict.values():
+            common_days = np.intersect1d(common_days, v.coords["time"])
 
-    # surface_averages = []
-    # stacked_list = []
-    # label_list = []
-    # color_list = []
-    # for product in analyses_dict:
-    #     analyses_dict[product] = analyses_dict[product].sel(time=common_days)
-    #     product_monthly_averages = analyses_dict[product].resample({"time": "1ME"}).mean(dim="time")
-    #     surface_averages.append(product_monthly_averages.sel(class_name="snow_cover").data_vars["surface"] * 1e-6)
-    #     stacked_list.append(False)
-    #     label_list.append(f"{PRODUCT_PLOT_NAMES[product]} snow")
-    #     color_list.append(PRODUCT_PLOT_COLORS[product])
-    #     if "meteofrance" in product:
-    #         surface_averages.append(product_monthly_averages.sel(class_name="forest_with_snow").data_vars["surface"])
-    #         stacked_list.append(True)
-    #         label_list.append(f"{PRODUCT_PLOT_NAMES[product]} forest with snow")
-    #         color_list.append(FOREST_WITH_SNOW_COLORS[product])
+    surface_averages = []
+    stacked_list = []
+    label_list = []
+    color_list = []
+    for product in analyses_dict:
+        analyses_dict[product] = analyses_dict[product].sel(time=common_days)
+        product_monthly_averages = analyses_dict[product].resample({"time": "1ME"}).mean(dim="time")
+        print(product)
+        print(product_monthly_averages.sum(dim="time").to_dataframe())
+        surface_averages.append(product_monthly_averages.sel(class_name="snow_cover").data_vars["surface"] * 1e-6)
+        stacked_list.append(False)
+        label_list.append(f"{PRODUCT_PLOT_NAMES[product]} snow")
+        color_list.append(PRODUCT_PLOT_COLORS[product])
+        if "meteofrance" in product:
+            surface_averages.append(product_monthly_averages.sel(class_name="forest_with_snow").data_vars["surface"] * 1e-6)
+            stacked_list.append(True)
+            label_list.append(f"{PRODUCT_PLOT_NAMES[product]} forest with snow")
+            color_list.append(FOREST_WITH_SNOW_COLORS[product])
 
-    # fig, ax = plt.subplots(figsize=(14, 4))
-    # ax.grid(axis="y", linewidth=0.4)
-    # plot_multiple_stacked(
-    #     surface_averages,
-    #     stacked=stacked_list,
-    #     ax=ax,
-    #     labels=label_list,
-    #     colors=color_list,
-    # )
-    # ax.set_title(f"Average surface per observation day - {str(wy)}")
-    # ax.set_xlabel("Month")
-    # ax.set_ylabel("Surface [km²]")
-    # ax.set_xticklabels(product_monthly_averages.coords["time"].to_dataframe().index.strftime("%B"))
-    # ax.legend()
-
-    from postprocess.skill_scores import plot_confusion_table
-
-    nasa_vs_mf = xr.open_dataset(
-        "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_6/analyses/confusion_table/confusion_table_WY_2023_2024_nasa_l3_snpp_vs_meteofrance_synopsis.nc"
+    fig, ax = plt.subplots(figsize=(14, 4))
+    ax.grid(axis="y", linewidth=0.4)
+    plot_multiple_stacked(
+        surface_averages,
+        stacked=stacked_list,
+        ax=ax,
+        labels=label_list,
+        colors=color_list,
     )
+    ax.set_title(f"Average surface per observation day - {str(wy)}")
+    ax.set_xlabel("Month")
+    ax.set_ylabel("Surface [km²]")
+    ax.set_xticklabels(product_monthly_averages.coords["time"].to_dataframe().index.strftime("%B"))
+    ax.legend()
 
-    # plot_confusion_table(dataset=mf_vs_nasa)
-
-    def confusion_table_to_surfaces(dataset: xr.Dataset) -> xr.DataArray:
-        tp = dataset["true_positive"].sum()
-        fp = dataset["false_positive"].sum()
-        fn = dataset["false_negative"].sum()
-        return xr.DataArray(
-            [tp + fp, tp + fn], coords={"product": ["meteofrance_synopsis", "nasa_l3"]}, dims=("product"), name="n_pixel"
-        )
-
-    reduced = nasa_vs_mf.resample({"time": "1ME"}).map(confusion_table_to_surfaces)
-    import seaborn as sns
-
-    sns.catplot(
-        kind="bar",
-        data=reduced.to_dataframe(),
-        x="time",
-        y="n_pixel",
-        hue="product",
-        palette=[PRODUCT_PLOT_COLORS[MF_SYNOPSIS_VAR_NAME], PRODUCT_PLOT_COLORS[NASA_L3_SNPP_VAR_NAME]],
-    )
     plt.show()
+
+    # Invalid mask union analysis
+
+    # nasa_vs_mf = xr.open_dataset(
+    #     "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_6/analyses/confusion_table/confusion_table_WY_2023_2024_nasa_l3_snpp_vs_meteofrance_synopsis.nc"
+    # )
+
+    # # plot_confusion_table(dataset=mf_vs_nasa)
+
+    # def confusion_table_to_surfaces(dataset: xr.Dataset) -> xr.DataArray:
+    #     tp = dataset["true_positive"].sum()
+    #     fp = dataset["false_positive"].sum()
+    #     fn = dataset["false_negative"].sum()
+    #     return xr.DataArray(
+    #         [tp + fp, tp + fn],
+    #         coords={"product": [PRODUCT_PLOT_NAMES[MF_ORIG_VAR_NAME], PRODUCT_PLOT_NAMES[NASA_L3_SNPP_VAR_NAME]]},
+    #         dims=("product"),
+    #         name="n_pixel",
+    #     )
+
+    # reduced = nasa_vs_mf.resample({"time": "1ME"}).map(confusion_table_to_surfaces)
+
+    # sns.catplot(
+    #     kind="bar",
+    #     data=reduced.to_dataframe() * 375**2 * 1e-6,
+    #     x="time",
+    #     y="n_pixel",
+    #     hue="product",
+    #     palette=[PRODUCT_PLOT_COLORS[MF_ORIG_VAR_NAME], PRODUCT_PLOT_COLORS[NASA_L3_SNPP_VAR_NAME]],
+    # )
+    # plt.title("Surface of union of valid observations")
+    # plt.ylabel("Surface [km²]")
+    # plt.xlabel("Month")
+    # plt.xticks(
+    #     ticks=np.arange(len(reduced.coords["time"].to_dataframe().index)),
+    #     labels=reduced.coords["time"].to_dataframe().index.strftime("%B"),
+    # )
+    # plt.grid(axis="y", linewidth=0.4)
+    # plt.show()
