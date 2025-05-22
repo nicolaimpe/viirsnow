@@ -184,8 +184,7 @@ if __name__ == "__main__":
         #     decode_cf=True,
         # ),
         NASA_L3_SNPP_VAR_NAME: xr.open_dataset(
-            f"{analysis_folder}/confusion_table_WY_2023_2024_nasa_l3_snpp_vs_s2_theia.nc",
-            decode_cf=True,
+            f"{analysis_folder}/confusion_table_WY_2023_2024_nasa_l3_snpp_vs_s2_theia.nc", decode_cf=True
         ),
         # NASA_L3_JPSS1_VAR_NAME: xr.open_dataset(
         #     f"{analysis_folder}/confusion_table_WY_2023_2024_nasa_l3_jpss1_vs_s2_theia.nc",

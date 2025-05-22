@@ -29,6 +29,7 @@ class MeteoFranceSynopsisHarmonisation(HarmonisationBase):
         snow_cover_and_sat_angle_file_list.extend(
             get_all_meteofrance_sat_angle_filenames(data_folder=self.data_folder, winter_year=winter_year)
         )
+
         return snow_cover_and_sat_angle_file_list
 
     def get_daily_files(self, all_winter_year_files: List[str], day: datetime) -> List[str]:
@@ -70,14 +71,12 @@ class MeteoFranceSynopsisHarmonisation(HarmonisationBase):
 if __name__ == "__main__":
     year = WinterYear(2023, 2024)
 
-    suffixes = ["no_forest_modified_new"]
+    suffixes = ["no_forest_red_band_screen"]
     massifs_shapefile = "/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/vectorial/massifs/massifs.shp"
     meteofrance_cms_folder = "/home/imperatoren/work/VIIRS_S2_comparison/data/CMS_rejeu"
     grid = UTM375mGrid()
     for suffix in suffixes:
-        output_folder = (
-            f"/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_6_new_threshold/time_series/{suffix}"
-        )
+        output_folder = f"/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_6/time_series/{suffix}"
 
         logger.info(f"Méteo-France {suffix} processing")
         MeteoFranceSynopsisHarmonisation(

@@ -88,17 +88,13 @@ if __name__ == "__main__":
     analysis_type = "completeness"
     analysis_folder = f"/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_6/analyses/{analysis_type}"
     analyses_dict = {
-        MF_ORIG_VAR_NAME: xr.open_dataset(f"{analysis_folder}/completeness_WY_2023_2024_meteofrance_orig.nc"),
-        MF_SYNOPSIS_VAR_NAME: xr.open_dataset(f"{analysis_folder}/completeness_WY_2023_2024_meteofrance_synopsis.nc"),
+        # MF_ORIG_VAR_NAME: xr.open_dataset(f"{analysis_folder}/completeness_WY_2023_2024_meteofrance_orig.nc"),
+        # MF_SYNOPSIS_VAR_NAME: xr.open_dataset(f"{analysis_folder}/completeness_WY_2023_2024_meteofrance_synopsis.nc"),
         NASA_L3_SNPP_VAR_NAME: xr.open_dataset(f"{analysis_folder}/completeness_WY_2023_2024_nasa_l3_snpp.nc"),
-        # NASA_L3_JPSS1_VAR_NAME: xr.open_dataset(
-        #     f"{analysis_folder}/completeness_WY_2023_2024_nasa_l3_jpss1.nc",
-        #     decode_cf=True,
-        # ),
-        # NASA_L3_MULTIPLATFORM_VAR_NAME: xr.open_dataset(
-        #     f"{analysis_folder}/completeness_WY_2023_2024_nasa_l3_multiplatform.nc",
-        #     decode_cf=True,
-        # ),
+        NASA_L3_JPSS1_VAR_NAME: xr.open_dataset(f"{analysis_folder}/completeness_WY_2023_2024_nasa_l3_jpss1.nc"),
+        NASA_L3_MULTIPLATFORM_VAR_NAME: xr.open_dataset(
+            f"{analysis_folder}/completeness_WY_2023_2024_nasa_l3_multiplatform.nc"
+        ),
     }
 
     if len(analyses_dict) > 1:

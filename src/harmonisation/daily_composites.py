@@ -124,7 +124,7 @@ def create_temporal_composite_meteofrance(daily_snow_cover_files: List[str], dai
         ]
     )
     view_angles_daily_array = np.ma.masked_array(view_angles_daily_array, np.isnan(view_angles_daily_array))
-    # Half degree scale of Météo-France...rejeu at least!!!!!
+    # View angles Météo-France encoded on half degree
     view_angles_daily_array = view_angles_daily_array / 2
 
     invalid_masks = snow_cover_daily_images > METEOFRANCE_CLASSES["water"][0]

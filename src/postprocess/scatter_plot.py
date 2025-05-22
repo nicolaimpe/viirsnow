@@ -66,7 +66,7 @@ def fancy_scatter_plot(
         regression_x_axis * coeff_slope + intercept,
         "--",
         color="gray",
-        label=f"Fitted R²={score:.2f} m={float(coeff_slope):.2f} b={float(intercept):.2f}",
+        label=f"Fitted R²={score:.2f}"# m={float(coeff_slope):.2f} b={float(intercept):.2f}",
     )
     ax.plot(regression_x_axis, regression_x_axis, color="k", linewidth=0.5, label="y=x")
     ax.grid(True)
@@ -122,10 +122,10 @@ if __name__ == "__main__":
     # )
     # nasa_pseudo_l3_metrics_ds = nasa_pseudo_l3_metrics_ds.where(nasa_pseudo_l3_metrics_ds > 0, drop=True)
 
-    # meteofrance_ndsi = xr.open_dataset(
-    #     f"{analysis_folder}/{analysis_type}_WY_2023_2024_meteofrance_ndsi_snow_cover_vs_s2_theia_short.nc",
-    #     decode_cf=True,
-    # )
+    meteofrance_ndsi = xr.open_dataset(
+        f"{analysis_folder}/{analysis_type}_WY_2023_2024_meteofrance_ndsi_no_forest_vs_s2_theia.nc",
+        decode_cf=True,
+    )
     #############
 
     analyses_dict = {
@@ -146,11 +146,11 @@ if __name__ == "__main__":
     ####################### Launch analysis
     #### FSC corelation
     fig, ax = plt.subplots(1, len(selection_dict), figsize=(6 * len(selection_dict), 5))
-    n_min = 12
-    fig.suptitle(f"Scatter analysis - thresh N_min = {n_min}")
+    n_min = 17
+    fig.suptitle(f"Scatter analysis")
     for i, (k, v) in enumerate(selection_dict.items()):
         reduced_v = (
-            v.sel(ref_bins=slice(0, 95), forest_mask_bins=["forest", "no_forest"], test_bins=slice(0, 95))
+            v.sel(ref_bins=slice(0, 95), forest_mask_bins=["forest"], test_bins=slice(0, 95))
             .sum(dim=("forest_mask_bins", "time", "aspect_bins", "sub_roi_bins"))
             .data_vars["n_occurrences"]
         )
@@ -166,22 +166,23 @@ if __name__ == "__main__":
         ax[i].set_ylabel(f"{PRODUCT_PLOT_NAMES[k]} FSC [%]")
 
     #### NDSI-FSC regression
-    # fig, ax = plt.subplots(1, len(selection_dict), figsize=(6 * len(selection_dict), 5))
-    # n_min = 3
-    # fig.suptitle(f"Scatter analysis {title} - thresh N_min = {n_min}")
+    # fig, ax = plt.subplots(1, 
+    #                        len(selection_dict), figsize=(6 * len(selection_dict), 5))
+    # n_min = 20
+    # fig.suptitle(f"Scatter analysis - no forest - thresh N_min = {n_min}")
     # for i, (k, v) in enumerate(selection_dict.items()):
     #     reduced_v = (
     #         v.sel(
-    #             ref_bins=slice(1, 95),
-    #             forest_mask_bins=["forest"],
-    #             test_bins=slice(1, 95),
+    #             ref_bins=slice(0, 95),
+    #             forest_mask_bins=["no_forest"],
+    #             test_bins=slice(0, 95),
     #         )
     #         .sum(dim=("forest_mask_bins", "time", "aspect_bins", "sub_roi_bins"))
     #         .data_vars["n_occurrences"]
     #     )
     #     xax = reduced_v.test_bins.values
     #     fit_g = gascoin(xax * 0.01, f_veg=0) * 100
-    #     ax[i].plot(xax, fit_g, "g--", linewidth=1, label="gascoin at al. fveg=0")
+    #     # ax[i].plot(xax, fit_g, "g--", linewidth=1, label="gascoin at al. fveg=0")
     #     ax[i].plot(xax, salomonson_appel(xax), "k", linewidth=1, label="salomonson_appel")
     #     scatter_plot = fancy_scatter_plot(
     #         data_to_plt=reduced_v.rename({"ref_bins": "y", "test_bins": "x"}),

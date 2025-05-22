@@ -170,7 +170,7 @@ def georef_netcdf(data_array: xr.DataArray | xr.Dataset, crs: pyproj.CRS) -> xr.
     """
     The strict minimum to georeference in netCDF convention
 
-    Turn a DataArray into a Dataset  for which the GDAL driver (GDAL and QGIS) is able to read the georeferencing
+    Enforce georeferencing for GDAL/QGIS
     https://github.com/pydata/xarray/issues/2288
     https://gis.stackexchange.com/questions/230093/set-projection-for-netcdf4-in-python
     """
