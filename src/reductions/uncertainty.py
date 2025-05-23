@@ -94,7 +94,7 @@ if __name__ == "__main__":
         # See reprojection_l3_meteofrance_to_grid function
         # In resume, all fractions next to forest with snow class are imprecise because when resampling using average we set this class to 50% FSC
         forest_mask_path="/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/forest_mask/corine_2006_forest_mask_utm_max.tif",
-        slope_map_path=None,
+        slope_map_path="/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/dem/SLP_MSF_UTM31_375m_lanczos.tif",
         aspect_map_path="/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/dem/ASP_MSF_UTM31_375m_lanczos.tif",
         sub_roi_mask_path=None,
         dem_path="/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/dem/DEM_MSF_UTM31_375m_lanczos.tif",
@@ -126,7 +126,7 @@ if __name__ == "__main__":
             year=WinterYear(2023, 2024),
             test_product_name=product,
             ref_product_name="s2_theia",
-            period=slice("2023-11", "2024-02"),
+            period=slice("2023-11", "2024-06"),
         )
         logger.info(f"Evaluating product {product}")
         metrics_calcuator = evaluator["evaluator"]

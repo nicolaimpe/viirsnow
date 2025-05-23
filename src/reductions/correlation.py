@@ -5,16 +5,7 @@ import xarray as xr
 from xarray.groupers import BinGrouper
 
 from logger_setup import default_logger as logger
-from products.plot_settings import (
-    METEOFRANCE_VAR_NAME,
-    MF_NO_FOREST_VAR_NAME,
-    MF_ORIG_VAR_NAME,
-    MF_SYNOPSIS_VAR_NAME,
-    NASA_L3_JPSS1_VAR_NAME,
-    NASA_L3_MULTIPLATFORM_VAR_NAME,
-    NASA_L3_SNPP_VAR_NAME,
-    NASA_PSEUDO_L3_VAR_NAME,
-)
+from products.plot_settings import MF_NO_FOREST_RED_BAND_SCREEEN_VAR_NAME
 from reductions.completeness import (
     MeteoFranceSnowCoverProductCompleteness,
     NASASnowCoverProductCompleteness,
@@ -131,9 +122,10 @@ if __name__ == "__main__":
         config = config_fit
 
     evaluation_dict: Dict[str, Dict[str, Scatter]] = {
-        MF_ORIG_VAR_NAME: {"evaluator": ScatterMeteoFrance(), "config": config},
+        # MF_ORIG_VAR_NAME: {"evaluator": ScatterMeteoFrance(), "config": config},
         # MF_SYNOPSIS_VAR_NAME: {"evaluator": ScatterMeteoFrance(), "config": config},
         # MF_NO_FOREST_VAR_NAME: {"evaluator": ScatterMeteoFrance(), "config": config},
+        MF_NO_FOREST_RED_BAND_SCREEEN_VAR_NAME: {"evaluator": ScatterMeteoFrance(), "config": config},
         # NASA_PSEUDO_L3_VAR_NAME: {"evaluator": ScatterNASA(), "config": config},
         # NASA_L3_SNPP_VAR_NAME: {"evaluator": ScatterNASA(), "config": config},
         # NASA_L3_JPSS1_VAR_NAME: {"evaluator": ScatterNASA(), "config": config},

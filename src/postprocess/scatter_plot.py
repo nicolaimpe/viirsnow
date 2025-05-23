@@ -7,17 +7,10 @@ from matplotlib.figure import Figure
 from scipy.ndimage import gaussian_filter
 from sklearn.linear_model import LinearRegression
 
-from fractional_snow_cover import gascoin, salomonson_appel
-from postprocess.general_purpose import sel_evaluation_domain
 from products.plot_settings import (
-    METEOFRANCE_VAR_NAME,
+    MF_NO_FOREST_RED_BAND_SCREEEN_VAR_NAME,
     MF_NO_FOREST_VAR_NAME,
-    MF_ORIG_VAR_NAME,
-    MF_SYNOPSIS_VAR_NAME,
-    NASA_L3_JPSS1_VAR_NAME,
-    NASA_L3_MULTIPLATFORM_VAR_NAME,
     NASA_L3_SNPP_VAR_NAME,
-    NASA_PSEUDO_L3_VAR_NAME,
     PRODUCT_PLOT_NAMES,
 )
 from winter_year import WinterYear
@@ -66,7 +59,7 @@ def fancy_scatter_plot(
         regression_x_axis * coeff_slope + intercept,
         "--",
         color="gray",
-        label=f"Fitted R²={score:.2f}"# m={float(coeff_slope):.2f} b={float(intercept):.2f}",
+        label=f"Fitted R²={score:.2f}",  # m={float(coeff_slope):.2f} b={float(intercept):.2f}",
     )
     ax.plot(regression_x_axis, regression_x_axis, color="k", linewidth=0.5, label="y=x")
     ax.grid(True)
@@ -99,6 +92,10 @@ if __name__ == "__main__":
     )
     mf_no_forest_metrics_ds = xr.open_dataset(
         f"{analysis_folder}/{analysis_type}_WY_2023_2024_meteofrance_no_forest_vs_s2_theia.nc",
+        decode_cf=True,
+    )
+    mf_no_forest_red_band_screen_metrics_ds = xr.open_dataset(
+        f"{analysis_folder}/{analysis_type}_WY_2023_2024_meteofrance_no_forest_red_band_screen_vs_s2_theia.nc",
         decode_cf=True,
     )
 
@@ -134,6 +131,7 @@ if __name__ == "__main__":
         # MF_SYNOPSIS_VAR_NAME: mf_synopsis_metrics_ds,
         # NASA_PSEUDO_L3_VAR_NAME: nasa_pseudo_l3_metrics_ds,
         MF_NO_FOREST_VAR_NAME: mf_no_forest_metrics_ds,
+        MF_NO_FOREST_RED_BAND_SCREEEN_VAR_NAME: mf_no_forest_red_band_screen_metrics_ds,
         NASA_L3_SNPP_VAR_NAME: nasa_l3_snpp_metrics_ds,
         # NASA_L3_MULTIPLATFORM_VAR_NAME: nasa_l3_multiplatform_metrics_ds,
         # NASA_L3_JPSS1_VAR_NAME: nasa_l3_jpss1_metrics_ds,
@@ -147,7 +145,7 @@ if __name__ == "__main__":
     #### FSC corelation
     fig, ax = plt.subplots(1, len(selection_dict), figsize=(6 * len(selection_dict), 5))
     n_min = 17
-    fig.suptitle(f"Scatter analysis")
+    fig.suptitle("Scatter analysis")
     for i, (k, v) in enumerate(selection_dict.items()):
         reduced_v = (
             v.sel(ref_bins=slice(0, 95), forest_mask_bins=["forest"], test_bins=slice(0, 95))
@@ -166,7 +164,7 @@ if __name__ == "__main__":
         ax[i].set_ylabel(f"{PRODUCT_PLOT_NAMES[k]} FSC [%]")
 
     #### NDSI-FSC regression
-    # fig, ax = plt.subplots(1, 
+    # fig, ax = plt.subplots(1,
     #                        len(selection_dict), figsize=(6 * len(selection_dict), 5))
     # n_min = 20
     # fig.suptitle(f"Scatter analysis - no forest - thresh N_min = {n_min}")

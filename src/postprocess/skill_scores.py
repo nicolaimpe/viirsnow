@@ -11,7 +11,7 @@ from scores.categorical import BasicContingencyManager
 from sklearn.metrics import ConfusionMatrixDisplay
 
 from postprocess.general_purpose import fancy_table
-from products.plot_settings import MF_NO_FOREST_VAR_NAME, NASA_L3_JPSS1_VAR_NAME, PRODUCT_PLOT_NAMES
+from products.plot_settings import MF_NO_FOREST_RED_BAND_SCREEEN_VAR_NAME, MF_NO_FOREST_VAR_NAME, PRODUCT_PLOT_NAMES
 
 SCORES = ["accuracy", "precision", "recall", "f1_score", "commission_error", "omission_error"]
 
@@ -143,15 +143,7 @@ if __name__ == "__main__":
     import xarray as xr
 
     from postprocess.general_purpose import sel_evaluation_domain
-    from products.plot_settings import (
-        METEOFRANCE_VAR_NAME,
-        MF_NO_CC_MASK_VAR_NAME,
-        MF_ORIG_VAR_NAME,
-        MF_REFL_SCREEN_VAR_NAME,
-        MF_SYNOPSIS_VAR_NAME,
-        NASA_L3_SNPP_VAR_NAME,
-        NASA_PSEUDO_L3_VAR_NAME,
-    )
+    from products.plot_settings import MF_NO_FOREST_VAR_NAME, NASA_L3_SNPP_VAR_NAME
     from reductions.statistics_base import EvaluationVsHighResBase
     from winter_year import WinterYear
 
@@ -169,6 +161,10 @@ if __name__ == "__main__":
         # ),
         MF_NO_FOREST_VAR_NAME: xr.open_dataset(
             f"{analysis_folder}/confusion_table_WY_2023_2024_meteofrance_no_forest_vs_s2_theia.nc",
+            decode_cf=True,
+        ),
+        MF_NO_FOREST_RED_BAND_SCREEEN_VAR_NAME: xr.open_dataset(
+            f"{analysis_folder}/confusion_table_WY_2023_2024_meteofrance_no_forest_red_band_screen_vs_s2_theia.nc",
             decode_cf=True,
         ),
         # MF_NO_CC_MASK_VAR_NAME: xr.open_dataset(
@@ -201,7 +197,7 @@ if __name__ == "__main__":
     #         f"{analysis_folder}/confusion_table_WY_2023_2024_meteofrance_synopsis_vs_s2_theia.nc", decode_cf=True
     #     ),
     # }
-    evaluation_domain = "accumulation"
+    evaluation_domain = "general"
     selection_dict, title = sel_evaluation_domain(analyses_dict=analyses_dict, evaluation_domain=evaluation_domain)
     ################# Launch analysis ###########################
 

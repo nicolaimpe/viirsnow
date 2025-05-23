@@ -284,12 +284,12 @@ if __name__ == "__main__":
     #     title_complement=f"FSC 1-99% - no forest - {str(wy)}",
     # )
     # SAFRAN geometry
-    # semidistributed_geometry_plot(
-    #     selection_dict, "biais", title_complement=f"Semidistributed geometry biais distribution- {title}"
-    # )
-    # semidistributed_geometry_plot(
-    #     selection_dict, "unbiaised_rmse", title_complement=f"Semidistributed geometry unbiaised RMSE distribution - {title}"
-    # )
+    semidistributed_geometry_plot(
+        selection_dict, "biais", title_complement=f"Semidistributed geometry biais distribution- {title}"
+    )
+    semidistributed_geometry_plot(
+        selection_dict, "unbiaised_rmse", title_complement=f"Semidistributed geometry unbiaised RMSE distribution - {title}"
+    )
 
     # Barplots aspect
     double_variable_barplots(selection_dict, "forest_mask_bins", "aspect_bins")

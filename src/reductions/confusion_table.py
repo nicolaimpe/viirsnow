@@ -4,7 +4,7 @@ from typing import Dict
 import xarray as xr
 
 from logger_setup import default_logger as logger
-from products.plot_settings import NASA_L3_MULTIPLATFORM_VAR_NAME
+from products.plot_settings import MF_NO_FOREST_RED_BAND_SCREEEN_VAR_NAME
 from reductions.completeness import (
     MeteoFranceSnowCoverProductCompleteness,
     NASASnowCoverProductCompleteness,
@@ -135,11 +135,11 @@ if __name__ == "__main__":
     config = EvaluationConfig(
         ref_fsc_step=98,
         sensor_zenith_analysis=True,
-        forest_mask_path=None,
-        slope_map_path=None,
-        aspect_map_path=None,
+        forest_mask_path="/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/forest_mask/corine_2006_forest_mask_utm_max.tif",
+        slope_map_path="/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/dem/SLP_MSF_UTM31_375m_lanczos.tif",
+        aspect_map_path="/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/dem/ASP_MSF_UTM31_375m_lanczos.tif",
         sub_roi_mask_path=None,
-        dem_path=None,
+        dem_path="/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/dem/DEM_MSF_UTM31_375m_lanczos.tif",
     )
 
     config_nasa_l3 = deepcopy(config)
@@ -147,8 +147,8 @@ if __name__ == "__main__":
 
     working_folder = "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_6/"
 
-    ref_fsc_threshold = 15
-    test_fsc_threshold = 15
+    ref_fsc_threshold = None
+    test_fsc_threshold = None
 
     evaluation_dict: Dict[str, Dict[str, ConfusionTable]] = {
         # "meteofrance_orig": {
@@ -163,6 +163,10 @@ if __name__ == "__main__":
         #     "evaluator": ConfusionTableMeteoFrance(ref_fsc_threshold=ref_fsc_threshold, test_fsc_threshold=test_fsc_threshold),
         #     "config": config,
         # },
+        MF_NO_FOREST_RED_BAND_SCREEEN_VAR_NAME: {
+            "evaluator": ConfusionTableMeteoFrance(ref_fsc_threshold=ref_fsc_threshold, test_fsc_threshold=test_fsc_threshold),
+            "config": config,
+        },
         # "meteofrance_no_cc_mask": {
         #     "evaluator": ConfusionTableMeteoFrance(ref_fsc_threshold=ref_fsc_threshold, test_fsc_threshold=test_fsc_threshold),
         #     "config": config,
@@ -189,20 +193,20 @@ if __name__ == "__main__":
         # },
     }
 
-    evaluation_dict: Dict[str, Dict[str, ConfusionTable]] = {
-        "meteofrance_orig_vs_nasa_snpp": {
-            "evaluator": ConfusionTableNASA(ref_fsc_threshold=ref_fsc_threshold, test_fsc_threshold=test_fsc_threshold),
-            "config": config_nasa_l3,
-        },
-    }
+    # evaluation_dict: Dict[str, Dict[str, ConfusionTable]] = {
+    #     "meteofrance_orig_vs_nasa_snpp": {
+    #         "evaluator": ConfusionTableNASA(ref_fsc_threshold=ref_fsc_threshold, test_fsc_threshold=test_fsc_threshold),
+    #         "config": config_nasa_l3,
+    #     },
+    # }
 
     for product, evaluator in evaluation_dict.items():
         ref_time_series, test_time_series, output_filename = generate_evaluation_io(
             analysis_type="confusion_table",
             working_folder=working_folder,
             year=WinterYear(2023, 2024),
-            ref_product_name="meteofrance_orig",
-            test_product_name="nasa_l3_snpp",
+            ref_product_name="s2_theia",
+            test_product_name=product,
             period=slice("2023-11", "2024-06"),
         )
         logger.info(f"Evaluating product {product}")
