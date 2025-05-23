@@ -9,18 +9,15 @@ import numpy as np
 import xarray as xr
 
 from compression import generate_xarray_compression_encodings
-from fractional_snow_cover import nasa_ndsi_snow_cover_to_fraction
-from grids import GeoGrid, UTM375mGrid, georef_data_array
+from grids import GeoGrid, SIN375mGrid
+from harmonisation.reprojections import reproject_l2_nasa_to_grid
 from logger_setup import default_logger as logger
 from products.classes import NASA_CLASSES
-from products.filenames import (
-    KNOWN_COLLECTIONS,
-    NASA_L2_GEOMETRY_PRODUCTS_IDS,
-    NASA_L2_SNOW_PRODUCTS_IDS,
-    get_datetime_from_viirs_nasa_filepath,
-)
-from reprojections import reproject_l2_nasa_to_grid
+from products.filenames import get_datetime_from_viirs_nasa_filepath
 from winter_year import WinterYear
+
+NASA_L2_SNOW_PRODUCTS_IDS = ["VNP10", "VJ110", "VNP10_NRT", "VJ110_NRT"]
+NASA_L2_GEOMETRY_PRODUCTS_IDS = ["VNP03IMG", "VJ103IMG", "VNP03IMG_NRT", "VJ103IMG_NRT", "VNP03IMG_GEO_250m"]
 
 
 def download_daily_products_from_home(
@@ -56,7 +53,7 @@ def download_daily_products_from_home(
     return files
 
 
-def download_daily_products_from_sxcen(day: datetime, product_name: str, download_urls_list: List[str], output_folder: str):
+def download_daily_products_from_sxcen(day: datetime, download_urls_list: List[str], output_folder: str):
     logger.info(f"Process day {day.strftime('%Y-%m-%d')}")
     fs = earthaccess.get_fsspec_https_session()
     daily_urls = [path for path in download_urls_list if re.search(f"A{day.strftime('%Y%j')}", path)]
@@ -87,19 +84,7 @@ def reproject_l2_snow_cover_product(l2_nasa_filename: str, output_path: str, out
         output_filename=None,
         fill_value=NASA_CLASSES["fill"][0],
     )
-    fractional_snow_cover = nasa_ndsi_snow_cover_to_fraction(
-        reprojected_dataset["NDSI_Snow_Cover"].values, method="salomonson_appel"
-    )
-    fsc_dataset = georef_data_array(
-        xr.DataArray(
-            data=fractional_snow_cover,
-            coords={"y": output_grid.ycoords, "x": output_grid.xcoords},
-            attrs={"NDSI_to_FSC_method": "salomonson_appel"},
-        ),
-        data_array_name="snow_cover_fraction",
-        crs=output_grid.crs,
-    )
-    reprojected_dataset = reprojected_dataset.assign(fsc_dataset)
+
     reprojected_dataset = reprojected_dataset.astype("u1")
     reprojected_dataset.to_netcdf(output_path, encoding=generate_xarray_compression_encodings(reprojected_dataset))
 
@@ -152,7 +137,7 @@ if __name__ == "__main__":
     product_collection = "V10"  # V10 V03IMG
     product_type = "Standard"  # Standard, NRT (Near Real Time)
     platform = "SNPP"  # SNPP, JPSS1
-    product_id = KNOWN_COLLECTIONS[product_collection][product_type][platform]
+    product_id = "VNP10"
     output_folder = f"{data_folder}/{product_collection}/{product_id}/"
 
     # If download from office
@@ -161,7 +146,7 @@ if __name__ == "__main__":
     )
 
     year = WinterYear(2023, 2024)
-    output_grid = UTM375mGrid()
+    output_grid = SIN375mGrid()
 
     if download_from == "office":
         with open(granule_list_filepath) as f:
@@ -170,10 +155,6 @@ if __name__ == "__main__":
 
     bad_days_count = []
     for day in year.iterate_days():
-        if day.year == 2023:
-            continue
-        if day.day_of_year < 164:
-            continue
         try:
             if download_from == "home":
                 daily_products_filenames = download_daily_products_from_home(
@@ -194,17 +175,17 @@ if __name__ == "__main__":
             logger.warning(f"Error {e} during download. Skipping day {day}.")
             bad_days_count.append(day)
             continue
-        try:
-            reproject_daily_products(
-                daily_l2_filenames=daily_products_filenames,
-                output_folder=output_folder,
-                output_grid=output_grid,
-                product_id=product_id,
-                delete_downloaded_swath_files=True,
-            )
-        except Exception as e:
-            logger.warning(f"Error {e} during reprojection. Skipping day {day}.")
-            bad_days_count.append(day)
-            continue
+        # try:
+        reproject_daily_products(
+            daily_l2_filenames=daily_products_filenames,
+            output_folder=output_folder,
+            output_grid=output_grid,
+            product_id=product_id,
+            delete_downloaded_swath_files=True,
+        )
+        # except Exception as e:
+        #     logger.warning(f"Error {e} during reprojection. Skipping day {day}.")
+        #     bad_days_count.append(day)
+        #     continue
 
     print("Unsuccessfull days", bad_days_count)

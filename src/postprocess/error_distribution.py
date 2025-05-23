@@ -10,9 +10,16 @@ from matplotlib.axes import Axes
 from pandas.io.formats.style import Styler
 from xarray.groupers import BinGrouper
 
-from postprocess.general_purpose import fancy_table
-from products.plot_settings import PRODUCT_PLOT_COLORS, PRODUCT_PLOT_NAMES
+from postprocess.general_purpose import fancy_table, sel_evaluation_domain
+from products.plot_settings import (
+    MF_NO_FOREST_RED_BAND_SCREEEN_VAR_NAME,
+    MF_NO_FOREST_VAR_NAME,
+    NASA_L3_SNPP_VAR_NAME,
+    PRODUCT_PLOT_COLORS,
+    PRODUCT_PLOT_NAMES,
+)
 from reductions.statistics_base import EvaluationVsHighResBase
+from winter_year import WinterYear
 
 
 def histograms_to_biais_rmse(metrics_dataset: xr.Dataset) -> xr.Dataset:
@@ -39,16 +46,20 @@ def postprocess_uncertainty_analysis(
 def barplots(postprocessed_data_array: xr.DataArray, title: str, ax: Axes):
     plot_dataframe_dict = {}
     colors = []
+    legend = []
     for product in postprocessed_data_array.coords["product"].values:
         plot_dataframe_dict.update({product: postprocessed_data_array.sel(product=product).to_pandas()})
         colors.append(PRODUCT_PLOT_COLORS[product])
+        legend.append(PRODUCT_PLOT_NAMES[product])
     plot_dataframe = pd.DataFrame(plot_dataframe_dict)
     if "month" in title:
         plot_dataframe.index = plot_dataframe.index.strftime("%B")
     if "aspect" in title:
         # That's because to_pandas() reorders the aspect labels alphabetically
         plot_dataframe = plot_dataframe.reindex(index=EvaluationVsHighResBase.aspect_bins().labels)
-    plot_dataframe.plot.bar(figsize=(11, 3), color=colors, width=0.6, title=title, ax=ax)
+
+    plot_dataframe.plot.bar(figsize=(12, 3), color=colors, width=0.6, title=title, ax=ax)
+    ax.legend(legend)
 
 
 def biais_barplots(postprocessed_dataset: xr.Dataset, analysis_var_plot_name: str, title_complement: str):
@@ -75,6 +86,7 @@ def rmse_barplots(postprocessed_dataset: xr.Dataset, analysis_var_plot_name: str
         ax=ax,
     )
     ax.grid(True, axis="y")
+    ax.set_ylabel("RMSE [%]")
 
 
 def unbiaised_rmse_barplots(postprocessed_dataset: xr.Dataset, analysis_var_plot_name: str, title_complement: str):
@@ -126,9 +138,9 @@ def semidistributed_geometry_plot(
                 np.deg2rad(EvaluationVsHighResBase.aspect_bins().bins),
                 altitude_ticks,
                 dataset_reduced.data_vars[variable_to_plot].sel(slope_bins=slope).transpose().values,
-                cmap="coolwarm",
-                vmin=-30,
-                vmax=30,
+                cmap="coolwarm" if variable_to_plot == "biais" else "Reds",
+                vmin=-15 if variable_to_plot == "biais" else 0,
+                vmax=15 if variable_to_plot == "biais" else 25,
             )
 
             fig.colorbar(im, ax=ax[i], orientation="horizontal", label=variable_to_plot, fraction=0.05, pad=0.1)
@@ -201,7 +213,7 @@ def double_variable_barplots(analyses_dict: Dict[str, xr.Dataset], var1: str, va
     )
     plot_rmse = sns.catplot(
         reduced_df,
-        x="unbiaised_rmse",
+        x="rmse",
         y=var2,
         hue="product",
         col=var1,
@@ -212,25 +224,38 @@ def double_variable_barplots(analyses_dict: Dict[str, xr.Dataset], var1: str, va
     )
     plot_biais.figure.suptitle(f"Bias vs aspect - {title} - {str(wy)}", fontsize=11, fontweight="bold")
     plot_biais.figure.subplots_adjust(top=0.85)
-    plot_rmse.figure.suptitle(f"Unbiased RMSE vs aspect - {title} - {str(wy)}", fontsize=11, fontweight="bold")
+    plot_rmse.figure.suptitle(f"RMSE vs aspect - {title} - {str(wy)}", fontsize=11, fontweight="bold")
     plot_rmse.figure.subplots_adjust(top=0.85)
 
 
-if __name__ == "__main__":
-    from postprocess.general_purpose import open_analysis_file, sel_evaluation_domain
-    from products.plot_settings import METEOFRANCE_VAR_NAME, NASA_L3_VAR_NAME, NASA_PSEUDO_L3_VAR_NAME
-    from reductions.statistics_base import EvaluationVsHighResBase
-    from winter_year import WinterYear
+def scatter_to_biais(dataset: xr.Dataset) -> xr.DataArray:
+    data_array = dataset.data_vars["n_occurrences"].sum(dim=("forest_mask_bins", "sub_roi_bins", "aspect_bins", "time"))
+    biais_bins = np.arange(-100, 101)
 
+    occurrences_per_biais_bins = np.zeros_like(biais_bins)
+    for i, b in enumerate(biais_bins):
+        occurrences_per_biais_bins[i] = np.trace(data_array.values, offset=b + data_array.ref_bins.values[0])
+    out_data_array = xr.DataArray(data=occurrences_per_biais_bins, coords={"biais_bins": biais_bins})
+    return xr.Dataset({"n_occurrences": out_data_array})
+
+
+if __name__ == "__main__":
     wy = WinterYear(2023, 2024)
     analysis_type = "uncertainty"
-    analysis_folder = f"/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_4/analyses/{analysis_type}"
-    analyses_dict = {
-        METEOFRANCE_VAR_NAME: open_analysis_file(analysis_folder, analysis_type, METEOFRANCE_VAR_NAME),
-        NASA_PSEUDO_L3_VAR_NAME: open_analysis_file(analysis_folder, analysis_type, NASA_PSEUDO_L3_VAR_NAME),
-        NASA_L3_VAR_NAME: open_analysis_file(analysis_folder, analysis_type, NASA_L3_VAR_NAME),
+    analysis_folder = f"/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_6/analyses/{analysis_type}"
+
+    path_dict = {
+        # MF_ORIG_VAR_NAME: f"{analysis_folder}/uncertainty_WY_2023_2024_meteofrance_orig_vs_s2_theia.nc",
+        # MF_SYNOPSIS_VAR_NAME: f"{analysis_folder}/uncertainty_WY_2023_2024_meteofrance_synopsis_vs_s2_theia.nc",
+        MF_NO_FOREST_VAR_NAME: f"{analysis_folder}/uncertainty_WY_2023_2024_meteofrance_no_forest_vs_s2_theia.nc",
+        MF_NO_FOREST_RED_BAND_SCREEEN_VAR_NAME: f"{analysis_folder}/uncertainty_WY_2023_2024_meteofrance_no_forest_red_band_screen_vs_s2_theia.nc",
+        # MF_NO_FOREST_MODIFIED_VAR_NAME: f"{analysis_folder}/uncertainty_WY_2023_2024_meteofrance_no_forest_modified_vs_s2_theia.nc",
+        NASA_L3_SNPP_VAR_NAME: f"{analysis_folder}/uncertainty_WY_2023_2024_nasa_l3_snpp_vs_s2_theia.nc",
+        # NASA_L3_JPSS1_VAR_NAME: f"{analysis_folder}/uncertainty_WY_2023_2024_nasa_l3_jpss1_vs_s2_theia.nc",
+        # NASA_L3_MULTIPLATFORM_VAR_NAME: f"{analysis_folder}/uncertainty_WY_2023_2024_nasa_l3_multiplatform_vs_s2_theia.nc",
     }
 
+    analyses_dict = {k: xr.open_dataset(v, decode_cf=True) for k, v in path_dict.items()}
     evaluation_domain = "accumulation"
     selection_dict, title = sel_evaluation_domain(analyses_dict=analyses_dict, evaluation_domain=evaluation_domain)
 
@@ -242,12 +267,22 @@ if __name__ == "__main__":
         analysis_var_plot_name="time (month)",
         title_complement=f"Biais temporal distribution - {title} - {str(wy)}",
     )
-    unbiaised_rmse_barplots(
+    # unbiaised_rmse_barplots(
+    #     postprocess_uncertainty_analysis(selection_dict, analysis_var={"time": EvaluationVsHighResBase.month_bins(wy)}),
+    #     analysis_var_plot_name="time (month)",
+    #     title_complement=f"Unbiaised RMSE temporal distribution - {title} - {str(wy)}",
+    # )
+    rmse_barplots(
         postprocess_uncertainty_analysis(selection_dict, analysis_var={"time": EvaluationVsHighResBase.month_bins(wy)}),
         analysis_var_plot_name="time (month)",
-        title_complement=f"Unbiaised RMSE temporal distribution - {title} - {str(wy)}",
+        title_complement=f"RMSE temporal distribution - {title} - {str(wy)}",
     )
 
+    # rmse_barplots(
+    #     postprocess_uncertainty_analysis(selection_dict, analysis_var={"time": EvaluationVsHighResBase.month_bins(wy)}),
+    #     analysis_var_plot_name="time (month)",
+    #     title_complement=f"FSC 1-99% - no forest - {str(wy)}",
+    # )
     # SAFRAN geometry
     semidistributed_geometry_plot(
         selection_dict, "biais", title_complement=f"Semidistributed geometry biais distribution- {title}"
@@ -257,33 +292,64 @@ if __name__ == "__main__":
     )
 
     # Barplots aspect
-    double_variable_barplots(selection_dict, "forest_mask", "aspect_bins")
+    double_variable_barplots(selection_dict, "forest_mask_bins", "aspect_bins")
 
     # Boxplots vza
+    # fig, ax = plt.subplots(figsize=(10, 4))
+    # fig.suptitle(f"Error distribution vs VZA - {title} - {str(wy)}")
+    # ax.set_xticklabels(["0-15", "15-30", "30-45", "45-60", ">60"])
+    # ax.set_xlabel("Sensor zenith angle [°]")
+    # ax.set_ylabel("FSC [%]")
+    # ax.set_ylim(-60, 60)
+
+    # sel_vza = selection_dict.copy()
+    # if "nasa_l3_snpp" in selection_dict:
+    #     sel_vza.pop("nasa_l3_snpp")
+    # if "nasa_l3_jpss1" in selection_dict:
+    #     sel_vza.pop("nasa_l3_jpss1")
+    # if "nasa_l3_multiplatform" in selection_dict:
+    #     sel_vza.pop("nasa_l3_multiplatform")
+    # sel_vza = {k: v.sel(sensor_zenith_bins=slice(0, 75)) for k, v in sel_vza.items()}
+
+    # raw_error_boxplots(metrics_dict=sel_vza, analysis_var="sensor_zenith_bins", ax=ax)
+
+    # # Boxplots slope
+    # fig, ax = plt.subplots(figsize=(10, 4))
+    # fig.suptitle(f"Error distribution vs slope - {title} - {str(wy)}")
+    # ax.set_xticklabels(["0-10", "10-30", "30-50"])
+    # ax.set_xlabel("Slope [°]")
+    # ax.set_ylabel("FSC [%]")
+    # ax.set_ylim(-60, 60)
+    # ax.plot()
+    # selection_slope_dict = {k: v.sel(slope_bins=slice(0, 60)) for k, v in selection_dict.items()}
+    # raw_error_boxplots(metrics_dict=selection_slope_dict, analysis_var="slope_bins", ax=ax)
+
+    # Boxplots ref FSC
+
     fig, ax = plt.subplots(figsize=(10, 4))
-    fig.suptitle(f"Error distribution vs VZA - {title} - {str(wy)}")
-    ax.set_xticklabels(["0-15", "15-30", "30-45", "45-60", ">60"])
-    ax.set_xlabel("Sensor zenith angle [°]")
-    ax.set_ylabel("FSC [%]")
-    ax.set_ylim(-60, 60)
+    fig.suptitle("Error distribution vs Fractional Snow Cover")
+    ax.set_xlabel("Ref FSC bin [%]")
+    ax.set_ylabel("FSC error [%]")
+    ax.set_ylim(-80, 80)
+    ax.set_yticks(np.arange(-80, 81, 10))
+    ax.set_xticklabels(
+        [
+            "[1-10]",
+            "[11-20]",
+            "[21-30]",
+            "[31-40]",
+            "[41-50]",
+            "[51-60]",
+            "[61-70]",
+            "[71-80]",
+            "[81-90]",
+            "[91-99]",
+        ]
+    )
+    selection_ref_fsc_dict = {k: v.sel(ref_bins=slice(1, 99)) for k, v in selection_dict.items()}
+    raw_error_boxplots(metrics_dict=selection_ref_fsc_dict, analysis_var="ref_bins", ax=ax)
 
-    sel_vza = selection_dict.copy()
-    sel_vza.pop("nasa_l3")
-    sel_vza = {k: v.sel(sensor_zenith_bins=slice(0, 75)) for k, v in sel_vza.items()}
-
-    raw_error_boxplots(metrics_dict=sel_vza, analysis_var="sensor_zenith_bins", ax=ax)
-
-    # Boxplots slope
-    fig, ax = plt.subplots(figsize=(10, 4))
-    fig.suptitle(f"Error distribution vs slope - {title} - {str(wy)}")
-    ax.set_xticklabels(["0-10", "10-30", "30-50"])
-    ax.set_xlabel("Slope [°]")
-    ax.set_ylabel("FSC [%]")
-    ax.set_ylim(-60, 60)
-    ax.plot()
-    selection_dict = {k: v.sel(slope_bins=slice(0, 60)) for k, v in selection_dict.items()}
-    raw_error_boxplots(metrics_dict=selection_dict, analysis_var="slope_bins", ax=ax)
-
+    # Print resume table
     reduced_datasets = []
     for dataset in selection_dict.values():
         reduced_datasets.append(histograms_to_biais_rmse(dataset))

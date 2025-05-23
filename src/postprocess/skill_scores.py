@@ -11,7 +11,7 @@ from scores.categorical import BasicContingencyManager
 from sklearn.metrics import ConfusionMatrixDisplay
 
 from postprocess.general_purpose import fancy_table
-from products.plot_settings import PRODUCT_PLOT_NAMES
+from products.plot_settings import MF_NO_FOREST_RED_BAND_SCREEEN_VAR_NAME, MF_NO_FOREST_VAR_NAME, PRODUCT_PLOT_NAMES
 
 SCORES = ["accuracy", "precision", "recall", "f1_score", "commission_error", "omission_error"]
 
@@ -79,7 +79,7 @@ def plot_multiple_scores_sns(metrics_dict: Dict[str, xr.Dataset], variable: str,
     results = []
     for metrics_ds in metrics_dict.values():
         results.append(metrics_ds.groupby(variable).map(compute_all_scores))
-    results = xr.concat(results, pd.Index(list(metrics_dict.keys()), name="product")).to_dataframe()
+    results = xr.concat(results, pd.Index([PRODUCT_PLOT_NAMES[k] for k in metrics_dict.keys()], name="product")).to_dataframe()
     results = results.reset_index([variable, "product"])
     results = results.melt(id_vars=["product", variable], var_name="score", value_name="value")
     sns.set_style("darkgrid")
@@ -142,35 +142,88 @@ def fancy_table_skill_scores(dataframe_to_print: pd.DataFrame) -> Styler:
 if __name__ == "__main__":
     import xarray as xr
 
-    from postprocess.general_purpose import open_analysis_file, sel_evaluation_domain
-    from products.plot_settings import METEOFRANCE_VAR_NAME, NASA_L3_VAR_NAME, NASA_PSEUDO_L3_VAR_NAME
+    from postprocess.general_purpose import sel_evaluation_domain
+    from products.plot_settings import MF_NO_FOREST_VAR_NAME, NASA_L3_SNPP_VAR_NAME
     from reductions.statistics_base import EvaluationVsHighResBase
     from winter_year import WinterYear
 
     wy = WinterYear(2023, 2024)
-    analysis_folder = "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_4/analyses/confusion_table"
+    analysis_folder = "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_6/analyses/confusion_table"
     analysis_type = "confusion_table"
+
     analyses_dict = {
-        METEOFRANCE_VAR_NAME: open_analysis_file(analysis_folder, analysis_type, METEOFRANCE_VAR_NAME),
-        NASA_PSEUDO_L3_VAR_NAME: open_analysis_file(analysis_folder, analysis_type, NASA_PSEUDO_L3_VAR_NAME),
-        NASA_L3_VAR_NAME: open_analysis_file(analysis_folder, analysis_type, NASA_L3_VAR_NAME),
+        # MF_ORIG_VAR_NAME: xr.open_dataset(
+        #     f"{analysis_folder}/confusion_table_WY_2023_2024_meteofrance_orig_vs_s2_theia.nc", decode_cf=True
+        # ),
+        # MF_SYNOPSIS_VAR_NAME: xr.open_dataset(
+        #     f"{analysis_folder}/confusion_table_WY_2023_2024_meteofrance_synopsis_vs_s2_theia.nc",
+        #     decode_cf=True,
+        # ),
+        MF_NO_FOREST_VAR_NAME: xr.open_dataset(
+            f"{analysis_folder}/confusion_table_WY_2023_2024_meteofrance_no_forest_vs_s2_theia.nc",
+            decode_cf=True,
+        ),
+        MF_NO_FOREST_RED_BAND_SCREEEN_VAR_NAME: xr.open_dataset(
+            f"{analysis_folder}/confusion_table_WY_2023_2024_meteofrance_no_forest_red_band_screen_vs_s2_theia.nc",
+            decode_cf=True,
+        ),
+        # MF_NO_CC_MASK_VAR_NAME: xr.open_dataset(
+        #     f"{analysis_folder}/confusion_table_WY_2023_2024_meteofrance_no_cc_mask_vs_s2_theia.nc",
+        #     decode_cf=True,
+        # ),
+        # MF_REFL_SCREEN_VAR_NAME: xr.open_dataset(
+        #     f"{analysis_folder}/confusion_table_WY_2023_2024_meteofrance_modified_vs_s2_theia.nc",
+        #     decode_cf=True,
+        # ),
+        # NASA_PSEUDO_L3_VAR_NAME: xr.open_dataset(
+        #     f"{analysis_folder}/confusion_table_WY_2023_2024_nasa_pseudo_l3_vs_s2_theia.nc",
+        #     decode_cf=True,
+        # ),
+        NASA_L3_SNPP_VAR_NAME: xr.open_dataset(
+            f"{analysis_folder}/confusion_table_WY_2023_2024_nasa_l3_snpp_vs_s2_theia.nc", decode_cf=True
+        ),
+        # NASA_L3_JPSS1_VAR_NAME: xr.open_dataset(
+        #     f"{analysis_folder}/confusion_table_WY_2023_2024_nasa_l3_jpss1_vs_s2_theia.nc",
+        #     decode_cf=True,
+        # ),
     }
 
-    evaluation_domain = "ablation"
+    # analyses_dict = {
+    #     MF_S2_FSC_SCREEN: xr.open_dataset(
+    #         f"{analysis_folder.replace('version_5_complete', 'version_5_fsc_screen_harmo')}/confusion_table_WY_2023_2024_meteofrance_synopsis_vs_s2_theia_sca.nc",
+    #         decode_cf=True,
+    #     ),
+    #     MF_NO_S2_FSC_SCREEN: xr.open_dataset(
+    #         f"{analysis_folder}/confusion_table_WY_2023_2024_meteofrance_synopsis_vs_s2_theia.nc", decode_cf=True
+    #     ),
+    # }
+    evaluation_domain = "general"
     selection_dict, title = sel_evaluation_domain(analyses_dict=analyses_dict, evaluation_domain=evaluation_domain)
     ################# Launch analysis ###########################
 
     # Confusion table
     plot_multiple_confusion_table(metrics_dict=selection_dict, title_complement=f"{title} - {str(wy)}")
 
+    df = compute_results_df(selection_dict)
+    print(df.round(decimals=2))
+
     sel_no_vza = selection_dict.copy()
-    sel_no_vza.pop("nasa_l3")
+    if "nasa_l3_snpp" in sel_no_vza:
+        sel_no_vza.pop("nasa_l3_snpp")
+    if "nasa_l3_jpss1" in sel_no_vza:
+        sel_no_vza.pop("nasa_l3_jpss1")
     # Sensor zenith
+    sel_no_vza = {
+        k: v.sel(sensor_zenith_bins=slice(None, 90)).assign_coords(
+            {"sensor_zenith_bins": ["0-15", "15-30", "30-45", "45-60", ">60"]}
+        )
+        for k, v in sel_no_vza.items()
+    }
     plot_multiple_scores_sns(
         metrics_dict=sel_no_vza,
         variable="sensor_zenith_bins",
         xlabel="Sensor Zenith Angle [°]",
-        title_complement=f"Sensor zenith angle - Restricted domain- {str(wy)}",
+        title_complement=f"Sensor zenith angle - {title} - {str(wy)}",
     )
 
     # Aspect
@@ -190,41 +243,40 @@ if __name__ == "__main__":
         metrics_dict=selection_dict,
         variable="aspect_bins",
         xlabel="Aspect",
-        title_complement=f"Aspect - {title} period- {str(wy)}",
+        title_complement=f"Aspect - {title} - {str(wy)}",
     )
 
-    # Massifs
-    selection_dict = {
-        k: v.assign_coords({"sub_roi": ["", "Alps", "Pyrenees", "Corse", "Massif Central", "Jura", "Vosges"]})
-        for k, v in selection_dict.items()
-    }
-    plot_multiple_scores_sns(
-        metrics_dict=selection_dict,
-        variable="sub_roi",
-        xlabel="Massif",
-        title_complement=f"Massif - {title} - {str(wy)}",
-    )
+    # # Massifs
+    # selection_dict = {
+    #     k: v.assign_coords({"sub_roi": ["", "Alps", "Pyrenees", "Corse", "Massif Central", "Jura", "Vosges"]})
+    #     for k, v in selection_dict.items()
+    # }
+    # plot_multiple_scores_sns(
+    #     metrics_dict=selection_dict,
+    #     variable="sub_roi",
+    #     xlabel="Massif",
+    #     title_complement=f"Massif - {title} - {str(wy)}",
+    # )
 
     # Slope
-    selection_dict = {
-        k: v.sel(slope_bins=slice(None, 50)).assign_coords({"slope_bins": ["0-10", "10-30", "30-50"]})
-        for k, v in selection_dict.items()
-    }
-    plot_multiple_scores_sns(
-        metrics_dict=selection_dict,
-        variable="slope_bins",
-        xlabel="Slope [°]",
-        title_complement=f"Slope - {title} - {str(wy)}",
-    )
+    # selection_dict = {
+    #     k: v.sel(slope_bins=slice(None, 50)).assign_coords({"slope_bins": ["0-10", "10-30", "30-50"]})
+    #     for k, v in selection_dict.items()
+    # }
+    # plot_multiple_scores_sns(
+    #     metrics_dict=selection_dict,
+    #     variable="slope_bins",
+    #     xlabel="Slope [°]",
+    #     title_complement=f"Slope - {title} - {str(wy)}",
+    # )
     # vegetation
-    selection_dict = {k: v.assign_coords({"forest_mask": ["no forest", "forest"]}) for k, v in selection_dict.items()}
     plot_multiple_scores_sns(
         metrics_dict=selection_dict,
-        variable="forest_mask",
+        variable="forest_mask_bins",
         xlabel="Landcover",
         title_complement=f"Landcover - {title} - {str(wy)}",
     )
 
-    df = compute_results_df(selection_dict)
-    print(df.round(decimals=2))
+    # df = compute_results_df(selection_dict)
+    # print(df.round(decimals=2))
     plt.show()

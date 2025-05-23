@@ -5,7 +5,7 @@
 groups = ["default", "test"]
 strategy = ["inherit_metadata"]
 lock_version = "4.5.0"
-content_hash = "sha256:56cd34b7e5d75c507c1d67739da37de9a4e94721d0dad6298da7125ff18bf3ae"
+content_hash = "sha256:8b0ba8e703e74119b08c5dc5fa2cd2abf79f532af67637560a51d5bdecf9e2df"
 
 [[metadata.targets]]
 requires_python = ">=3.12"
@@ -821,6 +821,21 @@ files = [
 ]
 
 [[package]]
+name = "hda"
+version = "2.29"
+requires_python = ">=3.6"
+summary = "API to harmonised data access for DIAS/WEkEO."
+groups = ["default"]
+dependencies = [
+    "requests>=2.5.0",
+    "tqdm",
+]
+files = [
+    {file = "hda-2.29-py3-none-any.whl", hash = "sha256:f08b95677adac06a0331ce29aa380341e712b8d4b3f956f2cdb2cc0faf109990"},
+    {file = "hda-2.29.tar.gz", hash = "sha256:64966ed5797eba2b080061c51ddd06d4073f009d8cd77e6970de028a8c66a115"},
+]
+
+[[package]]
 name = "idna"
 version = "3.10"
 requires_python = ">=3.6"
@@ -1446,7 +1461,7 @@ files = [
 name = "pandora"
 version = "1.6.2"
 requires_python = ">=3.8"
-summary = ""
+summary = "Pandora is a stereo matching framework that helps emulate state of the art algorithms"
 groups = ["default"]
 dependencies = [
     "importlib-metadata; python_version < \"3.10\"",

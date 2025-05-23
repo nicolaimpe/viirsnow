@@ -14,7 +14,7 @@ def fancy_table(
     styled_df = dataframe_to_print.style
 
     def highlight_product(val):
-        return "background-color: mediumblue; color: white; font-weight: bold; text-align: center"
+        return "background-color: whitesmoke; color: black; font-weight: bold; text-align: center"
 
     styled_df = styled_df.map(highlight_product, subset=["product"])
 
@@ -24,7 +24,7 @@ def fancy_table(
 
     styled_df = styled_df.set_properties(**{"text-align": "center"})  # Center-align all text
     styled_df = styled_df.set_table_styles(
-        [{"selector": "th", "props": [("background-color", "darkblue"), ("color", "white"), ("font-weight", "bold")]}]
+        [{"selector": "th", "props": [("background-color", "lightgrey"), ("color", "black"), ("font-weight", "bold")]}]
     )
     # Compact DataFrame
     styled_df = styled_df.hide(level=None)
@@ -33,44 +33,24 @@ def fancy_table(
     return styled_df
 
 
-def open_analysis_file(analysis_folder: str, analysis_type: str, product_var_name: str) -> xr.Dataset:
-    return xr.open_dataset(
-        f"{analysis_folder}/{analysis_type}_WY_2023_2024_SNPP_{product_var_name}_res_375m.nc", decode_cf=True
-    )
-
-
 def sel_evaluation_domain(analyses_dict: Dict[str, xr.Dataset], evaluation_domain: str) -> Tuple[Dict[str, xr.Dataset], str]:
     if evaluation_domain == "general":
-        title = "December to June > 900 m"
+        title = "November to June > 900 m"
         selection_dict = {
-            k: v.sel(time=slice("2023-12", "2024-01")).sel(altitude_bins=slice(900, None), drop=True)
-            for k, v in analyses_dict.items()
+            k: v.sel(time=slice("2023-11", "2024-06"), altitude_bins=slice(900, None)) for k, v in analyses_dict.items()
         }
     elif evaluation_domain == "accumulation":
-        title = "Accumulation November to February > 1500 m"
+        title = "Accumulation November to February > 900 m"
         selection_dict = {
-            k: v.sel(time=slice("2023-11", "2024-03")).sel(altitude_bins=slice(1500, None), drop=True)
+            k: v.sel(time=slice("2023-11", "2024-02")).sel(altitude_bins=slice(900, None), drop=True)
             for k, v in analyses_dict.items()
         }
     elif evaluation_domain == "ablation":
         title = "Ablation March to July > 2100 m"
         selection_dict = {
-            k: v.sel(time=slice("2024-03", "2024-07")).sel(altitude_bins=slice(2100, None), drop=True)
+            k: v.sel(time=slice("2024-03", "2024-06")).sel(altitude_bins=slice(1500, None), drop=True)
             for k, v in analyses_dict.items()
         }
-    selection_dict = {
-        k: v.assign_coords(
-            {
-                "aspect_bins": pd.CategoricalIndex(
-                    data=EvaluationVsHighResBase.aspect_bins().labels,
-                    categories=EvaluationVsHighResBase.aspect_bins().labels,
-                    ordered=True,
-                )
-            }
-        )
-        for k, v in selection_dict.items()
-    }
-
     selection_dict = {
         k: v.assign_coords(
             {

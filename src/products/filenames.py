@@ -8,32 +8,18 @@ import rasterio
 
 from winter_year import WinterYear
 
-NASA_L2_SNOW_PRODUCTS_IDS = ["VNP10", "VJ110", "VNP10_NRT", "VJ110_NRT"]
-NASA_L3_SNOW_PRODUCTS_IDS = ["VNP10A1", "VJ110A1"]
-NASA_L2_GEOMETRY_PRODUCTS_IDS = ["VNP03IMG", "VJ103IMG", "VNP03IMG_NRT", "VJ103IMG_NRT", "VNP03IMG_GEO_250m"]
-NASA_L2_SNOW_PRODUCTS = {
-    "Standard": {"SNPP": NASA_L2_SNOW_PRODUCTS_IDS[0], "JPSS1": NASA_L2_SNOW_PRODUCTS_IDS[1]},
-    "NRT": {"SNPP": NASA_L2_SNOW_PRODUCTS_IDS[2], "JPSS1": NASA_L2_SNOW_PRODUCTS_IDS[3]},
+nasa_format_per_product = {
+    "VNP10A1": "h5",
+    "VJ110A1": "h5",
+    "VNP10_UTM_375m": "nc",
+    "VNP03IMG_UTM_375m": "nc",
 }
-NASA_L3_SNOW_PRODUCTS = {
-    "Standard": {"SNPP": NASA_L3_SNOW_PRODUCTS_IDS[0], "JPSS1": NASA_L3_SNOW_PRODUCTS_IDS[1]},
+nasa_collection_per_product_id = {
+    "VNP10A1": "V10A1",
+    "VJ110A1": "V10A1",
+    "VNP10_UTM_375m": "V10",
+    "VNP03IMG_UTM_375m": "V03IMG",
 }
-
-NASA_L2_GEOM_PRODUCTS = {
-    "Standard": {"SNPP": NASA_L2_GEOMETRY_PRODUCTS_IDS[0], "JPSS1": NASA_L2_GEOMETRY_PRODUCTS_IDS[1]},
-    "GEO_250m": {"SNPP": NASA_L2_GEOMETRY_PRODUCTS_IDS[4]},
-    "NRT": {"SNPP": NASA_L2_GEOMETRY_PRODUCTS_IDS[2], "JPSS1": NASA_L2_GEOMETRY_PRODUCTS_IDS[3]},
-}
-METEOFRANCE_L2 = {"SNPP": "EOFR62_SNPP"}
-KNOWN_COLLECTIONS = {
-    "V10": NASA_L2_SNOW_PRODUCTS,
-    "V10A1": NASA_L3_SNOW_PRODUCTS,
-    "V03IMG": NASA_L2_GEOM_PRODUCTS,
-    "Meteo-France": METEOFRANCE_L2,
-    "S2": "FSC",
-}
-
-VIIRS_NASA_VERSION = 2
 
 
 def timestamp_nasa_to_datetime(observation_timestamp: str) -> datetime:
@@ -49,10 +35,10 @@ def int_to_year_day(year: int, day: int) -> str:
     return str(year) + "{:03d}".format(day)
 
 
-def get_daily_nasa_filenames_per_product(
-    product_id: str, day: datetime, data_folder: str, extension: str = ".nc"
-) -> List[str] | None:
-    return glob(f"{data_folder}/{product_id}.A{day.strftime('%Y%j')}*{extension}")
+def get_all_nasa_filenames_per_product(product_id: str, data_folder: str) -> List[str] | None:
+    version_id = "002"
+    path_pattern = f"{data_folder}/{nasa_collection_per_product_id[product_id]}/{product_id}/{product_id}*.{version_id}*.{nasa_format_per_product[product_id]}"
+    return glob(path_pattern)
 
 
 def get_datetime_from_viirs_meteofrance_filepath(filepath: str) -> str:
@@ -65,7 +51,21 @@ def get_datetime_from_viirs_meteofrance_filepath(filepath: str) -> str:
 
 
 def get_daily_meteofrance_filenames(day: datetime, data_folder: str) -> List[str] | None:
-    return glob(f"{data_folder}/VIIRS{day.year}/*{METEOFRANCE_L2['SNPP']}_*{day.strftime('%Y%m%d')}*.LT")
+    return glob(f"{data_folder}/VIIRS{day.year}/*EOFR62_SNPP*{day.strftime('%Y%m%d')}*.LT")
+
+
+def get_all_meteofrance_type_filenames(data_folder: str, winter_year: WinterYear, suffix: str) -> List[str] | None:
+    # Rejeu CMS
+    meteofrance_files = glob(f"{data_folder}/{suffix}/{winter_year.from_year}1[0-2]/*npp*{suffix}.tif")
+    meteofrance_files.extend(glob(f"{data_folder}/{suffix}/{winter_year.to_year}[0-9]*/*npp*{suffix}.tif"))
+    return sorted(meteofrance_files)
+
+
+def get_all_meteofrance_sat_angle_filenames(data_folder: str, winter_year: WinterYear) -> List[str] | None:
+    # Rejeu CMS
+    meteofrance_files = glob(f"{data_folder}/{winter_year.from_year}1[0-2]*/*npp*SatelliteZenithAngleMod.tif")
+    meteofrance_files.extend(glob(f"{data_folder}/{winter_year.to_year}[0-9]*/*npp*SatelliteZenithAngleMod.tif"))
+    return sorted(meteofrance_files)
 
 
 def get_all_s2_clms_files_of_winter_year(s2_folder: str, winter_year: WinterYear) -> List[str]:

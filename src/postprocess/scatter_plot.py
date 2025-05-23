@@ -7,7 +7,13 @@ from matplotlib.figure import Figure
 from scipy.ndimage import gaussian_filter
 from sklearn.linear_model import LinearRegression
 
-from products.plot_settings import PRODUCT_PLOT_NAMES
+from products.plot_settings import (
+    MF_NO_FOREST_RED_BAND_SCREEEN_VAR_NAME,
+    MF_NO_FOREST_VAR_NAME,
+    NASA_L3_SNPP_VAR_NAME,
+    PRODUCT_PLOT_NAMES,
+)
+from winter_year import WinterYear
 
 
 def fit_regression(data_to_fit: xr.DataArray):
@@ -53,7 +59,7 @@ def fancy_scatter_plot(
         regression_x_axis * coeff_slope + intercept,
         "--",
         color="gray",
-        label=f"Fitted R²={score:.2f} m={float(coeff_slope):.2f} b={float(intercept):.2f}",
+        label=f"Fitted R²={score:.2f}",  # m={float(coeff_slope):.2f} b={float(intercept):.2f}",
     )
     ax.plot(regression_x_axis, regression_x_axis, color="k", linewidth=0.5, label="y=x")
     ax.grid(True)
@@ -67,55 +73,83 @@ def fancy_scatter_plot(
 
 
 if __name__ == "__main__":
-    import xarray as xr
-
-    from postprocess.general_purpose import open_analysis_file, sel_evaluation_domain
-    from products.plot_settings import METEOFRANCE_VAR_NAME, NASA_L3_VAR_NAME, NASA_PSEUDO_L3_VAR_NAME
-    from winter_year import WinterYear
-
     wy = WinterYear(2023, 2024)
     analysis_type = "scatter"
-    analysis_folder = f"/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_4/analyses/{analysis_type}"
-    analysis_type = "scatter"
-    analysis_folder = f"/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_4/analyses/{analysis_type}"
+    # analysis_folder = (
+    #     f"/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_5_complete/analyses/{analysis_type}"
+    # )
 
-    # Errors in the data correction
-    mf_metrics_ds = xr.open_dataset(
-        f"{analysis_folder}/{analysis_type}_WY_2023_2024_SNPP_meteofrance_l3_res_375m.nc", decode_cf=True
+    # # Errors in the data correction
+
+    analysis_folder = f"/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_6/analyses/{analysis_type}"
+    # mf_synopsis_metrics_ds = xr.open_dataset(
+    #     f"{analysis_folder}/{analysis_type}_WY_2023_2024_meteofrance_synopsis_vs_s2_theia.nc",
+    #     decode_cf=True,
+    # )
+    mf_orig_metrics_ds = xr.open_dataset(
+        f"{analysis_folder}/{analysis_type}_WY_2023_2024_meteofrance_orig_vs_s2_theia.nc",
+        decode_cf=True,
     )
-    mf_metrics_ds = mf_metrics_ds.assign_coords({"forest_mask": ["no_forest", "forest"]})
-    nasa_l3_metrics_ds = xr.open_dataset(
-        f"{analysis_folder}/{analysis_type}_WY_2023_2024_SNPP_nasa_l3_res_375m.nc", decode_cf=True
+    mf_no_forest_metrics_ds = xr.open_dataset(
+        f"{analysis_folder}/{analysis_type}_WY_2023_2024_meteofrance_no_forest_vs_s2_theia.nc",
+        decode_cf=True,
     )
-    nasa_l3_metrics_ds = nasa_l3_metrics_ds.where(nasa_l3_metrics_ds > 0, drop=True)
-    nasa_l3_metrics_ds = nasa_l3_metrics_ds.assign_coords({"forest_mask_bins": ["no_forest", "forest"]}).rename(
-        {"forest_mask_bins": "forest_mask"}
+    mf_no_forest_red_band_screen_metrics_ds = xr.open_dataset(
+        f"{analysis_folder}/{analysis_type}_WY_2023_2024_meteofrance_no_forest_red_band_screen_vs_s2_theia.nc",
+        decode_cf=True,
     )
-    nasa_pseudo_l3_metrics_ds = xr.open_dataset(
-        f"{analysis_folder}/{analysis_type}_WY_2023_2024_SNPP_nasa_pseudo_l3_res_375m.nc", decode_cf=True
+
+    nasa_l3_snpp_metrics_ds = xr.open_dataset(
+        f"{analysis_folder}/{analysis_type}_WY_2023_2024_nasa_l3_snpp_vs_s2_theia.nc", decode_cf=True
     )
-    nasa_pseudo_l3_metrics_ds = nasa_pseudo_l3_metrics_ds.where(nasa_pseudo_l3_metrics_ds > 0, drop=True)
-    nasa_pseudo_l3_metrics_ds = nasa_pseudo_l3_metrics_ds.assign_coords({"forest_mask_bins": ["no_forest", "forest"]}).rename(
-        {"forest_mask_bins": "forest_mask"}
+    nasa_l3_snpp_metrics_ds = nasa_l3_snpp_metrics_ds.where(nasa_l3_snpp_metrics_ds > 0, drop=True)
+
+    nasa_l3_multiplatform_metrics_ds = xr.open_dataset(
+        f"{analysis_folder}/{analysis_type}_WY_2023_2024_nasa_l3_multiplatform_vs_s2_theia.nc", decode_cf=True
+    )
+    nasa_l3_multiplatform_metrics_ds = nasa_l3_multiplatform_metrics_ds.where(nasa_l3_multiplatform_metrics_ds > 0, drop=True)
+
+    nasa_l3_jpss1_metrics_ds = xr.open_dataset(
+        f"{analysis_folder}/{analysis_type}_WY_2023_2024_nasa_l3_jpss1_vs_s2_theia.nc", decode_cf=True
+    )
+    nasa_l3_jpss1_metrics_ds = nasa_l3_jpss1_metrics_ds.where(nasa_l3_jpss1_metrics_ds > 0, drop=True)
+
+    # nasa_pseudo_l3_metrics_ds = xr.open_dataset(
+    #     f"{analysis_folder}/{analysis_type}_WY_2023_2024_nasa_pseudo_l3_vs_s2_theia.nc", decode_cf=True
+    # )
+    # nasa_pseudo_l3_metrics_ds = nasa_pseudo_l3_metrics_ds.where(nasa_pseudo_l3_metrics_ds > 0, drop=True)
+
+    meteofrance_ndsi = xr.open_dataset(
+        f"{analysis_folder}/{analysis_type}_WY_2023_2024_meteofrance_ndsi_no_forest_vs_s2_theia.nc",
+        decode_cf=True,
     )
     #############
 
     analyses_dict = {
-        METEOFRANCE_VAR_NAME: mf_metrics_ds,
-        NASA_PSEUDO_L3_VAR_NAME: nasa_pseudo_l3_metrics_ds,
-        NASA_L3_VAR_NAME: nasa_l3_metrics_ds,
+        # METEOFRANCE_VAR_NAME: mf_archive_metrics_ds,
+        # MF_ORIG_VAR_NAME: mf_orig_metrics_ds,
+        # MF_SYNOPSIS_VAR_NAME: mf_synopsis_metrics_ds,
+        # NASA_PSEUDO_L3_VAR_NAME: nasa_pseudo_l3_metrics_ds,
+        MF_NO_FOREST_VAR_NAME: mf_no_forest_metrics_ds,
+        MF_NO_FOREST_RED_BAND_SCREEEN_VAR_NAME: mf_no_forest_red_band_screen_metrics_ds,
+        NASA_L3_SNPP_VAR_NAME: nasa_l3_snpp_metrics_ds,
+        # NASA_L3_MULTIPLATFORM_VAR_NAME: nasa_l3_multiplatform_metrics_ds,
+        # NASA_L3_JPSS1_VAR_NAME: nasa_l3_jpss1_metrics_ds,
+        # MF_SYNOPSIS_VAR_NAME: meteofrance_ndsi,
     }
-    evaluation_domain = "ablation"
-    selection_dict, title = sel_evaluation_domain(analyses_dict=analyses_dict, evaluation_domain=evaluation_domain)
+
+    # title = "accumulation"
+    selection_dict = {k: v.sel(time=slice("2023-11", "2024-06"), drop=True) for k, v in analyses_dict.items()}
 
     ####################### Launch analysis
+    #### FSC corelation
     fig, ax = plt.subplots(1, len(selection_dict), figsize=(6 * len(selection_dict), 5))
-    n_min = 10
-    fig.suptitle(f"Scatter analysis {title} - thresh N_min = {n_min}")
+    n_min = 17
+    fig.suptitle("Scatter analysis")
     for i, (k, v) in enumerate(selection_dict.items()):
         reduced_v = (
-            v.sel(ref_bins=slice(10, 95), forest_mask=["no_forest"], test_bins=slice(1, 95))
-            .sum(dim=("forest_mask", "time", "aspect_bins", "altitude_bins"))
+            v.sel(ref_bins=slice(0, 95), forest_mask_bins=["forest"], test_bins=slice(0, 95))
+            .sum(dim=("forest_mask_bins", "time", "aspect_bins", "sub_roi_bins"))
             .data_vars["n_occurrences"]
         )
         scatter_plot = fancy_scatter_plot(
@@ -128,5 +162,35 @@ if __name__ == "__main__":
         ax[i].set_title(PRODUCT_PLOT_NAMES[k])
         ax[i].set_xlabel("S2 FSC [%]")
         ax[i].set_ylabel(f"{PRODUCT_PLOT_NAMES[k]} FSC [%]")
+
+    #### NDSI-FSC regression
+    # fig, ax = plt.subplots(1,
+    #                        len(selection_dict), figsize=(6 * len(selection_dict), 5))
+    # n_min = 20
+    # fig.suptitle(f"Scatter analysis - no forest - thresh N_min = {n_min}")
+    # for i, (k, v) in enumerate(selection_dict.items()):
+    #     reduced_v = (
+    #         v.sel(
+    #             ref_bins=slice(0, 95),
+    #             forest_mask_bins=["no_forest"],
+    #             test_bins=slice(0, 95),
+    #         )
+    #         .sum(dim=("forest_mask_bins", "time", "aspect_bins", "sub_roi_bins"))
+    #         .data_vars["n_occurrences"]
+    #     )
+    #     xax = reduced_v.test_bins.values
+    #     fit_g = gascoin(xax * 0.01, f_veg=0) * 100
+    #     # ax[i].plot(xax, fit_g, "g--", linewidth=1, label="gascoin at al. fveg=0")
+    #     ax[i].plot(xax, salomonson_appel(xax), "k", linewidth=1, label="salomonson_appel")
+    #     scatter_plot = fancy_scatter_plot(
+    #         data_to_plt=reduced_v.rename({"ref_bins": "y", "test_bins": "x"}),
+    #         ax=ax[i],
+    #         figure=fig,
+    #         low_threshold=n_min,
+    #         smoothing_window_size=0,
+    #     )
+    #     ax[i].set_title(PRODUCT_PLOT_NAMES[k])
+    #     ax[i].set_ylabel("S2 FSC [%]")
+    #     ax[i].set_xlabel(f"{PRODUCT_PLOT_NAMES[k]} NDSI [%]")
 
     plt.show()

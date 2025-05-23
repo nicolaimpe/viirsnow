@@ -12,46 +12,35 @@ from winter_year import WinterYear
 
 @dataclass
 class EvaluationConfig:
+    ref_var_name: str = ("snow_cover_fraction",)
+    test_var_name: str = ("snow_cover_fraction",)
     ref_fsc_step: int = (25,)
-    sensor_zenith_analysis: bool = (True,)
-    forest_mask_path: str | None = (None,)
-    sub_roi_mask_path: str | None = (None,)
-    slope_map_path: str | None = (None,)
-    aspect_map_path: str | None = (None,)
-    dem_path: str | None = (None,)
-
-
-def abbreviate_data_var_name(data_var_name: str) -> str:
-    if data_var_name == "snow_cover_fraction":
-        abbreviated = "FSC"
-    elif data_var_name == "snow_cover_fraction":
-        abbreviated = "NDSI"
-    else:
-        abbreviated = data_var_name
-    return abbreviated
+    sensor_zenith_analysis: bool = True
+    forest_mask_path: str | None = None
+    sub_roi_mask_path: str | None = None
+    slope_map_path: str | None = None
+    aspect_map_path: str | None = None
+    dem_path: str | None = None
 
 
 def generate_evaluation_io(
     analysis_type: str,
     working_folder: str,
     year: WinterYear,
-    resolution: int,
-    platform: str,
     ref_product_name: str,
     test_product_name: str,
-    ref_product_var: str = "snow_cover_fraction",
-    test_product_var: str = "snow_cover_fraction",
     period: slice | None = None,
 ) -> Tuple[xr.Dataset, xr.Dataset, str]:
     output_folder = f"{working_folder}/analyses/{analysis_type}"
-    ref_time_series_name = f"WY_{year.from_year}_{year.to_year}_{ref_product_name}_res_{resolution}m.nc"
-    test_time_series_name = f"WY_{year.from_year}_{year.to_year}_{platform}_{test_product_name}_res_{resolution}m.nc"
+    ref_time_series_name = f"WY_{year.from_year}_{year.to_year}_{ref_product_name}.nc"
+    test_time_series_name = f"WY_{year.from_year}_{year.to_year}_{test_product_name}.nc"
 
-    abbreviated_test, abbreviated_ref = abbreviate_data_var_name(test_product_var), abbreviate_data_var_name(ref_product_var)
-    output_filename = f"{output_folder}/{analysis_type}_WY_{year.from_year}_{year.to_year}_{platform}_{test_product_name}_{abbreviated_test}_vs_{ref_product_name}_{abbreviated_ref}_{resolution}m.nc"
+    output_filename = (
+        f"{output_folder}/{analysis_type}_WY_{year.from_year}_{year.to_year}_{test_product_name}_vs_{ref_product_name}.nc"
+    )
 
-    test_time_series = xr.open_dataset(f"{working_folder}/time_series/{test_time_series_name}").data_vars[ref_product_var]
-    ref_time_series = xr.open_dataset(f"{working_folder}/time_series/{ref_time_series_name}").data_vars[test_product_var]
+    test_time_series = xr.open_dataset(f"{working_folder}/time_series/{test_time_series_name}")
+    ref_time_series = xr.open_dataset(f"{working_folder}/time_series/{ref_time_series_name}")
 
     if period is not None:
         test_time_series = test_time_series.sel(time=period)
@@ -89,14 +78,16 @@ class EvaluationVsHighResBase:
             np.array(
                 [
                     -1,
-                    *np.arange(0, self.ref_analyzer.max_fsc, ref_fsc_step),
+                    *np.arange(0, self.ref_analyzer.max_fsc - 1, ref_fsc_step),
+                    self.ref_analyzer.max_fsc - 1,
                     self.ref_analyzer.max_fsc,
                     self.ref_analyzer.max_value,
                 ]
             ),
             labels=np.array(
                 [
-                    *np.arange(0, self.ref_analyzer.max_fsc, ref_fsc_step),
+                    *np.arange(0, self.ref_analyzer.max_fsc - 1, ref_fsc_step),
+                    self.ref_analyzer.max_fsc - 1,
                     self.ref_analyzer.max_fsc,
                     self.ref_analyzer.max_value,
                 ]
@@ -105,12 +96,12 @@ class EvaluationVsHighResBase:
 
     @staticmethod
     def forest_bins() -> BinGrouper:
-        return BinGrouper(np.array([-1, 0, 1]), labels=["no_forest", "forest"])
+        return BinGrouper(np.array([-1, 0, 1]), labels=["no_forest", "forest"], right=True)
 
     @staticmethod
     def sub_roi_bins() -> BinGrouper:
         return BinGrouper(
-            np.array([-1, 0, 1, 2, 3, 4, 5, 6]), labels=["Alps", "Pyrenees", "Corse", "Massif Central", "Jura", "Vosges"]
+            np.array([0, 1, 2, 3, 4, 5, 6]), labels=["Alps", "Pyrenees", "Corse", "Massif Central", "Jura", "Vosges"]
         )
 
     @staticmethod
@@ -134,7 +125,7 @@ class EvaluationVsHighResBase:
     def month_bins(winter_year: WinterYear) -> BinGrouper:
         wy_datetime = winter_year.to_datetime()
         wy_datetime.extend([datetime(year=wy_datetime[-1].year, month=wy_datetime[-1].month + 1, day=1)])
-        return BinGrouper(wy_datetime, labels=[month_datetime for month_datetime in wy_datetime[:-1]])
+        return BinGrouper(wy_datetime[2:10], labels=[month_datetime for month_datetime in wy_datetime[2:9]])
 
     @staticmethod
     def aspect_map_transform(aspect_map: xr.DataArray) -> xr.DataArray:
@@ -155,8 +146,8 @@ class EvaluationVsHighResBase:
 
     def prepare_analysis(
         self,
-        test_time_series: xr.DataArray,
-        ref_time_series: xr.DataArray,
+        test_time_series: xr.Dataset,
+        ref_time_series: xr.Dataset,
         config: EvaluationConfig,
     ) -> Tuple[xr.Dataset, Dict[str, BinGrouper]]:
         # if ref_time_series.max() != 205:
@@ -168,7 +159,10 @@ class EvaluationVsHighResBase:
         common_days = np.intersect1d(test_time_series["time"], ref_time_series["time"])
 
         combined_dataset = xr.Dataset(
-            {"ref": ref_time_series.sel(time=common_days), "test": test_time_series.sel(time=common_days)},
+            {
+                "ref": ref_time_series.data_vars[config.ref_var_name[0]].sel(time=common_days),
+                "test": test_time_series.data_vars[config.test_var_name[0]].sel(time=common_days),
+            },
         )
 
         analysis_bin_dict = dict(ref=self.ref_fsc_bins(config.ref_fsc_step))
@@ -176,7 +170,7 @@ class EvaluationVsHighResBase:
         if config.sensor_zenith_analysis:
             analysis_bin_dict.update(sensor_zenith=self.sensor_zenith_bins())
             combined_dataset = combined_dataset.assign(
-                sensor_zenith=test_time_series.data_vars["sensor_zenith"].sel(time=common_days)
+                sensor_zenith=test_time_series.data_vars["sensor_zenith_angle"].sel(time=common_days)
             )
 
         if config.forest_mask_path is not None:
