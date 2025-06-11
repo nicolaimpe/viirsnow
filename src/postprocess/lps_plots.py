@@ -14,13 +14,25 @@ from postprocess.error_distribution import (
     postprocess_uncertainty_analysis,
 )
 from postprocess.skill_scores import compute_all_scores
-from products.plot_settings import PRODUCT_PLOT_COLORS, PRODUCT_PLOT_NAMES
+from products.plot_settings import (
+    NASA_L3_JPSS1_VAR_NAME,
+    NASA_L3_MULTIPLATFORM_VAR_NAME,
+    NASA_L3_SNPP_VAR_NAME,
+    PRODUCT_PLOT_COLORS,
+    PRODUCT_PLOT_NAMES,
+)
 from reductions.statistics_base import EvaluationVsHighResBase
 
 
 def sel_evaluation_domain(analyses_dict: Dict[str, xr.Dataset]) -> Tuple[Dict[str, xr.Dataset], str]:
     selection_dict = {
-        k: v.sel(time=slice("2023-12", "2024-06"), altitude_bins=slice(900, None)) for k, v in analyses_dict.items()
+        k: v.sel(
+            time=slice("2023-12", "2024-06"),
+            altitude_bins=slice(900, None),
+            ref_bins=slice(0, 101),
+            slope_bins=slice(None, 60),
+        )
+        for k, v in analyses_dict.items()
     }
 
     selection_dict = {
@@ -32,13 +44,18 @@ def sel_evaluation_domain(analyses_dict: Dict[str, xr.Dataset]) -> Tuple[Dict[st
                     ordered=True,
                 ),
                 "forest_mask_bins": ["Open", "Forest"],
+                "slope_bins": np.array(["[0-10]", "[11-30]", "[31-]"]),
+                "ref_bins": ["0", "1-25", "26-50", "51-75", "75-99", "100"],
             }
         )
         for k, v in selection_dict.items()
     }
 
     selection_dict = {
-        k: v.rename({"aspect_bins": "Aspect", "forest_mask_bins": "Landcover"}) for k, v in selection_dict.items()
+        k: v.rename(
+            {"aspect_bins": "Aspect", "forest_mask_bins": "Landcover", "slope_bins": "Slope [°]", "ref_bins": "Ref FSC [%]"}
+        )
+        for k, v in selection_dict.items()
     }
 
     return selection_dict
@@ -56,9 +73,6 @@ def compute_skill_scores_for_parameter(metrics_dict: Dict[str, xr.Dataset], vari
 
 def smooth_data_np_convolve(arr, span):
     return np.convolve(arr, np.ones(span * 2 + 1) / (span * 2 + 1), mode="same")
-
-
-# red = metrics_dict_unc['meteofrance_synopsis'].sel(aspect_bins='S')
 
 
 def plot_custom_spans(metrics_dict: Dict[str, xr.Dataset], analysis_var: str, ax: plt.Axes):
@@ -178,4 +192,70 @@ def plot_synthesis(metrics_dict_conf: Dict[str, xr.Dataset], metrics_dict_unc: D
                 biais_rmse.data_vars["rmse"].sel(product=prod).to_pandas(), "-^", color=PRODUCT_PLOT_COLORS[prod], markersize=2
             )
 
+    plt.show()
+
+
+def annual_area_fancy_plot(metrics_dict_completeness: Dict[str, xr.Dataset], metrics_dict_uncertainty: Dict[str, xr.Dataset]):
+    if len(metrics_dict_completeness) > 1:
+        common_days = np.intersect1d(*[v.coords["time"] for v in metrics_dict_completeness.values()][:2])
+
+    if len(metrics_dict_completeness) > 2:
+        for v in metrics_dict_completeness.values():
+            common_days = np.intersect1d(common_days, v.coords["time"])
+
+    fig, axs = plt.subplots(4, 1, figsize=(10, 6), sharex=True, layout="constrained")
+    [ax.set_ylabel("Surface [km²]") for ax in axs[:3]]
+    axs[3].set_ylabel("RMSE [%]")
+    custom_leg = [
+        mpatches.Patch(color=PRODUCT_PLOT_COLORS[product_name], label=PRODUCT_PLOT_NAMES[product_name])
+        for product_name in metrics_dict_completeness
+    ]
+    product_legend = axs[0].legend(handles=custom_leg, loc=[0.8, 0.45])
+    axs[0].add_artist(product_legend)
+    old_snow_cover, old_no_snow, old_clouds = 0, 0, 0
+    for product in metrics_dict_completeness:
+        metrics_dict_completeness[product] = metrics_dict_completeness[product].sel(time=common_days)
+        product_monthly_averages = (
+            metrics_dict_completeness[product].resample({"time": "1ME"}).mean(dim="time").data_vars["surface"] * 1e-6
+        )
+        # print(product)
+        # print(product_monthly_averages.sum(dim="time").to_dataframe())
+        # surface_averages.append(product_monthly_averages.sel(class_name="snow_cover").data_vars["surface"] * 1e-6)
+        snow_cover = product_monthly_averages.sel(class_name="snow_cover")
+        axs[0].fill_between(
+            np.arange(product_monthly_averages.sizes["time"]), snow_cover, old_snow_cover, color=PRODUCT_PLOT_COLORS[product]
+        )
+        old_snow_cover = snow_cover
+        no_snow = product_monthly_averages.sel(class_name="no_snow")
+        axs[1].fill_between(
+            np.arange(product_monthly_averages.sizes["time"]), no_snow, old_no_snow, color=PRODUCT_PLOT_COLORS[product]
+        )
+        old_no_snow = no_snow
+
+        axs[3].plot(
+            np.arange(product_monthly_averages.sizes["time"]),
+            metrics_dict_uncertainty[product].rmse,
+            color=PRODUCT_PLOT_COLORS[product],
+            lw=2,
+        )
+
+    # axs[0].set_ylim(0,100)
+    # axs[1].set_ylim(0,100)
+    # axs[2].set_ylim(0,100)
+    axs[3].set_ylim(0, 20)
+    for product in [NASA_L3_MULTIPLATFORM_VAR_NAME, NASA_L3_JPSS1_VAR_NAME, NASA_L3_SNPP_VAR_NAME]:
+        product_monthly_averages = (
+            metrics_dict_completeness[product].resample({"time": "1ME"}).mean(dim="time").data_vars["surface"] * 1e-6
+        )
+        clouds = product_monthly_averages.sel(class_name="clouds")
+        axs[2].fill_between(
+            np.arange(product_monthly_averages.sizes["time"]), clouds, old_clouds, color=PRODUCT_PLOT_COLORS[product]
+        )
+        old_clouds = clouds
+    axs[2].set_xticks(np.arange(product_monthly_averages.sizes["time"]))
+    axs[2].set_xticklabels(product_monthly_averages.coords["time"].to_dataframe().index.strftime("%B"))
+    axs[0].set_title("Snow cover")
+    axs[1].set_title("No snow")
+    axs[2].set_title("Clouds")
+    axs[3].set_title("RMSE")
     plt.show()
