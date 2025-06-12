@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import xarray as xr
+from matplotlib import font_manager, ticker
 from matplotlib.legend_handler import HandlerBase
 from matplotlib.lines import Line2D
 
@@ -61,11 +62,11 @@ def sel_evaluation_domain(analyses_dict: Dict[str, xr.Dataset]) -> Tuple[Dict[st
     return selection_dict
 
 
-def compute_skill_scores_for_parameter(metrics_dict: Dict[str, xr.Dataset], variable: str):
+def compute_skill_scores_for_parameter(metrics_dict: Dict[str, xr.Dataset], variable: str) -> pd.DataFrame:
     results = []
     for metrics_ds in metrics_dict.values():
-        results.append(metrics_ds.groupby(variable).map(compute_all_scores))
-    results = xr.concat(results, pd.Index([PRODUCT_PLOT_NAMES[k] for k in metrics_dict.keys()], name="product")).to_dataframe()
+        results.append(metrics_ds.groupby(variable, restore_coord_dims=True).map(compute_all_scores))
+    results = xr.concat(results, pd.Index([PRODUCT_PLOT_NAMES[k] for k in metrics_dict.keys()], name="product"))
     # results = results.reset_index([variable, "product"])
     # results = results.melt(id_vars=["product", variable], var_name="score", value_name="value")
     return results
@@ -103,7 +104,9 @@ def plot_custom_spans(metrics_dict: Dict[str, xr.Dataset], analysis_var: str, ax
         x_positions = x_positions + box_width_data
 
     ax.set_xticks(x_positions - box_width_data * ((len(metrics_dict) + 1) // 2), labels=analysis_coords)
-    ax.set_ylabel(f"% FSC")
+    ax.set_xlim(x_positions[0] - (len(metrics_dict) + 1) * box_width_data, x_positions[-1])
+    ax.set_ylabel(f"MAE [% FSC]")
+    ax.set_xlabel(analysis_var)
 
 
 class HandlerSpan(HandlerBase):
@@ -148,7 +151,7 @@ class HandlerPoint(HandlerBase):
 
 
 def plot_synthesis(metrics_dict_conf: Dict[str, xr.Dataset], metrics_dict_unc: Dict[str, xr.Dataset], params_list: List[str]):
-    _, axs = plt.subplots(len(params_list), 3, figsize=(10, 3 * len(params_list)), layout="constrained")
+    _, axs = plt.subplots(len(params_list), 3, figsize=(14, 3 * len(params_list)), layout="constrained")
     custom_leg = [
         mpatches.Patch(color=PRODUCT_PLOT_COLORS[product_name], label=PRODUCT_PLOT_NAMES[product_name])
         for product_name in metrics_dict_unc
@@ -169,27 +172,48 @@ def plot_synthesis(metrics_dict_conf: Dict[str, xr.Dataset], metrics_dict_unc: D
     )
     for i, var in enumerate(params_list):
         skill_scores = compute_skill_scores_for_parameter(metrics_dict_conf, variable=var)
+        skill_scores = skill_scores.where(skill_scores != 0, np.nan)
         biais_rmse = postprocess_uncertainty_analysis(metrics_dict_unc, analysis_var=var)
 
         axs[i, 0].set_ylim(0.75, 1)
-        axs[i, 0].set_ylabel("Skill score[-]")
+        axs[i, 0].set_ylabel("Score[-]")
+        axs[i, 0].set_xlabel(var)
 
-        axs[i, 1].set_ylim(5, 25)
+        axs[i, 1].set_ylim(5, 30)
         axs[i, 1].set_ylabel("RMSE [% FSC]")
-        axs[i, 2].set_ylim(-25, 25)
+        axs[i, 1].set_xlabel(var)
+
         plot_custom_spans(metrics_dict=metrics_dict_unc, analysis_var=var, ax=axs[i, 2])
         axs[i, 2].grid(axis="x")
 
-        for j, (prod, metrics) in enumerate(metrics_dict_conf.items()):
+        for prod in metrics_dict_conf:
+            #     # print(skill_scores.loc[PRODUCT_PLOT_NAMES[prod]])
+            x_coords_conf = metrics_dict_conf[list(metrics_dict_conf.keys())[0]].coords[var].values
+            x_coords_unc = metrics_dict_unc[list(metrics_dict_unc.keys())[0]].coords[var].values
+            if var in ("Ref FSC [%]", "Slope [°]"):
+                skill_scores = skill_scores.sel({var: x_coords_conf})
+                biais_rmse = biais_rmse.sel({var: x_coords_unc})
+
             axs[i, 0].plot(
-                skill_scores.loc[PRODUCT_PLOT_NAMES[prod]]["accuracy"], "-o", color=PRODUCT_PLOT_COLORS[prod], markersize=2
+                x_coords_conf,
+                skill_scores.sel(product=PRODUCT_PLOT_NAMES[prod]).data_vars["accuracy"],
+                "-o",
+                color=PRODUCT_PLOT_COLORS[prod],
+                markersize=2,
             )
             axs[i, 0].plot(
-                skill_scores.loc[PRODUCT_PLOT_NAMES[prod]]["f1_score"], "--^", color=PRODUCT_PLOT_COLORS[prod], markersize=2
+                x_coords_conf,
+                skill_scores.sel(product=PRODUCT_PLOT_NAMES[prod]).data_vars["f1_score"],
+                "--^",
+                color=PRODUCT_PLOT_COLORS[prod],
+                markersize=2,
             )
-            # axs[i,1].plot(biais_rmse.data_vars['biais'].sel(product=prod).to_pandas(), '-o',color=PRODUCT_PLOT_COLORS[prod], markersize=2)
             axs[i, 1].plot(
-                biais_rmse.data_vars["rmse"].sel(product=prod).to_pandas(), "-^", color=PRODUCT_PLOT_COLORS[prod], markersize=2
+                x_coords_unc,
+                biais_rmse.data_vars["rmse"].sel(product=prod),
+                "-o",
+                color=PRODUCT_PLOT_COLORS[prod],
+                markersize=2,
             )
 
     plt.show()
@@ -203,9 +227,10 @@ def annual_area_fancy_plot(metrics_dict_completeness: Dict[str, xr.Dataset], met
         for v in metrics_dict_completeness.values():
             common_days = np.intersect1d(common_days, v.coords["time"])
 
-    fig, axs = plt.subplots(4, 1, figsize=(10, 6), sharex=True, layout="constrained")
-    [ax.set_ylabel("Surface [km²]") for ax in axs[:3]]
-    axs[3].set_ylabel("RMSE [%]")
+    _, axs = plt.subplots(4, 1, figsize=(10, 6), sharex=True, layout="constrained")
+
+    [ax.set_ylabel("Surface [km²]", fontproperties=font_manager.FontProperties(size=10)) for ax in axs[:3]]
+    axs[3].set_ylabel("RMSE [% FSC]", fontproperties=font_manager.FontProperties(size=10))
     custom_leg = [
         mpatches.Patch(color=PRODUCT_PLOT_COLORS[product_name], label=PRODUCT_PLOT_NAMES[product_name])
         for product_name in metrics_dict_completeness
@@ -218,17 +243,23 @@ def annual_area_fancy_plot(metrics_dict_completeness: Dict[str, xr.Dataset], met
         product_monthly_averages = (
             metrics_dict_completeness[product].resample({"time": "1ME"}).mean(dim="time").data_vars["surface"] * 1e-6
         )
-        # print(product)
-        # print(product_monthly_averages.sum(dim="time").to_dataframe())
-        # surface_averages.append(product_monthly_averages.sel(class_name="snow_cover").data_vars["surface"] * 1e-6)
+
         snow_cover = product_monthly_averages.sel(class_name="snow_cover")
         axs[0].fill_between(
-            np.arange(product_monthly_averages.sizes["time"]), snow_cover, old_snow_cover, color=PRODUCT_PLOT_COLORS[product]
+            np.arange(product_monthly_averages.sizes["time"]),
+            snow_cover,
+            old_snow_cover,
+            alpha=0.5,
+            color=PRODUCT_PLOT_COLORS[product],
         )
         old_snow_cover = snow_cover
         no_snow = product_monthly_averages.sel(class_name="no_snow")
         axs[1].fill_between(
-            np.arange(product_monthly_averages.sizes["time"]), no_snow, old_no_snow, color=PRODUCT_PLOT_COLORS[product]
+            np.arange(product_monthly_averages.sizes["time"]),
+            no_snow,
+            old_no_snow,
+            alpha=0.5,
+            color=PRODUCT_PLOT_COLORS[product],
         )
         old_no_snow = no_snow
 
@@ -238,10 +269,9 @@ def annual_area_fancy_plot(metrics_dict_completeness: Dict[str, xr.Dataset], met
             color=PRODUCT_PLOT_COLORS[product],
             lw=2,
         )
-
-    # axs[0].set_ylim(0,100)
-    # axs[1].set_ylim(0,100)
-    # axs[2].set_ylim(0,100)
+    axs[0].yaxis.set_major_formatter(ticker.StrMethodFormatter("{x:.0e}"))
+    axs[1].yaxis.set_major_formatter(ticker.StrMethodFormatter("{x:.0e}"))
+    axs[2].yaxis.set_major_formatter(ticker.StrMethodFormatter("{x:.0e}"))
     axs[3].set_ylim(0, 20)
     for product in [NASA_L3_MULTIPLATFORM_VAR_NAME, NASA_L3_JPSS1_VAR_NAME, NASA_L3_SNPP_VAR_NAME]:
         product_monthly_averages = (
@@ -249,7 +279,11 @@ def annual_area_fancy_plot(metrics_dict_completeness: Dict[str, xr.Dataset], met
         )
         clouds = product_monthly_averages.sel(class_name="clouds")
         axs[2].fill_between(
-            np.arange(product_monthly_averages.sizes["time"]), clouds, old_clouds, color=PRODUCT_PLOT_COLORS[product]
+            np.arange(product_monthly_averages.sizes["time"]),
+            clouds,
+            old_clouds,
+            alpha=0.5,
+            color=PRODUCT_PLOT_COLORS[product],
         )
         old_clouds = clouds
     axs[2].set_xticks(np.arange(product_monthly_averages.sizes["time"]))
@@ -258,4 +292,5 @@ def annual_area_fancy_plot(metrics_dict_completeness: Dict[str, xr.Dataset], met
     axs[1].set_title("No snow")
     axs[2].set_title("Clouds")
     axs[3].set_title("RMSE")
+
     plt.show()

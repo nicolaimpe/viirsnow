@@ -9,6 +9,14 @@ import xarray as xr
 
 from logger_setup import default_logger as logger
 from products.classes import METEOFRANCE_CLASSES, NASA_CLASSES, NODATA_NASA_CLASSES, S2_CLASSES
+from products.plot_settings import (
+    MF_NO_FOREST_RED_BAND_SCREEEN_VAR_NAME,
+    MF_NO_FOREST_VAR_NAME,
+    NASA_L3_JPSS1_VAR_NAME,
+    NASA_L3_MODIS_TERRA_VAR_NAME,
+    NASA_L3_MULTIPLATFORM_VAR_NAME,
+    NASA_L3_SNPP_VAR_NAME,
+)
 
 
 def mask_of_pixels_of(value: int, data_array: xr.DataArray) -> xr.DataArray:
@@ -188,25 +196,27 @@ class S2SnowCoverProductCompleteness(SnowCoverProductCompleteness):
 
 
 if __name__ == "__main__":
-    output_folder = "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_6"
+    output_folder = "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_6_lps"
 
     evaluation_dict: Dict[str, Dict[str, SnowCoverProductCompleteness]] = {
         # "meteofrance_orig": {"evaluator": MeteoFranceSnowCoverProductCompleteness()},
         # "meteofrance_synopsis": {"evaluator": MeteoFranceSnowCoverProductCompleteness()},
+        # MF_NO_FOREST_VAR_NAME: {"evaluator": MeteoFranceSnowCoverProductCompleteness()},
+        MF_NO_FOREST_RED_BAND_SCREEEN_VAR_NAME: {"evaluator": MeteoFranceSnowCoverProductCompleteness()},
         # "meteofrance_no_cc_mask": {"evaluator": MeteoFranceSnowCoverProductCompleteness(), "config": config},
         # "meteofrance_modified": {"evaluator": MeteoFranceSnowCoverProductCompleteness(), "config": config},
         # "nasa_pseudo_l3": {"evaluator": NASASnowCoverProductCompleteness()},
-        # "nasa_l3_snpp": {"evaluator": NASASnowCoverProductCompleteness()},
+        NASA_L3_SNPP_VAR_NAME: {"evaluator": NASASnowCoverProductCompleteness()},
+        NASA_L3_JPSS1_VAR_NAME: {"evaluator": NASASnowCoverProductCompleteness()},
         # "nasa_l3_jpss1": {"evaluator": NASASnowCoverProductCompleteness()},
-        "nasa_l3_multiplatform": {"evaluator": NASASnowCoverProductCompleteness()},
+        NASA_L3_MULTIPLATFORM_VAR_NAME: {"evaluator": NASASnowCoverProductCompleteness()},
+        # NASA_L3_MODIS_TERRA_VAR_NAME: {"evaluator": NASASnowCoverProductCompleteness()},
     }
 
     for product in evaluation_dict:
         logger.info(f"Evaluating product {product}")
         analyzer = evaluation_dict[product]["evaluator"]
-        test_series = xr.open_dataset(f"{output_folder}/time_series/WY_2023_2024_{product}.nc").sel(
-            time=slice("2023-11", "2024-06")
-        )
+        test_series = xr.open_dataset(f"{output_folder}/time_series/WY_2023_2024_{product}.nc")
         analyzer.year_temporal_analysis(
             snow_cover_product_time_series_data_array=test_series["snow_cover_fraction"],
             netcdf_export_path=f"{output_folder}/analyses/completeness/completeness_WY_2023_2024_{product}.nc",

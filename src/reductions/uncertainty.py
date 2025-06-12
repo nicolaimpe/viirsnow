@@ -6,6 +6,12 @@ import xarray as xr
 from xarray.groupers import BinGrouper
 
 from logger_setup import default_logger as logger
+from products.plot_settings import (
+    MF_NO_FOREST_RED_BAND_SCREEEN_VAR_NAME,
+    NASA_L3_JPSS1_VAR_NAME,
+    NASA_L3_MULTIPLATFORM_VAR_NAME,
+    NASA_L3_SNPP_VAR_NAME,
+)
 from reductions.completeness import (
     MeteoFranceSnowCoverProductCompleteness,
     NASASnowCoverProductCompleteness,
@@ -88,12 +94,12 @@ class UncertaintyNASA(Uncertainty):
 
 if __name__ == "__main__":
     config = EvaluationConfig(
-        ref_fsc_step=10,
+        ref_fsc_step=25,
         sensor_zenith_analysis=True,
         # Use of forest mask with max resampling because of Météo-France forest with snow class resampling issue.
         # See reprojection_l3_meteofrance_to_grid function
         # In resume, all fractions next to forest with snow class are imprecise because when resampling using average we set this class to 50% FSC
-        forest_mask_path="/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/forest_mask/corine_2006_forest_mask_utm_max.tif",
+        forest_mask_path="/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/forest_mask/corine_2006_forest_mask_utm.tif",
         slope_map_path="/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/dem/SLP_MSF_UTM31_375m_lanczos.tif",
         aspect_map_path="/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/dem/ASP_MSF_UTM31_375m_lanczos.tif",
         sub_roi_mask_path=None,
@@ -103,7 +109,7 @@ if __name__ == "__main__":
     config_nasa_l3 = deepcopy(config)
     config_nasa_l3.sensor_zenith_analysis = False
 
-    working_folder = "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_6/"
+    working_folder = "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_6_lps/"
 
     evaluation_dict: Dict[str, Dict[str, Uncertainty]] = {
         # "meteofrance_orig": {"evaluator": UncertaintyMeteoFrance(), "config": config},
@@ -112,11 +118,13 @@ if __name__ == "__main__":
         # "meteofrance_modified": {"evaluator": UncertaintyMeteoFrance(), "config": config},
         # "meteofrance_no_forest": {"evaluator": UncertaintyMeteoFrance(), "config": config},
         # "meteofrance_no_forest_modified": {"evaluator": UncertaintyMeteoFrance(), "config": config},
-        "meteofrance_no_forest_red_band_screen": {"evaluator": UncertaintyMeteoFrance(), "config": config},
+        MF_NO_FOREST_RED_BAND_SCREEEN_VAR_NAME: {"evaluator": UncertaintyMeteoFrance(), "config": config},
         # "nasa_pseudo_l3_snpp": {"evaluator": UncertaintyNASA(), "config": config},
-        # "nasa_l3_snpp": {"evaluator": UncertaintyNASA(), "config": config_nasa_l3},
+        NASA_L3_SNPP_VAR_NAME: {"evaluator": UncertaintyNASA(), "config": config_nasa_l3},
         # "nasa_l3_jpss1": {"evaluator": UncertaintyNASA(), "config": config_nasa_l3},
         # "nasa_l3_multiplatform": {"evaluator": UncertaintyNASA(), "config": config_nasa_l3},
+        NASA_L3_JPSS1_VAR_NAME: {"evaluator": UncertaintyNASA(), "config": config_nasa_l3},
+        NASA_L3_MULTIPLATFORM_VAR_NAME: {"evaluator": UncertaintyNASA(), "config": config_nasa_l3},
     }
 
     for product, evaluator in evaluation_dict.items():
