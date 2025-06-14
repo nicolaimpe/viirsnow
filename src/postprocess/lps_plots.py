@@ -97,10 +97,10 @@ def plot_custom_spans(metrics_dict: Dict[str, xr.Dataset], analysis_var: str, ax
 
             whiskers_min = np.quantile(distr, 0.05)
             whiskers_max = np.quantile(distr, 0.95)
-            ax.vlines(x_pos, whiskers_min, whiskers_max, color=color, linestyle="-", lw=1, label=product_name)
+            ax.vlines(x_pos, whiskers_min, whiskers_max, color=color, linestyle="-", lw=2, label=product_name)
 
-            ax.hlines(whiskers_min, x_pos - box_width_data / 2, x_pos + box_width_data / 2, color=color, lw=1)
-            ax.hlines(whiskers_max, x_pos - box_width_data / 2, x_pos + box_width_data / 2, color=color, lw=1)
+            ax.hlines(whiskers_min, x_pos - box_width_data / 2, x_pos + box_width_data / 2, color=color, lw=2)
+            ax.hlines(whiskers_max, x_pos - box_width_data / 2, x_pos + box_width_data / 2, color=color, lw=2)
         x_positions = x_positions + box_width_data
 
     ax.set_xticks(x_positions - box_width_data * ((len(metrics_dict) + 1) // 2), labels=analysis_coords)
