@@ -7,9 +7,10 @@ import xarray as xr
 
 from compression import generate_xarray_compression_encodings
 from fractional_snow_cover import nasa_ndsi_snow_cover_to_fraction
-from grids import GeoGrid, UTM375mGrid
+from grids import GeoGrid, UTM375mGrid, UTM500mGrid
 from harmonisation.daily_composites import (
-    create_spatial_l3_nasa_composite,
+    create_spatial_l3_nasa_modis_composite,
+    create_spatial_l3_nasa_viirs_composite,
     create_temporal_composite_nasa,
     create_temporal_l3_naive_composite_nasa,
     match_daily_snow_cover_and_geometry_nasa,
@@ -17,7 +18,7 @@ from harmonisation.daily_composites import (
 from harmonisation.harmonisation_base import HarmonisationBase
 from harmonisation.reprojections import reprojection_l3_nasa_to_grid
 from logger_setup import default_logger as logger
-from products.filenames import get_all_nasa_filenames_per_product
+from products.filenames import get_all_nasa_filenames_per_product, open_modis_ndsi_snow_cover
 from products.plot_settings import (
     NASA_L3_JPSS1_VAR_NAME,
     NASA_L3_MULTIPLATFORM_VAR_NAME,
@@ -27,7 +28,7 @@ from products.plot_settings import (
 from reductions.snow_cover_extent_cross_comparison import WinterYear
 
 
-class NASAL3Harmonisation(HarmonisationBase):
+class V10Harmonisation(HarmonisationBase):
     def __init__(self, output_grid: GeoGrid, data_folder: str, output_folder: str, platform: str):
         super().__init__("nasa_l3_" + platform, output_grid, data_folder, output_folder)
 
@@ -57,7 +58,7 @@ class NASAL3Harmonisation(HarmonisationBase):
         return day_files
 
     def create_spatial_composite(self, day_files: List[str]) -> xr.Dataset:
-        daily_spatial_composite = create_spatial_l3_nasa_composite(daily_snow_cover_files=day_files)
+        daily_spatial_composite = create_spatial_l3_nasa_viirs_composite(daily_snow_cover_files=day_files)
         nasa_snow_cover = reprojection_l3_nasa_to_grid(nasa_snow_cover=daily_spatial_composite, output_grid=self.grid)
         nasa_snow_cover.attrs.pop("valid_range")
         out_dataset = xr.Dataset(
@@ -133,16 +134,11 @@ class NASAPseudoL3Harmonisation(HarmonisationBase):
         return out_dataset
 
 
-class NASAL3MultiplatformHarmonisation:
+class V10MultiplatformHarmonisation:
     def __init__(self, data_folder: str, output_folder: str):
         self.data_folder = data_folder
         self.output_folder = output_folder
         self.product_name = NASA_L3_MULTIPLATFORM_VAR_NAME
-
-    # def open_day_data(time_series: xr.Dataset, day: datetime)->xr.DataArray:
-    #     try:
-    #         time_series.data_vars["NDSI_Snow_Cover"].sel(time=day)
-    #     except KeyError:
 
     def create_multiplatform_composite(self, winter_year: WinterYear) -> xr.Dataset:
         snpp_year = xr.open_dataset(
@@ -199,23 +195,71 @@ class NASAL3MultiplatformHarmonisation:
         [os.remove(file) for file in out_tmp_paths]
 
 
+class MOD10Harmonisation(HarmonisationBase):
+    def __init__(self, output_grid: GeoGrid, data_folder: str, output_folder: str, platform: str):
+        super().__init__("nasa_l3_" + platform, output_grid, data_folder, output_folder)
+
+    def get_all_files_of_winter_year(self, winter_year: WinterYear) -> List[str]:
+        platform_product_id = {"nasa_l3_terra": "MOD10A1"}
+        snow_cover_file_list = get_all_nasa_filenames_per_product(
+            data_folder=self.data_folder, product_id=platform_product_id[self.product_name]
+        )
+        return snow_cover_file_list
+
+    def get_daily_files(self, all_winter_year_files: List[str], day: datetime) -> List[str]:
+        return [file for file in all_winter_year_files if day.strftime("A%Y%j") in file]
+
+    def check_daily_files(self, day_files: List[str]) -> List[str]:
+        for day_file in day_files:
+            try:
+                open_modis_ndsi_snow_cover(day_file).values
+            except OSError:
+                logger.info(f"Could not open file {day_file}. Removing it from processing")
+                day_files.remove(day_file)
+                continue
+        return day_files
+
+    def create_spatial_composite(self, day_files: List[str]) -> xr.Dataset:
+        daily_spatial_composite = create_spatial_l3_nasa_modis_composite(daily_snow_cover_files=day_files)
+        nasa_snow_cover = reprojection_l3_nasa_to_grid(nasa_snow_cover=daily_spatial_composite, output_grid=self.grid)
+        out_dataset = xr.Dataset(
+            {
+                "NDSI_Snow_Cover": nasa_snow_cover,
+                "snow_cover_fraction": xr.DataArray(
+                    nasa_ndsi_snow_cover_to_fraction(nasa_ndsi_snow_cover_product=nasa_snow_cover.values),
+                    coords=nasa_snow_cover.coords,
+                ),
+            }
+        )
+        return out_dataset
+
+
 if __name__ == "__main__":
     year = WinterYear(2023, 2024)
     massifs_shapefile = "/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/vectorial/massifs/massifs.shp"
     nasa_l3_folder = "/home/imperatoren/work/VIIRS_S2_comparison/data/"
-    output_folder = "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_6/time_series/"
-    grid = UTM375mGrid()
-    platform = "multiplatform"
-    # logger.info(f"NASA L3 processing {platform}")
-    # NASAL3Harmonisation(
-    #     output_grid=grid, data_folder=nasa_l3_folder, output_folder=output_folder, platform=platform
-    # ).create_time_series(winter_year=year, roi_shapefile=massifs_shapefile)
+    output_folder = "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_7/"
+    grid = UTM500mGrid()
+    platform = "snpp"
+    logger.info(f"NASA L3 processing {platform}")
+    V10Harmonisation(
+        output_grid=grid, data_folder=nasa_l3_folder, output_folder=output_folder, platform=platform
+    ).create_time_series(winter_year=year, roi_shapefile=massifs_shapefile)
 
     # logger.info("NASA psuedo L3 processing")
     # NASAPseudoL3Harmonisation(output_grid=grid, data_folder=nasa_l3_folder, output_folder=output_folder).create_time_series(
     #     winter_year=year, roi_shapefile=massifs_shapefile
     # )
-    logger.info("NASA multiplatform processing")
-    NASAL3MultiplatformHarmonisation(
-        data_folder="/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_6", output_folder=output_folder
-    ).create_multiplatform_composite(winter_year=year)
+
+    # logger.info("NASA multiplatform processing")
+    # V10MultiplatformHarmonisation(
+    #     data_folder="/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_6_lps",
+    #     output_folder=output_folder,
+    # ).create_multiplatform_composite(winter_year=year)
+
+    # grid = UTM500mGrid()
+    # platform = "terra"
+    # logger.info("NASA MODIS Terra processing")
+    # MOD10Harmonisation(
+    #     output_grid=grid, data_folder=nasa_l3_folder, output_folder=output_folder, platform=platform
+    # ).create_time_series(winter_year=year, roi_shapefile=massifs_shapefile)

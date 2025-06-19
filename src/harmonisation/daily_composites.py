@@ -12,12 +12,12 @@ from grids import GeoGrid, georef_netcdf, georef_netcdf_rioxarray
 from harmonisation.reprojections import resample_s2_to_grid
 from logger_setup import default_logger as logger
 from products.classes import METEOFRANCE_CLASSES, NASA_CLASSES, S2_CLASSES
-from products.filenames import get_datetime_from_viirs_nasa_filepath
-from products.georef import modis_crs
+from products.filenames import get_datetime_from_viirs_nasa_filepath, open_modis_ndsi_snow_cover
+from products.georef import MODIS_CRS
 from reductions.completeness import mask_of_pixels_in_range
 
 
-def create_spatial_l3_nasa_composite(daily_snow_cover_files: List[str]) -> xr.DataArray:
+def create_spatial_l3_nasa_viirs_composite(daily_snow_cover_files: List[str]) -> xr.DataArray:
     day_data_arrays = []
     dims = ("y", "x")
     for filepath in daily_snow_cover_files:
@@ -41,7 +41,23 @@ def create_spatial_l3_nasa_composite(daily_snow_cover_files: List[str]) -> xr.Da
             coords={dims[0]: nasa_l3_grid.ycoords, dims[1]: nasa_l3_grid.xcoords}
         )
 
-        day_data_arrays.append(georef_netcdf(data_array=ndsi_snow_cover, crs=modis_crs))
+        day_data_arrays.append(georef_netcdf(data_array=ndsi_snow_cover, crs=MODIS_CRS))
+
+    merged_day_dataset = (
+        xr.combine_by_coords(day_data_arrays, data_vars="minimal", fill_value=NASA_CLASSES["fill"][0])
+        .astype(np.uint8)
+        .data_vars["NDSI_Snow_Cover"]
+    ).rio.write_nodata(NASA_CLASSES["fill"][0])
+
+    return merged_day_dataset
+
+
+def create_spatial_l3_nasa_modis_composite(daily_snow_cover_files: List[str]) -> xr.DataArray:
+    day_data_arrays = []
+    for filepath in daily_snow_cover_files:
+        # try:
+        logger.info(f"Processing product {Path(filepath).name}")
+        day_data_arrays.append(open_modis_ndsi_snow_cover(filepath))
 
     merged_day_dataset = (
         xr.combine_by_coords(day_data_arrays, data_vars="minimal", fill_value=NASA_CLASSES["fill"][0])
@@ -64,14 +80,14 @@ def create_spatial_s2_composite(day_files: List[str], output_grid: GeoGrid) -> x
     return day_dataset
 
 
-def create_spatial_s2_composite_sca(day_files: List[str], output_grid: GeoGrid) -> xr.Dataset:
+def create_spatial_s2_composite_sca(day_files: List[str], output_grid: GeoGrid, fsc_thresh: int | None = 51) -> xr.Dataset:
     day_data_array = xr.DataArray(np.uint8(S2_CLASSES["nodata"][0]), coords=output_grid.xarray_coords)
     for filepath in day_files:
         logger.info(f"Processing product {Path(filepath).name}")
         s2_image = rioxarray.open_rasterio(filepath)
         s2_image = s2_image.sel(band=1).drop_vars("band")
-        high_fsc_mask = mask_of_pixels_in_range(range=range(51, 101), data_array=s2_image)
-        low_fsc_mask = mask_of_pixels_in_range(range=range(1, 51), data_array=s2_image)
+        high_fsc_mask = mask_of_pixels_in_range(range=range(fsc_thresh, 101), data_array=s2_image)
+        low_fsc_mask = mask_of_pixels_in_range(range=range(1, fsc_thresh), data_array=s2_image)
         s2_image = s2_image.where(1 - high_fsc_mask, 100)
         s2_image = s2_image.where(1 - low_fsc_mask, 0)
         s2_resampled_image = resample_s2_to_grid(s2_dataset=s2_image, output_grid=output_grid)
@@ -264,47 +280,39 @@ def create_temporal_composite_nasa(daily_snow_cover_files: List[str], daily_geom
     )
     view_angles_daily_array = np.ma.masked_array(view_angles_daily_array, np.isnan(view_angles_daily_array))
 
-    # Inland water is considered valid observation
-    invalid_masks = ~(
+    view_angle_sorting_index = np.argsort(view_angles_daily_array, axis=0)
+    rearrenged_snow_cover = np.take_along_axis(ndsi_snow_cover_daily_images, view_angle_sorting_index, axis=0)
+    rearrenged_view_angle = np.take_along_axis(view_angles_daily_array, view_angle_sorting_index, axis=0)
+    out_snow_cover = rearrenged_snow_cover[0, :]
+    out_view_angle = rearrenged_view_angle[0, :]
+
+    ## In this part we recover observations taken at a worse zenith angle if in the best observation composite the pixel is invalid
+
+    # Invalid observations
+    invalid_masks = rearrenged_snow_cover > ~(
         (ndsi_snow_cover_daily_images <= NASA_CLASSES["snow_cover"][-1])
         | (ndsi_snow_cover_daily_images == NASA_CLASSES["water"][0])
     )
-
-    # Take best observation
-    best_observation_index = np.nanargmin(view_angles_daily_array, axis=0)
-    best_observation_angle = np.min(view_angles_daily_array, axis=0)
-    n_obs, height, width = ndsi_snow_cover_daily_images.shape
-
-    snow_cover_best_observation = ndsi_snow_cover_daily_images[
-        best_observation_index, np.arange(height)[:, None], np.arange(width)
-    ]  # Numpy advanced indexing for selecting for each pixel the best observation index
-
-    # In this part we recover observations taken at a worse zenith angle if in the best observation composite the pixel is invalid
-    out_ndsi_snow_cover = snow_cover_best_observation
-    out_view_angle = best_observation_angle
-
-    invalid_mask_best_observation = ~(
-        (snow_cover_best_observation <= NASA_CLASSES["snow_cover"][-1])
-        | (snow_cover_best_observation == NASA_CLASSES["water"][0])
+    invalid_mask_out_snow_cover = ~(
+        (out_snow_cover <= NASA_CLASSES["snow_cover"][-1]) | (out_snow_cover == NASA_CLASSES["water"][0])
     )
-    for idx in range(n_obs):
-        out_ndsi_snow_cover = np.where(
-            invalid_masks[idx]
-            < invalid_mask_best_observation,  # pixels that are marked as invalid in the best observation but not in another observation
-            ndsi_snow_cover_daily_images[idx],
-            out_ndsi_snow_cover,
-        )
 
-        # Replace data also for view zenith angle
-        out_view_angle = np.where(
-            invalid_masks[idx] < invalid_mask_best_observation, view_angles_daily_array[idx], out_view_angle
+    for idx in range(ndsi_snow_cover_daily_images.shape[0]):
+        # pixels that are marked as invalid in the best observation but not in another observation
+        pixels_to_reverse_mask = invalid_masks[idx] < invalid_mask_out_snow_cover
+        out_snow_cover = np.where(pixels_to_reverse_mask, rearrenged_snow_cover[idx], out_snow_cover)
+        # Replace data also for view zenith angle and platform
+        out_view_angle = np.where(pixels_to_reverse_mask, rearrenged_view_angle[idx], out_view_angle)
+
+        invalid_mask_out_snow_cover = ~(
+            (out_snow_cover <= NASA_CLASSES["snow_cover"][-1]) | (out_snow_cover == NASA_CLASSES["water"][0])
         )
 
     sample_data = rioxarray.open_rasterio(daily_snow_cover_files[0]).data_vars["NDSI_Snow_Cover"].sel(band=1).drop_vars("band")
 
     day_dataset = xr.Dataset(
         {
-            "NDSI_Snow_Cover": xr.DataArray(out_ndsi_snow_cover, dims=("y", "x"), coords=sample_data.coords),
+            "NDSI_Snow_Cover": xr.DataArray(out_snow_cover, dims=("y", "x"), coords=sample_data.coords),
             "sensor_zenith_angle": xr.DataArray(out_view_angle, dims=("y", "x"), coords=sample_data.coords),
         }
     ).rio.write_crs(sample_data.rio.crs)

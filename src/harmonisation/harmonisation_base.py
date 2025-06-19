@@ -82,6 +82,9 @@ class HarmonisationBase:
         for day in winter_year.iterate_days():
             logger.info(f"Processing day {day}")
 
+            if day.month in range(7, 11):
+                continue
+
             day_files = self.get_daily_files(files, day=day)
 
             day_files = self.check_daily_files(day_files=day_files)
@@ -112,8 +115,7 @@ class HarmonisationBase:
         time_series = xr.open_mfdataset(out_tmp_paths, mask_and_scale=False)
         encodings = generate_xarray_compression_encodings(time_series)
         encodings.update(time={"calendar": "gregorian", "units": f"days since {str(winter_year.from_year)}-10-01"})
-        time_series.to_netcdf(
-            f"{self.output_folder}/WY_{winter_year.from_year}_{winter_year.to_year}_{self.product_name}.nc",
-            encoding=encodings,
-        )
+        out_path = f"{self.output_folder}/WY_{winter_year.from_year}_{winter_year.to_year}_{self.product_name}.nc"
+        logger.info(f"Exporting to {out_path}")
+        time_series.to_netcdf(out_path, encoding=encodings)
         [os.remove(file) for file in out_tmp_paths]

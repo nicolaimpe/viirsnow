@@ -1,6 +1,3 @@
-from datetime import datetime
-from typing import List
-
 import earthaccess
 
 from harmonisation.nasa_l2_download_and_project import download_daily_products_from_sxcen
@@ -22,7 +19,7 @@ earthaccess.login()
 # files = earthaccess.download(results, f"{data_folder}/{product_name}")
 
 
-granule_list_filepath = "/home/imperatoren/work/VIIRS_S2_comparison/data/V10A1/VJ110A1/VJ110A1_2023_3034_granule_list.txt"
+granule_list_filepath = "/home/imperatoren/work/VIIRS_S2_comparison/data/M10A1/mod10a1_wy_2023_2024_granule_test.txt"
 year = WinterYear(2023, 2024)
 with open(granule_list_filepath) as f:
     list_product_urls = [line.strip() for line in f.readlines()]
@@ -33,7 +30,7 @@ for day in year.iterate_days():
         daily_products_filenames = download_daily_products_from_sxcen(
             day=day,
             download_urls_list=list_product_urls,
-            output_folder="/home/imperatoren/work/VIIRS_S2_comparison/data/V10A1/VJ110A1",
+            output_folder="/home/imperatoren/work/VIIRS_S2_comparison/data/M10A1/MOD10A1",
         )
 
     except Exception as e:

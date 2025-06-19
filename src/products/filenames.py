@@ -1,22 +1,31 @@
 import ast
+import re
 from datetime import datetime
 from glob import glob
 from pathlib import Path
 from typing import List
 
+import numpy as np
 import rasterio
+import rioxarray
+import xarray as xr
+from pyhdf.SD import SD, SDC
 
+from grids import georef_netcdf_rioxarray
+from products.georef import MODIS_CRS
 from winter_year import WinterYear
 
 nasa_format_per_product = {
     "VNP10A1": "h5",
     "VJ110A1": "h5",
+    "MOD10A1": "hdf",
     "VNP10_UTM_375m": "nc",
     "VNP03IMG_UTM_375m": "nc",
 }
 nasa_collection_per_product_id = {
     "VNP10A1": "V10A1",
     "VJ110A1": "V10A1",
+    "MOD10A1": "M10A1",
     "VNP10_UTM_375m": "V10",
     "VNP03IMG_UTM_375m": "V03IMG",
 }
@@ -37,7 +46,10 @@ def int_to_year_day(year: int, day: int) -> str:
 
 def get_all_nasa_filenames_per_product(product_id: str, data_folder: str) -> List[str] | None:
     version_id = "002"
+    if product_id == "MOD10A1":
+        version_id = "061"
     path_pattern = f"{data_folder}/{nasa_collection_per_product_id[product_id]}/{product_id}/{product_id}*.{version_id}*.{nasa_format_per_product[product_id]}"
+    print(path_pattern)
     return glob(path_pattern)
 
 
@@ -48,6 +60,53 @@ def get_datetime_from_viirs_meteofrance_filepath(filepath: str) -> str:
 
     meteofrance_raster = rasterio.open(filepath)
     return timestamp_to_datetime(ast.literal_eval(meteofrance_raster.tags()["TIFFTAG_IMAGEDESCRIPTION"])["time"])
+
+
+def open_modis_ndsi_snow_cover(filepath: str) -> xr.DataArray:
+    DATAFIELD_NAME = "NDSI_Snow_Cover"
+
+    hdf = SD(filepath, SDC.READ)
+
+    # Read dataset.
+    data2D = hdf.select(DATAFIELD_NAME)
+    data = data2D[:, :].astype(np.float64)
+
+    fattrs = hdf.attributes(full=1)
+    ga = fattrs["StructMetadata.0"]
+    gridmeta = ga[0]
+
+    ul_regex = re.compile(
+        r"""UpperLeftPointMtrs=\(
+    (?P<upper_left_x>[+-]?\d+\.\d+)
+    ,
+    (?P<upper_left_y>[+-]?\d+\.\d+)
+    \)""",
+        re.VERBOSE,
+    )
+    match = ul_regex.search(gridmeta)
+    x0 = float(match.group("upper_left_x"))
+    y0 = float(match.group("upper_left_y"))
+
+    lr_regex = re.compile(
+        r"""LowerRightMtrs=\(
+    (?P<lower_right_x>[+-]?\d+\.\d+)
+    ,
+    (?P<lower_right_y>[+-]?\d+\.\d+)
+    \)""",
+        re.VERBOSE,
+    )
+    match = lr_regex.search(gridmeta)
+    x1 = float(match.group("lower_right_x"))
+    y1 = float(match.group("lower_right_y"))
+    ny, nx = data.shape
+    xinc = (x1 - x0) / nx
+    yinc = (y1 - y0) / ny
+
+    x = np.linspace(x0, x0 + xinc * nx, nx)
+    y = np.linspace(y0, y0 + yinc * ny, ny)
+
+    out_data_array = xr.DataArray(data=data, coords={"y": y, "x": x})
+    return georef_netcdf_rioxarray(xr.Dataset({DATAFIELD_NAME: out_data_array}), crs=MODIS_CRS)
 
 
 def get_daily_meteofrance_filenames(day: datetime, data_folder: str) -> List[str] | None:
