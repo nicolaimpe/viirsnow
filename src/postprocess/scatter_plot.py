@@ -10,6 +10,7 @@ from sklearn.linear_model import LinearRegression
 from products.plot_settings import (
     MF_NO_FOREST_RED_BAND_SCREEEN_VAR_NAME,
     MF_NO_FOREST_VAR_NAME,
+    NASA_L3_MODIS_TERRA_VAR_NAME,
     NASA_L3_SNPP_VAR_NAME,
     PRODUCT_PLOT_NAMES,
 )
@@ -44,31 +45,35 @@ def fancy_scatter_plot(
     else:
         # That's ugly
         data_smooth = data_to_plt
-    distr_min, distr_max = np.quantile(data_smooth, 0.05), np.quantile(data_smooth, 0.95)
+
     coeff_slope, intercept, score = fit_regression(data_to_plt)
+    distr_min, distr_max = np.quantile(data_smooth, 0.20), np.quantile(data_smooth, 0.90)
     scatter_plot = ax.pcolormesh(
         data_to_plt.coords["x"].values,
         data_to_plt.coords["y"].values,
         data_smooth,
-        norm=colors.LogNorm(vmin=distr_min if distr_min > 0 else 1, vmax=distr_max),
+        norm=colors.LogNorm(vmin=distr_min if distr_min > 0 else 1, vmax=distr_max, clip=True),
         cmap=cm.bone,
     )
     regression_x_axis = np.arange(0, 100)
     ax.plot(
         regression_x_axis,
         regression_x_axis * coeff_slope + intercept,
-        "--",
-        color="gray",
-        label=f"Fitted R²={score:.2f}",  # m={float(coeff_slope):.2f} b={float(intercept):.2f}",
+        ":",
+        lw=1.5,
+        color="chocolate",
+        label=f"Linear fit R²={score:.2f},   m={float(coeff_slope):.2f}",  # b={float(intercept):.2f}",
     )
-    ax.plot(regression_x_axis, regression_x_axis, color="k", linewidth=0.5, label="y=x")
-    ax.grid(True)
-    ax.legend()
+    # ax.plot(regression_x_axis, regression_x_axis, color="k", linewidth=0.5, label="y=x")
+    ax.grid(False)
+    ax.legend(loc="lower center", bbox_to_anchor=(0.5, -0.5), draggable=True, fontsize=14)
     ax.set_ylim(0, 100)
     ax.set_xlim(0, 100)
-    cbar_ticks = np.array([1e-1, 1, 1e1, 1e2, 1e3, 1e4])
-    cbar = figure.colorbar(scatter_plot, ticks=cbar_ticks)
-    cbar.ax.set_yticklabels([f"{tick:n}" for tick in cbar_ticks])
+
+    cbar = figure.colorbar(scatter_plot, extend="max")
+    cbar_ticks = np.array([1e1, 1e2])
+    cbar_labels = [f"{tick:n}" for tick in cbar_ticks]
+    cbar.set_ticks(cbar_ticks, labels=cbar_labels)
     return scatter_plot
 
 
@@ -81,48 +86,55 @@ if __name__ == "__main__":
 
     # # Errors in the data correction
 
-    analysis_folder = f"/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_6/analyses/{analysis_type}"
+    analysis_folder = (
+        f"/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_6_modis/analyses/{analysis_type}"
+    )
     # mf_synopsis_metrics_ds = xr.open_dataset(
     #     f"{analysis_folder}/{analysis_type}_WY_2023_2024_meteofrance_synopsis_vs_s2_theia.nc",
     #     decode_cf=True,
     # )
-    mf_orig_metrics_ds = xr.open_dataset(
-        f"{analysis_folder}/{analysis_type}_WY_2023_2024_meteofrance_orig_vs_s2_theia.nc",
-        decode_cf=True,
-    )
-    mf_no_forest_metrics_ds = xr.open_dataset(
-        f"{analysis_folder}/{analysis_type}_WY_2023_2024_meteofrance_no_forest_vs_s2_theia.nc",
-        decode_cf=True,
-    )
-    mf_no_forest_red_band_screen_metrics_ds = xr.open_dataset(
-        f"{analysis_folder}/{analysis_type}_WY_2023_2024_meteofrance_no_forest_red_band_screen_vs_s2_theia.nc",
-        decode_cf=True,
-    )
+    # mf_orig_metrics_ds = xr.open_dataset(
+    #     f"{analysis_folder}/{analysis_type}_WY_2023_2024_meteofrance_orig_vs_s2_theia.nc",
+    #     decode_cf=True,
+    # )
+    # mf_no_forest_metrics_ds = xr.open_dataset(
+    #     f"{analysis_folder}/{analysis_type}_WY_2023_2024_meteofrance_no_forest_vs_s2_theia.nc",
+    #     decode_cf=True,
+    # )
+    # mf_no_forest_red_band_screen_metrics_ds = xr.open_dataset(
+    #     f"{analysis_folder}/{analysis_type}_WY_2023_2024_meteofrance_no_forest_red_band_screen_vs_s2_theia.nc",
+    #     decode_cf=True,
+    # )
 
     nasa_l3_snpp_metrics_ds = xr.open_dataset(
         f"{analysis_folder}/{analysis_type}_WY_2023_2024_nasa_l3_snpp_vs_s2_theia.nc", decode_cf=True
     )
     nasa_l3_snpp_metrics_ds = nasa_l3_snpp_metrics_ds.where(nasa_l3_snpp_metrics_ds > 0, drop=True)
 
-    nasa_l3_multiplatform_metrics_ds = xr.open_dataset(
-        f"{analysis_folder}/{analysis_type}_WY_2023_2024_nasa_l3_multiplatform_vs_s2_theia.nc", decode_cf=True
-    )
-    nasa_l3_multiplatform_metrics_ds = nasa_l3_multiplatform_metrics_ds.where(nasa_l3_multiplatform_metrics_ds > 0, drop=True)
+    # nasa_l3_multiplatform_metrics_ds = xr.open_dataset(
+    #     f"{analysis_folder}/{analysis_type}_WY_2023_2024_nasa_l3_multiplatform_vs_s2_theia.nc", decode_cf=True
+    # )
+    # nasa_l3_multiplatform_metrics_ds = nasa_l3_multiplatform_metrics_ds.where(nasa_l3_multiplatform_metrics_ds > 0, drop=True)
 
-    nasa_l3_jpss1_metrics_ds = xr.open_dataset(
-        f"{analysis_folder}/{analysis_type}_WY_2023_2024_nasa_l3_jpss1_vs_s2_theia.nc", decode_cf=True
-    )
-    nasa_l3_jpss1_metrics_ds = nasa_l3_jpss1_metrics_ds.where(nasa_l3_jpss1_metrics_ds > 0, drop=True)
+    # nasa_l3_jpss1_metrics_ds = xr.open_dataset(
+    #     f"{analysis_folder}/{analysis_type}_WY_2023_2024_nasa_l3_jpss1_vs_s2_theia.nc", decode_cf=True
+    # )
+    # nasa_l3_jpss1_metrics_ds = nasa_l3_jpss1_metrics_ds.where(nasa_l3_jpss1_metrics_ds > 0, drop=True)
 
     # nasa_pseudo_l3_metrics_ds = xr.open_dataset(
     #     f"{analysis_folder}/{analysis_type}_WY_2023_2024_nasa_pseudo_l3_vs_s2_theia.nc", decode_cf=True
     # )
     # nasa_pseudo_l3_metrics_ds = nasa_pseudo_l3_metrics_ds.where(nasa_pseudo_l3_metrics_ds > 0, drop=True)
 
-    meteofrance_ndsi = xr.open_dataset(
-        f"{analysis_folder}/{analysis_type}_WY_2023_2024_meteofrance_ndsi_no_forest_vs_s2_theia.nc",
-        decode_cf=True,
+    # meteofrance_ndsi = xr.open_dataset(
+    #     f"{analysis_folder}/{analysis_type}_WY_2023_2024_meteofrance_ndsi_no_forest_vs_s2_theia.nc",
+    #     decode_cf=True,
+    # )
+
+    nasa_l3_terra_metrics_ds = xr.open_dataset(
+        f"{analysis_folder}/{analysis_type}_WY_2023_2024_nasa_l3_terra_vs_s2_theia.nc", decode_cf=True
     )
+    nasa_l3_terra_metrics_ds = nasa_l3_terra_metrics_ds.where(nasa_l3_terra_metrics_ds > 0, drop=True)
     #############
 
     analyses_dict = {
@@ -130,12 +142,13 @@ if __name__ == "__main__":
         # MF_ORIG_VAR_NAME: mf_orig_metrics_ds,
         # MF_SYNOPSIS_VAR_NAME: mf_synopsis_metrics_ds,
         # NASA_PSEUDO_L3_VAR_NAME: nasa_pseudo_l3_metrics_ds,
-        MF_NO_FOREST_VAR_NAME: mf_no_forest_metrics_ds,
-        MF_NO_FOREST_RED_BAND_SCREEEN_VAR_NAME: mf_no_forest_red_band_screen_metrics_ds,
+        # MF_NO_FOREST_VAR_NAME: mf_no_forest_metrics_ds,
+        # MF_NO_FOREST_RED_BAND_SCREEEN_VAR_NAME: mf_no_forest_red_band_screen_metrics_ds,
         NASA_L3_SNPP_VAR_NAME: nasa_l3_snpp_metrics_ds,
         # NASA_L3_MULTIPLATFORM_VAR_NAME: nasa_l3_multiplatform_metrics_ds,
         # NASA_L3_JPSS1_VAR_NAME: nasa_l3_jpss1_metrics_ds,
         # MF_SYNOPSIS_VAR_NAME: meteofrance_ndsi,
+        NASA_L3_MODIS_TERRA_VAR_NAME: nasa_l3_terra_metrics_ds,
     }
 
     # title = "accumulation"
@@ -144,12 +157,12 @@ if __name__ == "__main__":
     ####################### Launch analysis
     #### FSC corelation
     fig, ax = plt.subplots(1, len(selection_dict), figsize=(6 * len(selection_dict), 5))
-    n_min = 17
+    n_min = 10
     fig.suptitle("Scatter analysis")
     for i, (k, v) in enumerate(selection_dict.items()):
         reduced_v = (
             v.sel(ref_bins=slice(0, 95), forest_mask_bins=["forest"], test_bins=slice(0, 95))
-            .sum(dim=("forest_mask_bins", "time", "aspect_bins", "sub_roi_bins"))
+            .sum(dim=("forest_mask_bins", "time", "aspect_bins"))
             .data_vars["n_occurrences"]
         )
         scatter_plot = fancy_scatter_plot(

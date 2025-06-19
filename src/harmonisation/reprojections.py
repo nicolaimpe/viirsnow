@@ -14,8 +14,8 @@ def extract_swath_lon_lats(
     l2_geolocation_data_group: xr.Dataset, bowtie_trim_mask: xr.DataArray | None = None
 ) -> SwathDefinition:
     if bowtie_trim_mask is not None:
-        lons_modif = np.ma.masked_array(l2_geolocation_data_group.data_vars["longitude"], ~bowtie_trim_mask)
-        lats_modif = np.ma.masked_array(l2_geolocation_data_group.data_vars["latitude"], ~bowtie_trim_mask)
+        lons_modif = np.ma.masked_array(l2_geolocation_data_group.data_vars["longitude"], bowtie_trim_mask)
+        lats_modif = np.ma.masked_array(l2_geolocation_data_group.data_vars["latitude"], bowtie_trim_mask)
         swath_def = SwathDefinition(lons=lons_modif, lats=lats_modif)
     else:
         lons = np.ma.masked_array(l2_geolocation_data_group.data_vars["longitude"])

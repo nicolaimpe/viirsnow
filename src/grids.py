@@ -2,13 +2,14 @@ from typing import Tuple
 
 import numpy as np
 import pyproj
+import rioxarray
 import xarray as xr
 from affine import Affine
 from pyproj import CRS, Transformer
 from rasterio.enums import Resampling
 from rasterio.transform import from_origin
 
-from products.georef import modis_crs
+from products.georef import MODIS_CRS
 
 DEFAULT_CRS_PROJ = 32631
 DEFAULT_CRS = DEFAULT_CRS_PROJ
@@ -133,16 +134,16 @@ class UTM375mGrid(GeoGrid):
         )
 
 
-class SIN375mGrid(GeoGrid):
+class UTM500mGrid(GeoGrid):
     def __init__(self) -> None:
         super().__init__(
-            crs=modis_crs,
-            resolution=370.650173222222,
-            x0=-420000,
-            y0=5450000,
-            width=3500,
-            height=2600,
-            name="SIN_375m",
+            crs=CRS.from_epsg(DEFAULT_CRS),
+            resolution=500,
+            x0=OUTPUT_GRID_X0,
+            y0=OUTPUT_GRID_Y0,
+            width=2100,
+            height=1650,
+            name="UTM_500m",
         )
 
 
@@ -156,6 +157,32 @@ class UTM1kmGrid(GeoGrid):
             width=1050,
             height=825,
             name="UTM_1km",
+        )
+
+
+class SIN375mGrid(GeoGrid):
+    def __init__(self) -> None:
+        super().__init__(
+            crs=MODIS_CRS,
+            resolution=370.650173222222,
+            x0=-420000,
+            y0=5450000,
+            width=3500,
+            height=2600,
+            name="SIN_375m",
+        )
+
+
+class LatLon375mGrid(GeoGrid):
+    def __init__(self):
+        super().__init__(
+            crs=CRS.from_epsg(4326),
+            resolution=0.003374035989717,
+            x0=-5.0033746,
+            y0=51.496626,
+            width=4447,
+            height=3112,
+            name="GEO_375m",
         )
 
 
@@ -193,4 +220,5 @@ def georef_netcdf_rioxarray(data_array: xr.DataArray | xr.Dataset, crs: pyproj.C
     https://gis.stackexchange.com/questions/230093/set-projection-for-netcdf4-in-python
     """
 
+    return data_array.rio.write_crs(crs).rio.write_coordinate_system()
     return data_array.rio.write_crs(crs).rio.write_coordinate_system()

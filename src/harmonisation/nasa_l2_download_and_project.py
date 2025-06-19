@@ -136,7 +136,7 @@ if __name__ == "__main__":
     )
     product_collection = "V10"  # V10 V03IMG
     product_type = "Standard"  # Standard, NRT (Near Real Time)
-    platform = "SNPP"  # SNPP, JPSS1
+    platform = "JPSS1"  # SNPP, JPSS1
     product_id = "VNP10"
     output_folder = f"{data_folder}/{product_collection}/{product_id}/"
 

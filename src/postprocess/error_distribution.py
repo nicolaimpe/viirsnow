@@ -7,6 +7,8 @@ import seaborn as sns
 import xarray as xr
 from matplotlib import pyplot as plt
 from matplotlib.axes import Axes
+from matplotlib.legend_handler import HandlerBase
+from matplotlib.lines import Line2D
 from pandas.io.formats.style import Styler
 from xarray.groupers import BinGrouper
 
@@ -14,6 +16,7 @@ from postprocess.general_purpose import fancy_table, sel_evaluation_domain
 from products.plot_settings import (
     MF_NO_FOREST_RED_BAND_SCREEEN_VAR_NAME,
     MF_NO_FOREST_VAR_NAME,
+    NASA_L3_MODIS_TERRA_VAR_NAME,
     NASA_L3_SNPP_VAR_NAME,
     PRODUCT_PLOT_COLORS,
     PRODUCT_PLOT_NAMES,
@@ -239,24 +242,131 @@ def scatter_to_biais(dataset: xr.Dataset) -> xr.DataArray:
     return xr.Dataset({"n_occurrences": out_data_array})
 
 
+def smooth_data_np_convolve(arr, span):
+    return np.convolve(arr, np.ones(span * 2 + 1) / (span * 2 + 1), mode="same")
+
+
+def plot_custom_spans(metrics_dict_unc: Dict[str, xr.Dataset], analysis_var: str, ax: plt.Axes):
+    percentile_min, percentile_max = 25, 75
+    x_positions = np.arange(len(list(metrics_dict_unc.values())[0].coords[analysis_var].values))
+    x_positions = x_positions / len(x_positions)
+    for product_name, metrics_dataset in metrics_dict_unc.items():
+        color = PRODUCT_PLOT_COLORS[product_name]
+        analysis_coords = metrics_dict_unc[product_name].coords[analysis_var].values
+        box_width_data = 0.2 / len(x_positions)
+        for idx, value in enumerate(analysis_coords):
+            x_pos = x_positions[idx]
+            product_analysis_var_dataset = metrics_dataset.sel({analysis_var: value}).drop_sel(biais_bins=0)
+            reduced = product_analysis_var_dataset.groupby("biais_bins").sum(list(product_analysis_var_dataset.sizes.keys()))
+            smooth = smooth_data_np_convolve(reduced.data_vars["n_occurrences"], 1)
+            smooth = smooth / smooth.max()
+
+            biais_rmse = histograms_to_biais_rmse(reduced)
+            distr = histograms_to_distribution(reduced)
+            ax.scatter(x_pos, biais_rmse.data_vars["biais"], marker="o", color=color, s=15, zorder=3)
+
+            whiskers_min = np.percentile(distr, percentile_min)
+            whiskers_max = np.percentile(distr, percentile_max)
+            ax.vlines(x_pos, whiskers_min, whiskers_max, color=color, linestyle="-", lw=3, label=product_name)
+
+            ax.hlines(whiskers_min, x_pos - box_width_data / 2, x_pos + box_width_data / 2, color=color, lw=3)
+            ax.hlines(whiskers_max, x_pos - box_width_data / 2, x_pos + box_width_data / 2, color=color, lw=3)
+        x_positions = x_positions + box_width_data
+
+    ax.set_xticks(x_positions - box_width_data * ((len(metrics_dict_unc) + 1) // 2), labels=analysis_coords)
+    ax.set_xlim(x_positions[0] - (len(metrics_dict_unc) + 1) * box_width_data, x_positions[-1])
+    ax.set_ylim(-40, 40)
+    ax.set_ylabel(f"MAE [% FSC]")
+    ax.set_xlabel(analysis_var)
+    (l1,) = ax.plot([0, 1], [0, 1], c="gray", lw=1e-12)
+    (l2,) = ax.plot(0, 0, c="gray", markersize=1e-12)
+    ax.legend([l1, l2], [f"Q1 and Q3"], handler_map={l1: HandlerSpan(), l2: HandlerPoint()})
+    ax.grid(axis="y")
+
+
+class HandlerSpan(HandlerBase):
+    def create_artists(self, legend, orig_handle, xdescent, ydescent, width, height, fontsize, trans):
+        a_list = []
+
+        a_list.append(
+            Line2D(np.array([0.5, 0.5]) * width - xdescent, np.array([-0.5, 1.5]) * height - ydescent)
+        )  # top vert line
+
+        a_list.append(
+            Line2D(np.array([0.38, 0.62]) * width - xdescent, np.array([1.5, 1.5]) * height - ydescent)
+        )  # top whisker
+
+        a_list.append(
+            Line2D(np.array([0.38, 0.62]) * width - xdescent, np.array([-0.5, -0.5]) * height - ydescent)
+        )  # bottom whisker
+
+        # a_list.append(matplotlib.lines.Line2D(np.array([0,1])*width-xdescent,
+        #                                       np.array([0.5,0.5])*height-ydescent, lw=2)) # median
+        for a in a_list:
+            a.set_color(orig_handle.get_color())
+        return a_list
+
+
+class HandlerPoint(HandlerBase):
+    def create_artists(self, legend, orig_handle, xdescent, ydescent, width, height, fontsize, trans):
+        a_list = []
+
+        a_list.append(
+            Line2D(
+                np.array([0.5]) * width - xdescent,
+                np.array([0.5]) * height - ydescent,
+                color="gray",
+                marker=".",
+                linestyle="None",
+            )
+        )  # mean point
+        for a in a_list:
+            a.set_color(orig_handle.get_color())
+        return a_list
+
+
+def line_plot_rmse(metrics_dict_unc: Dict[str, xr.Dataset], analysis_var: str, ax: Axes):
+    biais_rmse = postprocess_uncertainty_analysis(metrics_dict_unc, analysis_var=analysis_var)
+    x_coords_unc = metrics_dict_unc[list(metrics_dict_unc.keys())[0]].coords[analysis_var].values
+    biais_rmse = biais_rmse.sel({analysis_var: x_coords_unc})
+    for prod in metrics_dict_unc:
+        ax.plot(
+            x_coords_unc,
+            biais_rmse.data_vars["rmse"].sel(product=prod),
+            "-o",
+            color=PRODUCT_PLOT_COLORS[prod],
+            markersize=5,
+            lw=3,
+        )
+
+    ax.grid(True)
+    ax.set_ylim(5, 30)
+    ax.set_ylabel("RMSE [% FSC]")
+    ax.set_xlabel(analysis_var)
+    ax.legend([Line2D([0], [0], linestyle="-", color="gray")], ["RMSE"])
+
+
 if __name__ == "__main__":
     wy = WinterYear(2023, 2024)
     analysis_type = "uncertainty"
-    analysis_folder = f"/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_6/analyses/{analysis_type}"
+    analysis_folder = (
+        f"/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_6_modis/analyses/{analysis_type}"
+    )
 
     path_dict = {
         # MF_ORIG_VAR_NAME: f"{analysis_folder}/uncertainty_WY_2023_2024_meteofrance_orig_vs_s2_theia.nc",
         # MF_SYNOPSIS_VAR_NAME: f"{analysis_folder}/uncertainty_WY_2023_2024_meteofrance_synopsis_vs_s2_theia.nc",
-        MF_NO_FOREST_VAR_NAME: f"{analysis_folder}/uncertainty_WY_2023_2024_meteofrance_no_forest_vs_s2_theia.nc",
-        MF_NO_FOREST_RED_BAND_SCREEEN_VAR_NAME: f"{analysis_folder}/uncertainty_WY_2023_2024_meteofrance_no_forest_red_band_screen_vs_s2_theia.nc",
+        # MF_NO_FOREST_VAR_NAME: f"{analysis_folder}/uncertainty_WY_2023_2024_meteofrance_no_forest_vs_s2_theia.nc",
+        # MF_NO_FOREST_RED_BAND_SCREEEN_VAR_NAME: f"{analysis_folder}/uncertainty_WY_2023_2024_meteofrance_no_forest_red_band_screen_vs_s2_theia.nc",
         # MF_NO_FOREST_MODIFIED_VAR_NAME: f"{analysis_folder}/uncertainty_WY_2023_2024_meteofrance_no_forest_modified_vs_s2_theia.nc",
         NASA_L3_SNPP_VAR_NAME: f"{analysis_folder}/uncertainty_WY_2023_2024_nasa_l3_snpp_vs_s2_theia.nc",
         # NASA_L3_JPSS1_VAR_NAME: f"{analysis_folder}/uncertainty_WY_2023_2024_nasa_l3_jpss1_vs_s2_theia.nc",
         # NASA_L3_MULTIPLATFORM_VAR_NAME: f"{analysis_folder}/uncertainty_WY_2023_2024_nasa_l3_multiplatform_vs_s2_theia.nc",
+        NASA_L3_MODIS_TERRA_VAR_NAME: f"{analysis_folder}/uncertainty_WY_2023_2024_nasa_l3_terra_vs_s2_theia.nc",
     }
 
     analyses_dict = {k: xr.open_dataset(v, decode_cf=True) for k, v in path_dict.items()}
-    evaluation_domain = "accumulation"
+    evaluation_domain = "general"
     selection_dict, title = sel_evaluation_domain(analyses_dict=analyses_dict, evaluation_domain=evaluation_domain)
 
     ############## Launch analysis
@@ -314,15 +424,15 @@ if __name__ == "__main__":
     # raw_error_boxplots(metrics_dict=sel_vza, analysis_var="sensor_zenith_bins", ax=ax)
 
     # # Boxplots slope
-    # fig, ax = plt.subplots(figsize=(10, 4))
-    # fig.suptitle(f"Error distribution vs slope - {title} - {str(wy)}")
-    # ax.set_xticklabels(["0-10", "10-30", "30-50"])
-    # ax.set_xlabel("Slope [°]")
-    # ax.set_ylabel("FSC [%]")
-    # ax.set_ylim(-60, 60)
-    # ax.plot()
-    # selection_slope_dict = {k: v.sel(slope_bins=slice(0, 60)) for k, v in selection_dict.items()}
-    # raw_error_boxplots(metrics_dict=selection_slope_dict, analysis_var="slope_bins", ax=ax)
+    fig, ax = plt.subplots(figsize=(10, 4))
+    fig.suptitle(f"Error distribution vs slope - {title} - {str(wy)}")
+    ax.set_xticklabels(["0-10", "10-30", "30-50"])
+    ax.set_xlabel("Slope [°]")
+    ax.set_ylabel("FSC [%]")
+    ax.set_ylim(-60, 60)
+    ax.plot()
+    selection_slope_dict = {k: v.sel(slope_bins=slice(0, 60)) for k, v in selection_dict.items()}
+    raw_error_boxplots(metrics_dict=selection_slope_dict, analysis_var="slope_bins", ax=ax)
 
     # Boxplots ref FSC
 
