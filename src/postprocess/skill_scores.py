@@ -6,14 +6,25 @@ import pandas as pd
 import seaborn as sns
 import xarray as xr
 from matplotlib.axes import Axes
+from matplotlib.lines import Line2D
 from pandas.io.formats.style import Styler
 from scores.categorical import BasicContingencyManager
 from sklearn.metrics import ConfusionMatrixDisplay
 
-from postprocess.general_purpose import fancy_table
-from products.plot_settings import MF_NO_FOREST_RED_BAND_SCREEEN_VAR_NAME, MF_NO_FOREST_VAR_NAME, PRODUCT_PLOT_NAMES
+from postprocess.general_purpose import fancy_table, sel_evaluation_domain
+from products.plot_settings import (
+    MF_NO_FOREST_RED_BAND_SCREEEN_VAR_NAME,
+    MF_NO_FOREST_VAR_NAME,
+    MF_SYNOPSIS_VAR_NAME,
+    NASA_L3_MODIS_TERRA_VAR_NAME,
+    NASA_L3_SNPP_VAR_NAME,
+    PRODUCT_PLOT_COLORS,
+    PRODUCT_PLOT_NAMES,
+)
+from reductions.statistics_base import EvaluationVsHighResBase
+from winter_year import WinterYear
 
-SCORES = ["accuracy", "precision", "recall", "f1_score", "commission_error", "omission_error"]
+SCORES = ["accuracy", "precision", "recall", "f1_score"]  # , "commission_error", "omission_error"]
 
 
 def compute_score(dataset: xr.Dataset, score_name: str):
@@ -139,16 +150,53 @@ def fancy_table_skill_scores(dataframe_to_print: pd.DataFrame) -> Styler:
     return fancy_table(dataframe_to_print=dataframe_to_print, color_maps=color_maps, vmins=vmins, vmaxs=vmaxs)
 
 
+def compute_skill_scores_for_parameter(metrics_dict: Dict[str, xr.Dataset], variable: str) -> pd.DataFrame:
+    results = []
+    for metrics_ds in metrics_dict.values():
+        results.append(metrics_ds.groupby(variable, restore_coord_dims=True).map(compute_all_scores))
+    results = xr.concat(results, pd.Index([PRODUCT_PLOT_NAMES[k] for k in metrics_dict.keys()], name="product"))
+    # results = results.reset_index([variable, "product"])
+    # results = results.melt(id_vars=["product", variable], var_name="score", value_name="value")
+    return results
+
+
+def line_plot_accuracy_f1_score(metrics_dict_conf: Dict[str, xr.Dataset], analysis_var: str, ax: Axes):
+    skill_scores = compute_skill_scores_for_parameter(metrics_dict_conf, variable=analysis_var)
+    skill_scores = skill_scores.where(skill_scores != 0, np.nan)
+    x_coords_conf = metrics_dict_conf[list(metrics_dict_conf.keys())[0]].coords[analysis_var].values
+    skill_scores = skill_scores.sel({analysis_var: x_coords_conf})
+    for prod in metrics_dict_conf:
+        ax.plot(
+            x_coords_conf,
+            skill_scores.sel(product=PRODUCT_PLOT_NAMES[prod]).data_vars["accuracy"],
+            "-o",
+            color=PRODUCT_PLOT_COLORS[prod],
+            markersize=3,
+            lw=2,
+        )
+        ax.plot(
+            x_coords_conf,
+            skill_scores.sel(product=PRODUCT_PLOT_NAMES[prod]).data_vars["f1_score"],
+            "--^",
+            color=PRODUCT_PLOT_COLORS[prod],
+            markersize=5,
+            lw=3,
+        )
+    ax.legend(
+        [Line2D([0], [0], linestyle="-", color="gray"), Line2D([0], [0], linestyle="--", color="gray")],
+        ["Accuracy", "F1 score"],
+    )
+    ax.set_ylim(0.75, 1)
+    ax.set_ylabel("Score[-]")
+    ax.set_xlabel(analysis_var)
+    ax.grid(True)
+
+
 if __name__ == "__main__":
-    import xarray as xr
-
-    from postprocess.general_purpose import sel_evaluation_domain
-    from products.plot_settings import MF_NO_FOREST_VAR_NAME, NASA_L3_SNPP_VAR_NAME
-    from reductions.statistics_base import EvaluationVsHighResBase
-    from winter_year import WinterYear
-
     wy = WinterYear(2023, 2024)
-    analysis_folder = "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_6/analyses/confusion_table"
+    analysis_folder = (
+        "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_6_modis/analyses/confusion_table"
+    )
     analysis_type = "confusion_table"
 
     analyses_dict = {
@@ -159,14 +207,14 @@ if __name__ == "__main__":
         #     f"{analysis_folder}/confusion_table_WY_2023_2024_meteofrance_synopsis_vs_s2_theia.nc",
         #     decode_cf=True,
         # ),
-        MF_NO_FOREST_VAR_NAME: xr.open_dataset(
-            f"{analysis_folder}/confusion_table_WY_2023_2024_meteofrance_no_forest_vs_s2_theia.nc",
-            decode_cf=True,
-        ),
-        MF_NO_FOREST_RED_BAND_SCREEEN_VAR_NAME: xr.open_dataset(
-            f"{analysis_folder}/confusion_table_WY_2023_2024_meteofrance_no_forest_red_band_screen_vs_s2_theia.nc",
-            decode_cf=True,
-        ),
+        # MF_NO_FOREST_VAR_NAME: xr.open_dataset(
+        #     f"{analysis_folder}/confusion_table_WY_2023_2024_meteofrance_no_forest_vs_s2_theia.nc",
+        #     decode_cf=True,
+        # ),
+        # MF_NO_FOREST_RED_BAND_SCREEEN_VAR_NAME: xr.open_dataset(
+        #     f"{analysis_folder}/confusion_table_WY_2023_2024_meteofrance_no_forest_red_band_screen_vs_s2_theia.nc",
+        #     decode_cf=True,
+        # ),
         # MF_NO_CC_MASK_VAR_NAME: xr.open_dataset(
         #     f"{analysis_folder}/confusion_table_WY_2023_2024_meteofrance_no_cc_mask_vs_s2_theia.nc",
         #     decode_cf=True,
@@ -186,6 +234,9 @@ if __name__ == "__main__":
         #     f"{analysis_folder}/confusion_table_WY_2023_2024_nasa_l3_jpss1_vs_s2_theia.nc",
         #     decode_cf=True,
         # ),
+        NASA_L3_MODIS_TERRA_VAR_NAME: xr.open_dataset(
+            f"{analysis_folder}/confusion_table_WY_2023_2024_nasa_l3_terra_vs_s2_theia.nc", decode_cf=True
+        ),
     }
 
     # analyses_dict = {
@@ -213,32 +264,20 @@ if __name__ == "__main__":
     if "nasa_l3_jpss1" in sel_no_vza:
         sel_no_vza.pop("nasa_l3_jpss1")
     # Sensor zenith
-    sel_no_vza = {
-        k: v.sel(sensor_zenith_bins=slice(None, 90)).assign_coords(
-            {"sensor_zenith_bins": ["0-15", "15-30", "30-45", "45-60", ">60"]}
-        )
-        for k, v in sel_no_vza.items()
-    }
-    plot_multiple_scores_sns(
-        metrics_dict=sel_no_vza,
-        variable="sensor_zenith_bins",
-        xlabel="Sensor Zenith Angle [°]",
-        title_complement=f"Sensor zenith angle - {title} - {str(wy)}",
-    )
+    # sel_no_vza = {
+    #     k: v.sel(sensor_zenith_bins=slice(None, 90)).assign_coords(
+    #         {"sensor_zenith_bins": ["0-15", "15-30", "30-45", "45-60", ">60"]}
+    #     )
+    #     for k, v in sel_no_vza.items()
+    # }
+    # plot_multiple_scores_sns(
+    #     metrics_dict=sel_no_vza,
+    #     variable="sensor_zenith_bins",
+    #     xlabel="Sensor Zenith Angle [°]",
+    #     title_complement=f"Sensor zenith angle - {title} - VIIRS Météo-France - {str(wy)}",
+    # )
 
     # Aspect
-    selection_dict = {
-        k: v.assign_coords(
-            {
-                "aspect_bins": pd.CategoricalIndex(
-                    data=EvaluationVsHighResBase.aspect_bins().labels,
-                    categories=EvaluationVsHighResBase.aspect_bins().labels,
-                    ordered=True,
-                )
-            }
-        )
-        for k, v in selection_dict.items()
-    }
     plot_multiple_scores_sns(
         metrics_dict=selection_dict,
         variable="aspect_bins",
