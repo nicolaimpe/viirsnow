@@ -4,6 +4,7 @@ import pandas as pd
 import xarray as xr
 from pandas.io.formats.style import Styler
 
+from products.snow_cover_product import SnowCoverProduct
 from reductions.statistics_base import EvaluationVsHighResBase
 
 
@@ -65,3 +66,13 @@ def sel_evaluation_domain(analyses_dict: Dict[str, xr.Dataset], evaluation_domai
     }
 
     return selection_dict, title
+
+
+def open_reduced_dataset(product: SnowCoverProduct, analysis_folder: str, analysis_type: str):
+    return xr.open_dataset(
+        f"{analysis_folder}/analyses/{analysis_type}/{analysis_type}_WY_2023_2024_{product.name}_vs_s2_theia.nc"
+    )
+
+
+def open_reduced_dataset_completeness(product: SnowCoverProduct, analysis_folder: str, analysis_type: str):
+    return xr.open_dataset(f"{analysis_folder}/analyses/{analysis_type}/{analysis_type}_WY_2023_2024_{product.name}.nc")

@@ -24,7 +24,7 @@ from products.plot_settings import (
 from reductions.statistics_base import EvaluationVsHighResBase
 from winter_year import WinterYear
 
-SCORES = ["accuracy", "precision", "recall", "f1_score"]  # , "commission_error", "omission_error"]
+SCORES = ["accuracy", "precision", "recall", "f1_score", "commission_error", "omission_error"]
 
 
 def compute_score(dataset: xr.Dataset, score_name: str):
@@ -195,7 +195,7 @@ def line_plot_accuracy_f1_score(metrics_dict_conf: Dict[str, xr.Dataset], analys
 if __name__ == "__main__":
     wy = WinterYear(2023, 2024)
     analysis_folder = (
-        "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_6_modis/analyses/confusion_table"
+        "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_6/ndsi/analyses/confusion_table"
     )
     analysis_type = "confusion_table"
 

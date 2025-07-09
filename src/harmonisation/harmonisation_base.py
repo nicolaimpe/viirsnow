@@ -12,7 +12,7 @@ from compression import generate_xarray_compression_encodings
 from geotools import gdf_to_binary_mask
 from grids import GeoGrid
 from logger_setup import default_logger as logger
-from products.classes import PRODUCT_CLASSES_DICT
+from products.snow_cover_product import SnowCoverProduct
 from reductions.snow_cover_extent_cross_comparison import WinterYear
 
 
@@ -28,12 +28,11 @@ def check_input_daily_tif_files(input_tif_files: List[str]) -> List[str]:
 
 
 class HarmonisationBase:
-    def __init__(self, product_name: str, output_grid: GeoGrid, data_folder: str, output_folder: str):
-        self.product_name = product_name
+    def __init__(self, product: SnowCoverProduct, output_grid: GeoGrid, data_folder: str, output_folder: str):
+        self.product = product
         self.grid = output_grid
         self.data_folder = data_folder
         self.output_folder = output_folder
-        self.classes = PRODUCT_CLASSES_DICT[product_name]
 
     @abc.abstractmethod
     def get_all_files_of_winter_year(self, winter_year: WinterYear) -> List[str]:
@@ -58,8 +57,8 @@ class HarmonisationBase:
             else daily_composite.data_vars["NDSI_Snow_Cover"]
         )
         if (
-            snow_cover.where(snow_cover <= self.classes["clouds"]).count()
-            == snow_cover.where(snow_cover == self.classes["clouds"]).count()
+            snow_cover.where(snow_cover <= self.product.classes["clouds"]).count()
+            == snow_cover.where(snow_cover == self.product.classes["clouds"]).count()
         ):
             return False
         else:
@@ -82,13 +81,14 @@ class HarmonisationBase:
         for day in winter_year.iterate_days():
             logger.info(f"Processing day {day}")
 
-            if day.month in range(7, 11):
-                continue
-
             day_files = self.get_daily_files(files, day=day)
 
             day_files = self.check_daily_files(day_files=day_files)
 
+            if day.year == 2023 or day.month < 6:
+                out_path = f"{str(self.output_folder)}/{day.strftime('%Y%m%d')}.nc"
+                out_tmp_paths.append(out_path)
+                continue
             if len(day_files) == 0:
                 logger.info(f"Skip day {day.date()} because 0 files were found on this date")
                 continue
@@ -96,9 +96,9 @@ class HarmonisationBase:
 
             if roi_shapefile is not None:
                 roi_mask = gdf_to_binary_mask(gdf=gpd.read_file(roi_shapefile), grid=self.grid)
-                daily_composite = daily_composite.where(roi_mask, self.classes["fill"][0])
+                daily_composite = daily_composite.where(roi_mask, self.product.classes["fill"][0])
                 for dv in daily_composite.data_vars.values():
-                    dv.rio.write_nodata(self.classes["fill"][0], inplace=True)
+                    dv.rio.write_nodata(self.product.classes["fill"][0], inplace=True)
 
             if not self.check_scf_not_empty(daily_composite):
                 logger.info(f"Skip day {day.date()} because only clouds are present on this date.")
@@ -115,7 +115,7 @@ class HarmonisationBase:
         time_series = xr.open_mfdataset(out_tmp_paths, mask_and_scale=False)
         encodings = generate_xarray_compression_encodings(time_series)
         encodings.update(time={"calendar": "gregorian", "units": f"days since {str(winter_year.from_year)}-10-01"})
-        out_path = f"{self.output_folder}/WY_{winter_year.from_year}_{winter_year.to_year}_{self.product_name}.nc"
+        out_path = f"{self.output_folder}/WY_{winter_year.from_year}_{winter_year.to_year}_{self.product.name}.nc"
         logger.info(f"Exporting to {out_path}")
         time_series.to_netcdf(out_path, encoding=encodings)
         [os.remove(file) for file in out_tmp_paths]
