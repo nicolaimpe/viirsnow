@@ -26,8 +26,8 @@ from winter_year import WinterYear
 class ConfusionTable(EvaluationVsHighResBase):
     def __init__(
         self,
-        reference_analyzer: SnowCoverProductCompleteness,
-        test_analyzer: SnowCoverProductCompleteness,
+        reference_product: SnowCoverProduct,
+        test_product: SnowCoverProduct,
         ref_fsc_threshold: float | None = None,
         test_fsc_threshold: float | None = None,
     ):
@@ -128,7 +128,7 @@ class ConfusionTableNASA(ConfusionTable):
         )
 
 
-class ConfusionTableMeteoFGranceVsNASA(ConfusionTable):
+class ConfusionTableMeteoFranceVsNASA(ConfusionTable):
     def __init__(self, ref_fsc_threshold: float | None = None, test_fsc_threshold: float | None = None) -> None:
         super().__init__(
             reference_analyzer=MeteoFranceSnowCoverProductCompleteness(),

@@ -85,10 +85,10 @@ class HarmonisationBase:
 
             day_files = self.check_daily_files(day_files=day_files)
 
-            if day.year == 2023 or day.month < 6:
-                out_path = f"{str(self.output_folder)}/{day.strftime('%Y%m%d')}.nc"
-                out_tmp_paths.append(out_path)
-                continue
+            # if day.year == 2023 or day.month < 6:
+            #     out_path = f"{str(self.output_folder)}/{day.strftime('%Y%m%d')}.nc"
+            #     out_tmp_paths.append(out_path)
+            #     continue
             if len(day_files) == 0:
                 logger.info(f"Skip day {day.date()} because 0 files were found on this date")
                 continue

@@ -9,14 +9,7 @@ import xarray as xr
 
 from logger_setup import default_logger as logger
 from products.classes import METEOFRANCE_CLASSES, NASA_CLASSES, NODATA_NASA_CLASSES, S2_CLASSES
-from products.plot_settings import (
-    MF_NO_FOREST_RED_BAND_SCREEEN_VAR_NAME,
-    MF_NO_FOREST_VAR_NAME,
-    NASA_L3_JPSS1_VAR_NAME,
-    NASA_L3_MODIS_TERRA_VAR_NAME,
-    NASA_L3_MULTIPLATFORM_VAR_NAME,
-    NASA_L3_SNPP_VAR_NAME,
-)
+from reductions.semidistributed import MountainParametrization, MountainParams
 
 
 def mask_of_pixels_of(value: int, data_array: xr.DataArray) -> xr.DataArray:
@@ -39,7 +32,7 @@ def compute_area_of_class_mask(mask: xr.DataArray) -> float:
 class SnowCoverProductCompleteness:
     def __init__(
         self,
-        classes: Dict[str, Tuple[int, ...] | range],
+        classes: Dict[str, int | range],
         nodata_mapping: Tuple[str, ...] | None = None,
     ) -> None:
         self.classes = copy.deepcopy(classes)
@@ -113,9 +106,7 @@ class SnowCoverProductCompleteness:
             n_pixels_tot = data_array.count().values
         return n_pixels_tot
 
-    def _all_statistics(self, data_array: xr.DataArray, exclude_nodata: bool = False) -> Dict[str, float]:
-        logger.info(f"Processing time: {data_array.coords['time'].values[0].astype('M8[D]').astype('O')}")
-
+    def _all_statistics(self, dataset: xr.Dataset, exclude_nodata: bool = False) -> Dict[str, float]:
         results_coords = xr.Coordinates({"class_name": list(self.classes.keys())})
 
         results_dataset = xr.Dataset(
@@ -125,29 +116,49 @@ class SnowCoverProductCompleteness:
                 "surface": xr.DataArray(np.nan, coords=results_coords, attrs={"units": "m²"}),
             }
         )
-        n_pixels_tot = self.count_valid_pixels(data_array, exclude_nodata=exclude_nodata)
+        n_pixels_tot = self.count_valid_pixels(dataset.data_vars["snow_cover_fraction"], exclude_nodata=exclude_nodata)
 
         for class_name in self.classes:
             if class_name == "nodata" and exclude_nodata:
                 continue
-            class_mask = self.mask_of_class(class_name, data_array)
+            class_mask = self.mask_of_class(class_name, dataset.data_vars["snow_cover_fraction"])
             results_dataset.data_vars["n_pixels_class"].loc[class_name] = class_mask.sum().values
             results_dataset.data_vars["percentage"].loc[class_name] = compute_percentage_of_mask(class_mask, n_pixels_tot)
             results_dataset.data_vars["surface"].loc[class_name] = compute_area_of_class_mask(class_mask)
         return results_dataset
 
+    def day_statistics_with_params(
+        self, dataset: xr.Dataset, analysis_bin_dict: Dict[str, xr.groupers.Grouper], exclude_nodata: bool = False
+    ):
+        logger.info(f"Processing time: {dataset.coords['time'].values[0].astype('M8[D]').astype('O')}")
+        return dataset.groupby(analysis_bin_dict).map(self._all_statistics, exclude_nodata=exclude_nodata)
+
+    def day_statistics_without_params(self, dataset: xr.Dataset, exclude_nodata: bool = False):
+        logger.info(f"Processing time: {dataset.coords['time'].values[0].astype('M8[D]').astype('O')}")
+        return self._all_statistics(data_array=dataset, exclude_nodata=exclude_nodata)
+
     def year_temporal_analysis(
         self,
-        snow_cover_product_time_series_data_array: xr.DataArray,
+        snow_cover_product_time_series: xr.Dataset,
         exclude_nodata: bool = False,
         netcdf_export_path: str | None = None,
-        period: Tuple[str | None, str | None] | None = None,
+        period: slice | None = None,
+        config: MountainParams | None = None,
     ):
         if period is not None:
-            snow_cover_product_time_series_data_array = snow_cover_product_time_series_data_array.sel(time=slice(*period))
-        year_results_dataset = snow_cover_product_time_series_data_array.groupby("time").map(
-            self._all_statistics, exclude_nodata=exclude_nodata
-        )
+            snow_cover_product_time_series = snow_cover_product_time_series.sel(time=period)
+        if config is not None:
+            snow_cover_product_time_series, analysis_bin_dict = MountainParametrization().semidistributed_parametrization(
+                dataset=snow_cover_product_time_series, config=config
+            )
+            year_results_dataset = snow_cover_product_time_series.groupby("time").map(
+                self.day_statistics_with_params, analysis_bin_dict=analysis_bin_dict, exclude_nodata=exclude_nodata
+            )
+        else:
+            year_results_dataset = snow_cover_product_time_series.groupby("time").map(
+                self.day_statistics_without_params, exclude_nodata=exclude_nodata
+            )
+
         if netcdf_export_path is not None:
             year_results_dataset.to_netcdf(Path(netcdf_export_path))
 
@@ -193,32 +204,3 @@ class S2SnowCoverProductCompleteness(SnowCoverProductCompleteness):
     def total_no_snow_mask(self, data_array: xr.DataArray) -> xr.DataArray:
         no_snow_s2 = self.mask_of_class("no_snow", data_array)
         return no_snow_s2
-
-
-if __name__ == "__main__":
-    output_folder = "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_6_lps"
-
-    evaluation_dict: Dict[str, Dict[str, SnowCoverProductCompleteness]] = {
-        # "meteofrance_orig": {"evaluator": MeteoFranceSnowCoverProductCompleteness()},
-        # "meteofrance_synopsis": {"evaluator": MeteoFranceSnowCoverProductCompleteness()},
-        # MF_NO_FOREST_VAR_NAME: {"evaluator": MeteoFranceSnowCoverProductCompleteness()},
-        MF_NO_FOREST_RED_BAND_SCREEEN_VAR_NAME: {"evaluator": MeteoFranceSnowCoverProductCompleteness()},
-        # "meteofrance_no_cc_mask": {"evaluator": MeteoFranceSnowCoverProductCompleteness(), "config": config},
-        # "meteofrance_modified": {"evaluator": MeteoFranceSnowCoverProductCompleteness(), "config": config},
-        # "nasa_pseudo_l3": {"evaluator": NASASnowCoverProductCompleteness()},
-        NASA_L3_SNPP_VAR_NAME: {"evaluator": NASASnowCoverProductCompleteness()},
-        NASA_L3_JPSS1_VAR_NAME: {"evaluator": NASASnowCoverProductCompleteness()},
-        # "nasa_l3_jpss1": {"evaluator": NASASnowCoverProductCompleteness()},
-        NASA_L3_MULTIPLATFORM_VAR_NAME: {"evaluator": NASASnowCoverProductCompleteness()},
-        # NASA_L3_MODIS_TERRA_VAR_NAME: {"evaluator": NASASnowCoverProductCompleteness()},
-    }
-
-    for product in evaluation_dict:
-        logger.info(f"Evaluating product {product}")
-        analyzer = evaluation_dict[product]["evaluator"]
-        test_series = xr.open_dataset(f"{output_folder}/time_series/WY_2023_2024_{product}.nc")
-        analyzer.year_temporal_analysis(
-            snow_cover_product_time_series_data_array=test_series["snow_cover_fraction"],
-            netcdf_export_path=f"{output_folder}/analyses/completeness/completeness_WY_2023_2024_{product}.nc",
-            period=None,
-        )
