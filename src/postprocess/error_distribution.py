@@ -199,7 +199,7 @@ def fancy_table_error_distribution(dataframe_to_print: pd.DataFrame) -> Styler:
     return fancy_table(dataframe_to_print=dataframe_to_print, color_maps=color_maps, vmins=vmins, vmaxs=vmaxs)
 
 
-def double_variable_barplots(analyses_dict: Dict[str, xr.Dataset], var1: str, var2: str):
+def double_variable_barplots(analyses_dict: Dict[str, xr.Dataset], var1: str, var2: str, title_complement: str = ""):
     reduced_ds = postprocess_uncertainty_analysis(uncertainty_datasets=analyses_dict, analysis_var=[var1, var2])
     reduced_df = reduced_ds.to_dataframe()
     sns.set_style("whitegrid")
@@ -225,9 +225,9 @@ def double_variable_barplots(analyses_dict: Dict[str, xr.Dataset], var1: str, va
         orient="h",
         palette=list(PRODUCT_PLOT_COLORS.values()),
     )
-    plot_biais.figure.suptitle(f"Bias vs aspect - {title} - {str(wy)}", fontsize=11, fontweight="bold")
+    plot_biais.figure.suptitle(f"Bias vs aspect - {title_complement}", fontsize=11, fontweight="bold")
     plot_biais.figure.subplots_adjust(top=0.85)
-    plot_rmse.figure.suptitle(f"RMSE vs aspect - {title} - {str(wy)}", fontsize=11, fontweight="bold")
+    plot_rmse.figure.suptitle(f"RMSE vs aspect - {title_complement}", fontsize=11, fontweight="bold")
     plot_rmse.figure.subplots_adjust(top=0.85)
 
 

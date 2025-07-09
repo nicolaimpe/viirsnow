@@ -12,17 +12,18 @@ from winter_year import WinterYear
 
 def get_all_meteofrance_type_rejeu_filenames(data_folder: str, winter_year: WinterYear, suffix: str) -> List[str] | None:
     # Rejeu CMS
-    meteofrance_files = glob(f"{data_folder}/{winter_year.from_year}1[0-2]/*npp*{suffix}.tif")
-    meteofrance_files.extend(glob(f"{data_folder}/{winter_year.to_year}0[0-9]/*npp*{suffix}.tif"))
+    print(f"{data_folder}/{winter_year.from_year}/1[0-2]/*noaa21*{suffix}.tif")
+    meteofrance_files = glob(f"{data_folder}/{winter_year.from_year}/1[0-2]/*noaa21*{suffix}.tif")
+    meteofrance_files.extend(glob(f"{data_folder}/{winter_year.to_year}/0[0-9]/*noaa21*{suffix}.tif"))
     return sorted(meteofrance_files)
 
 
-def get_all_meteofrance_red_band_filenames(data_folder: str, winter_year: WinterYear) -> List[str] | None:
-    # Rejeu CMS
+# def get_all_meteofrance_red_band_filenames(data_folder: str, winter_year: WinterYear) -> List[str] | None:
+#     # Rejeu CMS
 
-    meteofrance_files = glob(f"{data_folder}/red_band/{winter_year.from_year}1[0-2]/*I01.tif")
-    meteofrance_files.extend(glob(f"{data_folder}/red_band/{winter_year.to_year}0[0-9]/*I01.tif"))
-    return sorted(meteofrance_files)
+#     meteofrance_files = glob(f"{data_folder}/{winter_year.from_year}1[0-2]/*I01.tif")
+#     meteofrance_files.extend(glob(f"{data_folder}/{winter_year.to_year}0[0-9]/*I01.tif"))
+#     return sorted(meteofrance_files)
 
 
 class MeteoFranceExperience:
@@ -38,32 +39,22 @@ class MeteoFranceExperience:
 
     def get_all_fsc_and_red_band_filenames(self):
         self.fsc_files = get_all_meteofrance_type_rejeu_filenames(data_folder=folder, winter_year=wy, suffix="fsc")
-        self.red_band_files = get_all_meteofrance_red_band_filenames(data_folder=folder, winter_year=wy)
+        self.red_band_files = get_all_meteofrance_type_rejeu_filenames(data_folder=folder, winter_year=wy, suffix="I01")
+        # self.red_band_files = get_all_meteofrance_red_band_filenames(data_folder=folder, winter_year=wy)
 
     def create_no_forest_red_band_screen(self, time: datetime, old_product: np.array, red_band_screen_value: int = 7):
         self.get_all_fsc_and_red_band_filenames()
-
-        red_band_file_list = []
-        red_band_file_list.extend([f for f in self.red_band_files if time.strftime("%Y%m%d_%H%M") in f])
-        red_band_file_list.extend(
-            [f for f in self.red_band_files if (time - timedelta(minutes=1)).strftime("%Y%m%d_%H%M") in f]
-        )
-        red_band_file_list.extend(
-            [f for f in self.red_band_files if (time - timedelta(minutes=-1)).strftime("%Y%m%d_%H%M") in f]
-        )
-        red_band_file_list.extend(
-            [f for f in self.red_band_files if (time - timedelta(minutes=2)).strftime("%Y%m%d_%H%M") in f]
-        )
-
         fsc_file = [f for f in self.fsc_files if time.strftime("%Y%m%d_%H%M") in f][0]
+        red_band_file = [f for f in self.red_band_files if time.strftime("%Y%m%d_%H%M") in f]
         fsc = rasterio.open(fsc_file).read(1)
         no_forest = np.where(old_product == METEOFRANCE_CLASSES["forest_with_snow"], fsc, old_product)
 
-        if len(red_band_file_list) != 1:
+        print(len(red_band_file))
+        if len(red_band_file) != 1:
             print("0 or more than 1 band files found for this acquisition. Red band screen not applied.")
             modified = no_forest
         else:
-            red_band = rasterio.open(red_band_file_list[0]).read(1)
+            red_band = rasterio.open(red_band_file[0]).read(1)
             low_refl_mask = red_band <= red_band_screen_value
             modified = np.where(
                 no_forest > METEOFRANCE_CLASSES["snow_cover"][-1],
@@ -89,7 +80,7 @@ class MeteoFranceExperience:
 
 if __name__ == "__main__":
     wy = WinterYear(2023, 2024)
-    folder = "/home/imperatoren/work/VIIRS_S2_comparison/data/CMS_rejeu"
+    folder = "/home/imperatoren/work/VIIRS_S2_comparison/data/CMS_rejeu/JPSS2"
     MeteoFranceExperience(
         data_folder=folder,
         winter_year=wy,

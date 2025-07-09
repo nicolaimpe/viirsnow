@@ -13,21 +13,29 @@ from harmonisation.reprojections import reprojection_l3_meteofrance_to_grid
 from logger_setup import default_logger as logger
 from products.classes import METEOFRANCE_CLASSES
 from products.filenames import get_all_meteofrance_sat_angle_filenames, get_all_meteofrance_type_filenames
-from products.plot_settings import METEOFRANCE_VAR_NAME
+from products.snow_cover_product import (
+    SnowCoverProduct,
+    VIIRSMeteoFranceArchive,
+    VIIRSMeteoFranceJPSS1Prototype,
+    VIIRSMeteoFranceSNPPPrototype,
+)
 from reductions.snow_cover_extent_cross_comparison import WinterYear
 
 
-class MeteoFranceSynopsisHarmonisation(HarmonisationBase):
-    def __init__(self, output_grid: GeoGrid, data_folder: str, output_folder: str, suffix: str):
-        super().__init__(METEOFRANCE_VAR_NAME, output_grid, data_folder, output_folder)
+class MeteoFranceHarmonisation(HarmonisationBase):
+    def __init__(self, product: SnowCoverProduct, output_grid: GeoGrid, data_folder: str, output_folder: str, suffix: str):
+        super().__init__(product, output_grid, data_folder, output_folder)
         self.suffix = suffix
 
     def get_all_files_of_winter_year(self, winter_year: WinterYear) -> List[str]:
         snow_cover_and_sat_angle_file_list = get_all_meteofrance_type_filenames(
-            data_folder=self.data_folder, winter_year=winter_year, suffix=self.suffix
+            data_folder=self.data_folder, winter_year=winter_year, suffix=self.suffix, platform=self.product.platform
         )
+
         snow_cover_and_sat_angle_file_list.extend(
-            get_all_meteofrance_sat_angle_filenames(data_folder=self.data_folder, winter_year=winter_year)
+            get_all_meteofrance_sat_angle_filenames(
+                data_folder=self.data_folder, winter_year=winter_year, suffix=suffix, platform=self.product.platform
+            )
         )
 
         return snow_cover_and_sat_angle_file_list
@@ -73,12 +81,16 @@ if __name__ == "__main__":
 
     suffixes = ["no_forest_red_band_screen"]
     massifs_shapefile = "/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/vectorial/massifs/massifs.shp"
-    meteofrance_cms_folder = "/home/imperatoren/work/VIIRS_S2_comparison/data/CMS_rejeu"
+    meteofrance_cms_folder = "/home/imperatoren/work/VIIRS_S2_comparison/data/CMS_rejeu/JPSS1"
     grid = UTM375mGrid()
     for suffix in suffixes:
-        output_folder = f"/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_6/time_series/{suffix}"
+        output_folder = f"/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_7/time_series/{suffix}"
 
         logger.info(f"Méteo-France {suffix} processing")
-        MeteoFranceSynopsisHarmonisation(
-            output_grid=grid, data_folder=meteofrance_cms_folder, output_folder=output_folder, suffix=suffix
+        MeteoFranceHarmonisation(
+            product=VIIRSMeteoFranceJPSS1Prototype(),
+            output_grid=grid,
+            data_folder=meteofrance_cms_folder,
+            output_folder=output_folder,
+            suffix=suffix,
         ).create_time_series(winter_year=year, roi_shapefile=massifs_shapefile)

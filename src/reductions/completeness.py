@@ -220,4 +220,5 @@ if __name__ == "__main__":
         analyzer.year_temporal_analysis(
             snow_cover_product_time_series_data_array=test_series["snow_cover_fraction"],
             netcdf_export_path=f"{output_folder}/analyses/completeness/completeness_WY_2023_2024_{product}.nc",
+            period=None,
         )
