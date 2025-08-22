@@ -81,58 +81,6 @@ def reproject_l2_nasa_to_grid(
     return output_dataset
 
 
-def reprojection_l3_nasa_to_grid_old(nasa_dataset: xr.DataArray, output_grid: GeoGrid) -> xr.DataArray:
-    # Validity "zombie mask": wherever there is at least one non valid pixel, the output grid pixel is set as invalid (<-> cloud)
-
-    # nasa_dataset = nasa_dataset.where(nasa_dataset <= NASA_CLASSES["snow_cover"][-1], NASA_CLASSES["fill"][0])
-
-    data_array_name = [name for name in nasa_dataset]
-
-    # Verify that we reproject one Data Array at time
-    if len(data_array_name) == 1:
-        data_array_name = data_array_name[0]
-    else:
-        raise NotImplementedError
-
-    nasa_lakes_mask = nasa_dataset == NASA_CLASSES["water"][0]
-    nasa_oceans_mask = nasa_dataset == NASA_CLASSES["water"][1]
-
-    nasa_water_mask = nasa_lakes_mask | nasa_oceans_mask
-
-    nasa_without_water = xr.where(nasa_water_mask == 0, nasa_dataset, 0, keep_attrs=True)
-
-    nasa_validity_mask = reproject_using_grid(nasa_without_water, output_grid=output_grid, resampling_method=Resampling.max)
-
-    nasa_resampled = reproject_using_grid(
-        nasa_without_water.astype(np.float32), output_grid=output_grid, resampling_method=Resampling.average
-    )
-
-    nasa_oceans_mask_nearest = reproject_using_grid(
-        nasa_oceans_mask.astype("u1"), output_grid=output_grid, resampling_method=Resampling.nearest
-    )
-    nasa_lakes_mask_nearest = reproject_using_grid(
-        nasa_lakes_mask.astype("u1"), output_grid=output_grid, resampling_method=Resampling.nearest
-    )
-    # Compose the mask
-    nasa_out_image = xr.where(
-        nasa_validity_mask <= NASA_CLASSES["snow_cover"][-1],
-        nasa_resampled.astype("u1"),
-        nasa_validity_mask.astype("u1"),
-    )
-    nasa_out_image = xr.where(nasa_oceans_mask_nearest, NASA_CLASSES["water"][1], nasa_out_image)
-    nasa_out_image = xr.where(nasa_lakes_mask_nearest, NASA_CLASSES["water"][0], nasa_out_image)
-
-    nasa_out_image.data_vars[data_array_name].attrs = nasa_dataset.data_vars[data_array_name].attrs
-    nasa_out_image.data_vars[data_array_name].rio.write_nodata(NASA_CLASSES["fill"][0], inplace=True)
-    nasa_out_image = nasa_out_image.drop_vars("spatial_ref")
-    nasa_out_image = georef_netcdf_rioxarray(
-        nasa_out_image.data_vars[data_array_name],
-        data_array_name=data_array_name,
-        crs=output_grid.crs,
-    )
-    return nasa_out_image
-
-
 def reprojection_l3_nasa_to_grid(nasa_snow_cover: xr.DataArray, output_grid: GeoGrid) -> xr.DataArray:
     # Validity "zombie mask": wherever there is at least one non valid pixel, the output grid pixel is set as invalid (<-> cloud)
     # nasa_dataset = nasa_dataset.where(nasa_dataset <= NASA_CLASSES["snow_cover"][-1], NASA_CLASSES["fill"][0])

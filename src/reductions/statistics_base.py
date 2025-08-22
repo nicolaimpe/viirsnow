@@ -1,3 +1,4 @@
+import abc
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Dict, Tuple
@@ -6,6 +7,7 @@ import numpy as np
 import xarray as xr
 from xarray.groupers import BinGrouper
 
+from logger_setup import default_logger as logger
 from reductions.completeness import SnowCoverProductCompleteness
 from reductions.semidistributed import MountainParametrization, MountainParams
 from winter_year import WinterYear
@@ -36,8 +38,8 @@ def generate_evaluation_io(
         f"{output_folder}/{analysis_type}_WY_{year.from_year}_{year.to_year}_{test_product_name}_vs_{ref_product_name}.nc"
     )
 
-    test_time_series = xr.open_dataset(f"{working_folder}/time_series/{test_time_series_name}")
-    ref_time_series = xr.open_dataset(f"{working_folder}/time_series/{ref_time_series_name}")
+    test_time_series = xr.open_dataset(f"{working_folder}/time_series/{test_time_series_name}", mask_and_scale=False)
+    ref_time_series = xr.open_dataset(f"{working_folder}/time_series/{ref_time_series_name}", mask_and_scale=False)
 
     if period is not None:
         test_time_series = test_time_series.sel(time=period)
@@ -110,14 +112,12 @@ class EvaluationVsHighResBase(MountainParametrization):
         #     raise NotImplementedError("This function supposes that the reference data maximum is 205")
 
         common_days = np.intersect1d(test_time_series["time"], ref_time_series["time"])
-
         combined_dataset = xr.Dataset(
             {
                 "ref": ref_time_series.data_vars[config.ref_var_name[0]].sel(time=common_days),
                 "test": test_time_series.data_vars[config.test_var_name[0]].sel(time=common_days),
             },
         )
-
         combined_dataset, analysis_bin_dict = self.semidistributed_parametrization(
             dataset=combined_dataset,
             config=MountainParams(
@@ -142,3 +142,29 @@ class EvaluationVsHighResBase(MountainParametrization):
 
         combined_dataset = combined_dataset.drop_vars("spatial_ref")
         return combined_dataset, analysis_bin_dict
+
+    @abc.abstractmethod
+    def time_step_analysis(self, bins_dict: Dict[str, BinGrouper]):
+        pass
+
+    def launch_analysis(
+        self,
+        test_time_series: xr.Dataset,
+        ref_time_series: xr.Dataset,
+        config: EvaluationConfig,
+        netcdf_export_path: str | None = None,
+    ) -> xr.Dataset:
+        combined_dataset, analysis_bin_dict = self.prepare_analysis(
+            test_time_series=test_time_series,
+            ref_time_series=ref_time_series,
+            config=config,
+        )
+
+        result = combined_dataset.groupby("time").map(self.time_step_analysis, bins_dict=analysis_bin_dict)
+
+        logger.info("Reducing time coordinate per month")
+        result = result.resample({"time": "1ME"}).sum(dim="time")
+        if netcdf_export_path:
+            logger.info(f"Exporting to {netcdf_export_path}")
+            result.to_netcdf(netcdf_export_path, encoding={"n_occurrences": {"zlib": True}})
+        return result

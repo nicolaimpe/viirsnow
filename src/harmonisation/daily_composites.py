@@ -110,7 +110,9 @@ def match_daily_snow_cover_and_geometry_meteofrance(daily_snow_cover_files: List
     return output_snow_cover_files, output_geometry_files
 
 
-def create_temporal_composite_meteofrance(daily_snow_cover_files: List[str], daily_geometry_files: List[str]) -> xr.Dataset:
+def create_temporal_composite_meteofrance_single_platform(
+    daily_snow_cover_files: List[str], daily_geometry_files: List[str]
+) -> xr.Dataset:
     """Create a L3 daily composite form daily L2 swath views using a sensor zenith angle criterion.
     For each pixel we select the "best" observation, i.e. the observation with smaller zenith angle.
     We also make the choice of retrieving some "non-optimal" information.
@@ -125,51 +127,54 @@ def create_temporal_composite_meteofrance(daily_snow_cover_files: List[str], dai
     # This funciton is here to filter this but ideally in a future iteration where sensor zenith angle will
     # be given in the L2 Météo-France this will be useless
 
-    daily_snow_cover_files, daily_geometry_files = match_daily_snow_cover_and_geometry_meteofrance(
-        daily_snow_cover_files, daily_geometry_files
-    )
+    # daily_snow_cover_files, daily_geometry_files = (
+    #     match_daily_snow_cover_and_geometry_meteofrance(
+    #         daily_snow_cover_files, daily_geometry_files
+    #     )
+    # )
 
-    ################# Sorry for this section :`)
+    daily_snow_cover_files.sort()
+    daily_geometry_files.sort()
 
     # Read data and assemble in a numpy temporally ordered array
     snow_cover_daily_images = np.array([rasterio.open(file).read(1) for file in daily_snow_cover_files])
-    view_angles_daily_array = np.array(
-        [
-            xr.open_dataset(file, mask_and_scale=True).data_vars["band_data"].sel(band=1).drop_vars("band").values
-            for file in daily_geometry_files
-        ]
-    )
-    view_angles_daily_array = np.ma.masked_array(view_angles_daily_array, np.isnan(view_angles_daily_array))
-    # View angles Météo-France encoded on half degree
-    view_angles_daily_array = view_angles_daily_array / 2
 
-    invalid_masks = snow_cover_daily_images > METEOFRANCE_CLASSES["water"][0]
+    # Solar zenith angle no observation are encoded as "0", which is also a possible physical value of the incidence angle
+    # This is problematic for the algorithm so we correct it.
+    # Maybe in the operational product these nodata values will be encoded differently?
 
-    # Take best observation
-    best_observation_index = np.nanargmin(view_angles_daily_array, axis=0)
-    best_observation_angle = np.min(view_angles_daily_array, axis=0)
-    n_obs, height, width = snow_cover_daily_images.shape
+    # Compose a view zenith angle data array
+    view_angles = [rasterio.open(file).read(1).astype("float32") for file in daily_geometry_files]
 
-    snow_cover_best_observation = snow_cover_daily_images[
-        best_observation_index, np.arange(height)[:, None], np.arange(width)
-    ]  # Numpy advanced indexing for selecting for each pixel the best observation index
+    view_angles_daily_array = np.ma.masked_array(view_angles, view_angles == 255.0)
 
-    # In this part we recover observations taken at a worse zenith angle if in the best observation composite the pixel is invalid
+    # Sort by view angle
+    view_angle_sorting_index = np.argsort(view_angles, axis=0)
+    rearrenged_snow_cover = np.take_along_axis(snow_cover_daily_images, view_angle_sorting_index, axis=0)
+    rearrenged_view_angle = np.take_along_axis(view_angles_daily_array, view_angle_sorting_index, axis=0)
+
+    snow_cover_best_observation = rearrenged_snow_cover[0, :]
+    best_observation_angle = rearrenged_view_angle[0, :]
+
+    ## In this part we recover observations taken at a worse zenith angle if in the best observation composite the pixel is invalid
+    # Intitialize
     out_snow_cover = snow_cover_best_observation
     out_view_angle = best_observation_angle
-    invalid_mask_best_observation = snow_cover_best_observation > METEOFRANCE_CLASSES["water"][0]
-    for idx in range(n_obs):
-        out_snow_cover = np.where(
-            invalid_masks[idx]
-            < invalid_mask_best_observation,  # pixels that are marked as invalid in the best observation but not in another observation
-            snow_cover_daily_images[idx],
-            out_snow_cover,
-        )
-        # Replace data also for view zenith angle
-        out_view_angle = np.where(
-            invalid_masks[idx] < invalid_mask_best_observation, view_angles_daily_array[idx], out_view_angle
-        )
 
+    # Invalid observations
+    invalid_masks = rearrenged_snow_cover > METEOFRANCE_CLASSES["water"][0]
+    invalid_mask_out_snow_cover = out_snow_cover > METEOFRANCE_CLASSES["water"][0]
+
+    for idx in range(snow_cover_daily_images.shape[0]):
+        # pixels that are marked as invalid in the best observation but not in another observation
+        pixels_to_reverse_mask = invalid_masks[idx] < invalid_mask_out_snow_cover
+        out_snow_cover = np.where(pixels_to_reverse_mask, rearrenged_snow_cover[idx], out_snow_cover)
+        # Replace data also for view zenith angle and platform
+        out_view_angle = np.where(pixels_to_reverse_mask, rearrenged_view_angle[idx], out_view_angle)
+
+        invalid_mask_out_snow_cover = out_snow_cover > METEOFRANCE_CLASSES["water"][0]
+
+    # Here we output in netcdf for export but it can be changed
     sample_data = (
         xr.open_dataset(daily_snow_cover_files[0], decode_cf=True).data_vars["band_data"].sel(band=1).drop_vars("band")
     )
@@ -179,7 +184,174 @@ def create_temporal_composite_meteofrance(daily_snow_cover_files: List[str], dai
             "sensor_zenith_angle": xr.DataArray(out_view_angle, dims=sample_data.dims, coords=sample_data.coords),
         }
     ).rio.write_crs(sample_data.rio.crs)
+
     return day_dataset
+
+
+def create_temporal_composite_meteofrance_multiplatform(
+    daily_snow_cover_files: List[str], daily_geometry_files: List[str]
+) -> xr.Dataset:
+    """Create a L3 daily composite form daily L2 swath views using a sensor zenith angle criterion.
+    For each pixel we select the "best" observation, i.e. the observation with smaller zenith angle.
+    We also make the choice of retrieving some "non-optimal" information.
+    If the "best" observation is cloud covered (more generally invalid), we take the other observation,
+    even if it has been done at a very high sensor zenith angle.
+    This will recover some invalid pixels but at the same time probably introduces false detections
+    (more generally "bad" observations)
+    """
+
+    # daily_snow_cover_files, daily_geometry_files = (
+    #     match_daily_snow_cover_and_geometry_meteofrance(
+    #         daily_snow_cover_files, daily_geometry_files
+    #     )
+    # )
+    daily_snow_cover_files.sort()
+    daily_geometry_files.sort()
+
+    # This is to account for the fact that NASA and Météo-France L2 come from two very different pipelines
+    # Metadata are different (i.e. observation times) and it's possible that there is a different number of daily files
+    # This funciton is here to filter this but ideally in a future iteration where sensor zenith angle will
+    # be given in the L2 Météo-France this will be useless
+    # Read data and assemble in a numpy temporally ordered array
+    snow_cover_daily_images = np.array([rasterio.open(file).read(1) for file in daily_snow_cover_files])
+    view_angles = [
+        xr.open_dataset(file, mask_and_scale=False).data_vars["band_data"].sel(band=1).drop_vars("band")
+        for file in daily_geometry_files
+    ]
+
+    platform_array = np.zeros_like(snow_cover_daily_images)
+    for idx, file in enumerate(daily_snow_cover_files):
+        if "npp" in file:
+            platform_array[idx, :] = 1
+        elif "noaa20" in file:
+            platform_array[idx, :] = 2
+        elif "noaa21" in file:
+            platform_array[idx, :] = 3
+        else:
+            raise NotImplementedError
+    # Solar zenith angle no observation are encoded as "0", which is also a possible physical value of the incidence angle
+    # This is problematic for the algorithm so we correct it.
+    # Maybe in the operational product these nodata values will be encoded differently?
+
+    # Compose a view zenith angle data array
+    view_angles_daily_array = np.array(view_angles)
+
+    # Sort by view angle
+    view_angle_sorting_index = np.argsort(view_angles, axis=0)
+    rearrenged_snow_cover = np.take_along_axis(snow_cover_daily_images, view_angle_sorting_index, axis=0)
+    rearrenged_view_angle = np.take_along_axis(view_angles_daily_array, view_angle_sorting_index, axis=0)
+    rearrenged_platform = np.take_along_axis(platform_array, view_angle_sorting_index, axis=0)
+
+    snow_cover_best_observation = rearrenged_snow_cover[0, :]
+    best_observation_angle = rearrenged_view_angle[0, :]
+    best_platform = rearrenged_platform[0, :]
+
+    ## In this part we recover observations taken at a worse zenith angle if in the best observation composite the pixel is invalid
+    # Intitialize
+    out_snow_cover = snow_cover_best_observation
+    out_view_angle = best_observation_angle
+    out_platform = best_platform
+
+    # Invalid observations
+    invalid_masks = rearrenged_snow_cover > METEOFRANCE_CLASSES["water"][0]
+    invalid_mask_out_snow_cover = out_snow_cover > METEOFRANCE_CLASSES["water"][0]
+
+    for idx in range(snow_cover_daily_images.shape[0]):
+        # pixels that are marked as invalid in the best observation but not in another observation
+        pixels_to_reverse_mask = invalid_masks[idx] < invalid_mask_out_snow_cover
+        out_snow_cover = np.where(pixels_to_reverse_mask, rearrenged_snow_cover[idx], out_snow_cover)
+        # Replace data also for view zenith angle and platform
+        out_view_angle = np.where(pixels_to_reverse_mask, rearrenged_view_angle[idx], out_view_angle)
+        out_platform = np.where(pixels_to_reverse_mask, rearrenged_platform[idx], out_platform)
+        invalid_mask_out_snow_cover = out_snow_cover > METEOFRANCE_CLASSES["water"][0]
+
+    # Here we output in netcdf for export but it can be changed
+    sample_data = (
+        xr.open_dataset(daily_snow_cover_files[0], decode_cf=True).data_vars["band_data"].sel(band=1).drop_vars("band")
+    )
+    day_dataset = xr.Dataset(
+        {
+            "snow_cover_fraction": xr.DataArray(out_snow_cover, dims=sample_data.dims, coords=sample_data.coords),
+            "sensor_zenith_angle": xr.DataArray(out_view_angle, dims=sample_data.dims, coords=sample_data.coords),
+            "platform": xr.DataArray(out_platform, dims=sample_data.dims, coords=sample_data.coords),
+        }
+    ).rio.write_crs(sample_data.rio.crs)
+
+    day_dataset.attrs["platform_encoding_values"] = ["1", "2", "3"]
+    day_dataset.attrs["platform_encoding_platforms"] = ["SNPP", "JPSS1", "JPSS2"]
+    return day_dataset
+
+
+# def create_temporal_composite_meteofrance(daily_snow_cover_files: List[str], daily_geometry_files: List[str]) -> xr.Dataset:
+#     """Create a L3 daily composite form daily L2 swath views using a sensor zenith angle criterion.
+#     For each pixel we select the "best" observation, i.e. the observation with smaller zenith angle.
+#     We also make the choice of retrieving some "non-optimal" information.
+#     If the "best" observation is cloud covered (more generally invalid), we take the other observation,
+#     even if it has been done at a very high sensor zenith angle.
+#     This will recover some invalid pixels but at the same time probably introduces false detections
+#     (more generally "bad" observations)
+#     """
+
+#     # This is to account for the fact that NASA and Météo-France L2 come from two very different pipelines
+#     # Metadata are different (i.e. observation times) and it's possible that there is a different number of daily files
+#     # This funciton is here to filter this but ideally in a future iteration where sensor zenith angle will
+#     # be given in the L2 Météo-France this will be useless
+
+#     daily_snow_cover_files, daily_geometry_files = match_daily_snow_cover_and_geometry_meteofrance(
+#         daily_snow_cover_files, daily_geometry_files
+#     )
+
+#     ################# Sorry for this section :`)
+
+#     # Read data and assemble in a numpy temporally ordered array
+#     snow_cover_daily_images = np.array([rasterio.open(file).read(1) for file in daily_snow_cover_files])
+#     view_angles_daily_array = np.array(
+#         [
+#             xr.open_dataset(file, mask_and_scale=True).data_vars["band_data"].sel(band=1).drop_vars("band").values
+#             for file in daily_geometry_files
+#         ]
+#     )
+#     view_angles_daily_array = np.ma.masked_array(view_angles_daily_array, np.isnan(view_angles_daily_array))
+#     # View angles Météo-France encoded on half degree
+#     view_angles_daily_array = view_angles_daily_array / 2
+
+#     invalid_masks = snow_cover_daily_images > METEOFRANCE_CLASSES["water"][0]
+
+#     # Take best observation
+#     best_observation_index = np.nanargmin(view_angles_daily_array, axis=0)
+#     best_observation_angle = np.min(view_angles_daily_array, axis=0)
+#     n_obs, height, width = snow_cover_daily_images.shape
+
+#     snow_cover_best_observation = snow_cover_daily_images[
+#         best_observation_index, np.arange(height)[:, None], np.arange(width)
+#     ]  # Numpy advanced indexing for selecting for each pixel the best observation index
+
+#     # In this part we recover observations taken at a worse zenith angle if in the best observation composite the pixel is invalid
+#     out_snow_cover = snow_cover_best_observation
+#     out_view_angle = best_observation_angle
+#     invalid_mask_best_observation = snow_cover_best_observation > METEOFRANCE_CLASSES["water"][0]
+#     for idx in range(n_obs):
+#         out_snow_cover = np.where(
+#             invalid_masks[idx]
+#             < invalid_mask_best_observation,  # pixels that are marked as invalid in the best observation but not in another observation
+#             snow_cover_daily_images[idx],
+#             out_snow_cover,
+#         )
+#         # Replace data also for view zenith angle
+#         out_view_angle = np.where(
+#             invalid_masks[idx] < invalid_mask_best_observation, view_angles_daily_array[idx], out_view_angle
+#         )
+
+#     sample_data = (
+#         xr.open_dataset(daily_snow_cover_files[0], decode_cf=True).data_vars["band_data"].sel(band=1).drop_vars("band")
+#     )
+#     day_dataset = xr.Dataset(
+#         {
+#             "snow_cover_fraction": xr.DataArray(out_snow_cover, dims=sample_data.dims, coords=sample_data.coords),
+#             "sensor_zenith_angle": xr.DataArray(out_view_angle, dims=sample_data.dims, coords=sample_data.coords),
+#         }
+#     ).rio.write_crs(sample_data.rio.crs)
+#     return day_dataset
 
 
 def create_temporal_l2_naive_composite_meteofrance(daily_files: List[str]) -> xr.Dataset:

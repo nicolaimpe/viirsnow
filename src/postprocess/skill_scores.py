@@ -24,7 +24,7 @@ from products.plot_settings import (
 from reductions.statistics_base import EvaluationVsHighResBase
 from winter_year import WinterYear
 
-SCORES = ["accuracy", "precision", "recall", "f1_score", "commission_error", "omission_error"]
+SCORES = ["accuracy", "f1_score", "commission_error", "omission_error", "total_count"]
 
 
 def compute_score(dataset: xr.Dataset, score_name: str):
@@ -37,7 +37,6 @@ def compute_score(dataset: xr.Dataset, score_name: str):
     scores_manager = BasicContingencyManager(
         counts={"tp_count": tp, "tn_count": tn, "fp_count": fp, "fn_count": fn, "total_count": tp + tn + fp + fn}
     )
-
     return getattr(scores_manager, score_name)()
 
 

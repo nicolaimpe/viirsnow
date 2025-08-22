@@ -43,9 +43,9 @@ class MeteoFranceArchive(MeteoFranceSnowCoverProduct):
 class MeteoFranceSNPPPrototype(MeteoFranceSnowCoverProduct):
     def __init__(self):
         super().__init__(
-            name="meteofrance_no_forest_red_band_screen",
+            name="meteofrance_prototype_snpp",
             classes=METEOFRANCE_CLASSES,
-            plot_color="goldenrod",
+            plot_color="gold",
             plot_name="Météo-France SNPP",
             platform="snpp",
         )
@@ -54,7 +54,7 @@ class MeteoFranceSNPPPrototype(MeteoFranceSnowCoverProduct):
 class MeteoFranceJPSS1Prototype(MeteoFranceSnowCoverProduct):
     def __init__(self):
         super().__init__(
-            name="meteofrance_jpss1",
+            name="meteofrance_prototype_jpss1",
             classes=METEOFRANCE_CLASSES,
             plot_color="darkgoldenrod",
             plot_name="Météo-France JPSS1",
@@ -65,11 +65,22 @@ class MeteoFranceJPSS1Prototype(MeteoFranceSnowCoverProduct):
 class MeteoFranceJPSS2Prototype(MeteoFranceSnowCoverProduct):
     def __init__(self):
         super().__init__(
-            name="meteofrance_jpss2",
+            name="meteofrance_prototype_jpss2",
             classes=METEOFRANCE_CLASSES,
-            plot_color="fiordilatte",
+            plot_color="tomato",
             plot_name="Météo-France JPSS2",
             platform="noaa21",
+        )
+
+
+class MeteoFranceMultiplatformPrototype(MeteoFranceSnowCoverProduct):
+    def __init__(self):
+        super().__init__(
+            name="meteofrance_prototype_multiplatform",
+            classes=METEOFRANCE_CLASSES,
+            plot_color="sandybrown",
+            plot_name="Météo-France multi-platform",
+            platform=None,
         )
 
 
@@ -88,7 +99,7 @@ class VNP10A1(NASASnowCoverProduct):
 class VJ110A1(NASASnowCoverProduct):
     def __init__(self):
         self.product_id = "VNP10A1"
-        super().__init__(name="nasa_l3_jpss1", classes=NASA_CLASSES, plot_color="darkcyan", plot_name="NASA VIIRS JPSS1")
+        super().__init__(name="nasa_l3_jpss1", classes=NASA_CLASSES, plot_color="darkblue", plot_name="NASA VIIRS JPSS1")
 
 
 class V10A1Multiplatform(NASASnowCoverProduct):

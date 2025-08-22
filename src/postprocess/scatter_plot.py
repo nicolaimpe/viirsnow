@@ -62,7 +62,7 @@ def fancy_scatter_plot(
         ":",
         lw=1.5,
         color="chocolate",
-        label=f"Linear fit R²={score:.2f},   m={float(coeff_slope):.2f}",  # b={float(intercept):.2f}",
+        label=f"Linear fit R²={score:.2f},   ",  # m={float(coeff_slope):.2f}",   b={float(intercept):.2f}",
     )
     # ax.plot(regression_x_axis, regression_x_axis, color="k", linewidth=0.5, label="y=x")
     ax.grid(False)

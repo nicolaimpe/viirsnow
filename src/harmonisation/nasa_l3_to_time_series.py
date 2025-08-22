@@ -125,7 +125,7 @@ class V10Harmonisation(HarmonisationBase):
 #         return out_dataset
 
 
-class V10MultiplatformHarmonisation:
+class V10MultiplatformHarmonisation(HarmonisationBase):
     def __init__(self, data_folder: str, output_folder: str):
         self.data_folder = data_folder
         self.output_folder = output_folder
@@ -141,14 +141,8 @@ class V10MultiplatformHarmonisation:
             mask_and_scale=False,
         )
 
-        out_tmp_paths = []
         for day in winter_year.iterate_days():
             logger.info(f"Processing day {day}")
-
-            # if day.month != 12:  # and day.month != 9:  # and day.month != 2:
-            #     continue
-            # if day.day > 6:
-            #     break
 
             day_data_arrays = []
             if day in snpp_year.coords["time"].values:
@@ -170,20 +164,8 @@ class V10MultiplatformHarmonisation:
                 }
             )
 
-            out_path = f"{str(self.output_folder)}/{day.strftime('%Y%m%d')}.nc"
-            out_tmp_paths.append(out_path)
-
-            daily_composite = daily_composite.expand_dims(time=[day])
-            daily_composite.to_netcdf(out_path)
-        out_tmp_paths = glob(f"{str(self.output_folder)}/[{winter_year.from_year}-{winter_year.to_year}]*.nc")
-        time_series = xr.open_mfdataset(out_tmp_paths, mask_and_scale=False)
-        encodings = generate_xarray_compression_encodings(time_series)
-        encodings.update(time={"calendar": "gregorian", "units": f"days since {str(winter_year.from_year)}-10-01"})
-        time_series.to_netcdf(
-            f"{self.output_folder}/WY_{winter_year.from_year}_{winter_year.to_year}_{self.product.name}.nc",
-            encoding=encodings,
-        )
-        [os.remove(file) for file in out_tmp_paths]
+            self.export_daily_data(day=day, daily_data=daily_composite)
+        self.export_time_series(winter_year=winter_year)
 
 
 class MOD10Harmonisation(HarmonisationBase):

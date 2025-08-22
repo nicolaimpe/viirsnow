@@ -11,6 +11,7 @@ class MountainParams:
     aspect_map_path: str | None = None
     dem_path: str | None = None
     forest_mask_path: str | None = None
+    
 
 
 class MountainParametrization:
