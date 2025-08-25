@@ -31,15 +31,12 @@ def histograms_to_biais_rmse(metrics_dataset: xr.Dataset) -> xr.Dataset:
 
 def postprocess_uncertainty_analysis(
     snow_cover_products: List[SnowCoverProduct],
-    analysis_folder: str,
+    metrics_datasets: List[xr.Dataset],
     analysis_var: str | BinGrouper,
 ) -> xr.Dataset:
     reduced_datasets = []
-    for product in snow_cover_products:
-        metrics_dataset = open_reduced_dataset_for_plot(
-            product=product, analysis_folder=analysis_folder, analysis_type="uncertainty"
-        )
-        reduced_datasets.append(metrics_dataset.groupby(analysis_var).map(histograms_to_biais_rmse))
+    for product, metrics in zip(snow_cover_products, metrics_datasets):
+        reduced_datasets.append(metrics.groupby(analysis_var).map(histograms_to_biais_rmse))
     concatenated = xr.concat(
         reduced_datasets, pd.Index([product.name for product in snow_cover_products], name="product"), coords="minimal"
     )
@@ -232,8 +229,12 @@ def fancy_table_error_distribution(dataframe_to_print: pd.DataFrame) -> Styler:
 def double_variable_barplots(
     snow_cover_products: List[SnowCoverProduct], analysis_folder: str, var1: str, var2: str, title_complement: str = ""
 ):
+    metrics_datasets = [
+        open_reduced_dataset(product=prod, analysis_folder=analysis_folder, analysis_type="uncertainty")
+        for prod in snow_cover_products
+    ]
     reduced_ds = postprocess_uncertainty_analysis(
-        snow_cover_products=snow_cover_products, analysis_folder=analysis_folder, analysis_var=[var1, var2]
+        snow_cover_products=snow_cover_products, metrics_datasets=metrics_datasets, analysis_var=[var1, var2]
     )
     reduced_df = reduced_ds.to_dataframe()
     sns.set_style("whitegrid")
@@ -281,10 +282,11 @@ def smooth_data_np_convolve(arr, span):
 
 
 def plot_custom_spans(snow_cover_products: List[SnowCoverProduct], analysis_folder: str, analysis_var: str, ax: plt.Axes):
-    percentile_min, percentile_max = 10, 90
+    percentile_min, percentile_max = 5, 95
     sample_dataset = open_reduced_dataset_for_plot(
         product=snow_cover_products[0], analysis_folder=analysis_folder, analysis_type="uncertainty"
     )
+
     x_positions = np.arange(len(sample_dataset.coords[analysis_var].values))
     x_positions = x_positions / len(x_positions)
     for product in snow_cover_products:
@@ -297,7 +299,6 @@ def plot_custom_spans(snow_cover_products: List[SnowCoverProduct], analysis_fold
             x_pos = x_positions[idx]
             product_analysis_var_dataset = metrics_dataset.sel({analysis_var: value})  # .drop_sel(biais_bins=0)
             reduced = product_analysis_var_dataset.groupby("biais_bins").sum(list(product_analysis_var_dataset.sizes.keys()))
-
             biais_rmse = histograms_to_biais_rmse(reduced)
             distr = histograms_to_distribution(reduced)
             ax.scatter(x_pos, biais_rmse.data_vars["biais"], marker="o", color=product.plot_color, s=15, zorder=3)
@@ -313,12 +314,16 @@ def plot_custom_spans(snow_cover_products: List[SnowCoverProduct], analysis_fold
 
     ax.set_xticks(x_positions - box_width_data * ((len(snow_cover_products) + 1) // 2), labels=analysis_coords)
     ax.set_xlim(x_positions[0] - (len(snow_cover_products) + 1) * box_width_data, x_positions[-1])
-    ax.set_ylim(-50, 50)
+    ax.set_ylim(-65, 65)
     ax.set_ylabel("Bias [\% FSC]")
     ax.set_xlabel(analysis_var)
     (l1,) = ax.plot([0, 1], [0, 1], c="gray", lw=1e-12)
     (l2,) = ax.plot(0, 0, c="gray", markersize=1e-12)
-    ax.legend([l1, l2], ["90th and 10th percentiles", "mean"], handler_map={l1: HandlerSpan(), l2: HandlerPoint()})
+    ax.legend(
+        [l1, l2],
+        [f"{percentile_min}th and {percentile_max}th percentiles", "mean"],
+        handler_map={l1: HandlerSpan(), l2: HandlerPoint()},
+    )
     ax.grid(axis="y")
 
 
@@ -364,8 +369,12 @@ class HandlerPoint(HandlerBase):
 
 
 def line_plot_rmse(snow_cover_products: List[SnowCoverProduct], analysis_folder: str, analysis_var: str, ax: Axes):
+    metrics_datasets = [
+        open_reduced_dataset_for_plot(product=prod, analysis_folder=analysis_folder, analysis_type="uncertainty")
+        for prod in snow_cover_products
+    ]
     biais_rmse = postprocess_uncertainty_analysis(
-        snow_cover_products, analysis_folder=analysis_folder, analysis_var=analysis_var
+        snow_cover_products, metrics_datasets=metrics_datasets, analysis_var=analysis_var
     )
 
     x_coords_unc = biais_rmse.coords[analysis_var].values

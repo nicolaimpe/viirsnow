@@ -7,6 +7,7 @@ import numpy as np
 import xarray as xr
 from xarray.groupers import BinGrouper
 
+from compression import generate_xarray_compression_encodings
 from logger_setup import default_logger as logger
 from reductions.completeness import SnowCoverProductCompleteness
 from reductions.semidistributed import MountainParametrization, MountainParams
@@ -161,10 +162,9 @@ class EvaluationVsHighResBase(MountainParametrization):
         )
 
         result = combined_dataset.groupby("time").map(self.time_step_analysis, bins_dict=analysis_bin_dict)
-
         logger.info("Reducing time coordinate per month")
         result = result.resample({"time": "1ME"}).sum(dim="time")
         if netcdf_export_path:
             logger.info(f"Exporting to {netcdf_export_path}")
-            result.to_netcdf(netcdf_export_path, encoding={"n_occurrences": {"zlib": True}})
+            result.to_netcdf(netcdf_export_path, encoding=generate_xarray_compression_encodings(result))
         return result

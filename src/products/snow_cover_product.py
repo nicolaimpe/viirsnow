@@ -45,7 +45,7 @@ class MeteoFranceSNPPPrototype(MeteoFranceSnowCoverProduct):
         super().__init__(
             name="meteofrance_prototype_snpp",
             classes=METEOFRANCE_CLASSES,
-            plot_color="gold",
+            plot_color="orange",
             plot_name="Météo-France SNPP",
             platform="snpp",
         )
@@ -67,7 +67,7 @@ class MeteoFranceJPSS2Prototype(MeteoFranceSnowCoverProduct):
         super().__init__(
             name="meteofrance_prototype_jpss2",
             classes=METEOFRANCE_CLASSES,
-            plot_color="tomato",
+            plot_color="sienna",
             plot_name="Météo-France JPSS2",
             platform="noaa21",
         )
@@ -78,7 +78,7 @@ class MeteoFranceMultiplatformPrototype(MeteoFranceSnowCoverProduct):
         super().__init__(
             name="meteofrance_prototype_multiplatform",
             classes=METEOFRANCE_CLASSES,
-            plot_color="sandybrown",
+            plot_color="lightcoral",
             plot_name="Météo-France multi-platform",
             platform=None,
         )
@@ -99,13 +99,13 @@ class VNP10A1(NASASnowCoverProduct):
 class VJ110A1(NASASnowCoverProduct):
     def __init__(self):
         self.product_id = "VNP10A1"
-        super().__init__(name="nasa_l3_jpss1", classes=NASA_CLASSES, plot_color="darkblue", plot_name="NASA VIIRS JPSS1")
+        super().__init__(name="nasa_l3_jpss1", classes=NASA_CLASSES, plot_color="midnightblue", plot_name="NASA VIIRS JPSS1")
 
 
 class V10A1Multiplatform(NASASnowCoverProduct):
     def __init__(self):
         super().__init__(
-            name="nasa_l3_multiplatform", classes=NASA_CLASSES, plot_color="steelblue", plot_name="NASA SNPP+JPSS1"
+            name="nasa_l3_multiplatform", classes=NASA_CLASSES, plot_color="lightskyblue", plot_name="NASA SNPP+JPSS1"
         )
 
 

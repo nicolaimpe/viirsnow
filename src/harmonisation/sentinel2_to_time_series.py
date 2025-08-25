@@ -1,18 +1,16 @@
 from datetime import datetime
 from typing import List
 
-import numpy as np
 import xarray as xr
 
 from fractional_snow_cover import gascoin
 from grids import GeoGrid, UTM375mGrid, UTM500mGrid
-from harmonisation.daily_composites import create_spatial_s2_composite, create_spatial_s2_composite_sca
+from harmonisation.daily_composites import create_spatial_s2_composite_sca
 from harmonisation.harmonisation_base import HarmonisationBase, check_input_daily_tif_files
 from logger_setup import default_logger as logger
 from products.filenames import get_all_s2_theia_files_of_winter_year
-from products.plot_settings import S2_THEIA_VAR_NAME
 from products.snow_cover_product import Sentinel2Theia, SnowCoverProduct
-from reductions.snow_cover_extent_cross_comparison import WinterYear
+from winter_year import WinterYear
 
 
 class S2Harmonisation(HarmonisationBase):
@@ -46,7 +44,7 @@ if __name__ == "__main__":
 
     grid = UTM375mGrid()
     for ndsi in [45]:
-        output_folder = f"/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_8/time_series"
+        output_folder = "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_8/time_series"
 
         fsc = int(gascoin(ndsi=ndsi / 100, f_veg=0) * 100)
         logger.info("S2 Theia processing")

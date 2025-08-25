@@ -76,46 +76,86 @@ def open_reduced_dataset(product: SnowCoverProduct, analysis_folder: str, analys
     )
 
 
-def open_reduced_dataset_completeness(product: SnowCoverProduct, analysis_folder: str, analysis_type: str) -> xr.Dataset:
-    return xr.open_dataset(f"{analysis_folder}/analyses/{analysis_type}/{analysis_type}_WY_2023_2024_{product.name}.nc")
+def open_reduced_dataset_completeness(product: SnowCoverProduct, analysis_folder: str) -> xr.Dataset:
+    return xr.open_dataset(f"{analysis_folder}/analyses/completeness/completeness_WY_2023_2024_{product.name}.nc")
 
 
 def open_reduced_dataset_for_plot(product: SnowCoverProduct, analysis_folder: str, analysis_type: str) -> xr.Dataset:
     dataset = open_reduced_dataset(product, analysis_folder, analysis_type)
-    if "sensor_zenith_bins" not in dataset.sizes:
-        dataset = dataset.expand_dims({"sensor_zenith_bins": 5})
-    dataset = dataset.sel(
-        time=slice("2023-11", "2024-06"),
-        altitude_bins=slice(900, None),
-        ref_bins=slice(None, 100),
-        slope_bins=slice(None, 60),
-        sensor_zenith_bins=slice(None, 80),
-    )
-    dataset = dataset.assign_coords(
-        {
-            "aspect_bins": pd.CategoricalIndex(
-                data=EvaluationVsHighResBase.aspect_bins().labels,
-                categories=EvaluationVsHighResBase.aspect_bins().labels,
-                ordered=True,
-            ),
-            "forest_mask_bins": ["Open", "Forest"],
-            "slope_bins": np.array(["[0-10]", "[11-30]", "\>30"], dtype=str),
-            "sensor_zenith_bins": np.array(["[0-15]", "[15-30]", "[30-45]", "[45-60]", "\>60"], dtype=str),
-            "ref_bins": pd.CategoricalIndex(
-                data=["0", "[1-25]", "[26-50]", "[51-75]", "[75-99]", "100"],
-                categories=["0", "[1-25]", "[26-50]", "[51-75]", "[75-99]", "100"],
-                ordered=True,
-            ),
-        }
-    )
+    # if "sensor_zenith_bins" not in dataset.sizes:
+    #     dataset = dataset.expand_dims({"sensor_zenith_bins": 5})
 
-    dataset = dataset.rename(
-        {
-            "aspect_bins": "Aspect",
-            "forest_mask_bins": "Landcover",
-            "slope_bins": "Slope [°]",
-            "sensor_zenith_bins": "View Zenith Angle [°]",
-            "ref_bins": "Ref FSC [\%]",
-        }
-    )
+    selection_dict = {}
+    coord_dict = {}
+    rename_dict = {}
+
+    if "aspect_bins" in dataset.coords:
+        coord_dict.update(
+            {
+                "aspect_bins": pd.CategoricalIndex(
+                    data=EvaluationVsHighResBase.aspect_bins().labels,
+                    categories=EvaluationVsHighResBase.aspect_bins().labels,
+                    ordered=True,
+                )
+            },
+        )
+        rename_dict.update({"aspect_bins": "Aspect"})
+
+    if "slope_bins" in dataset.coords:
+        selection_dict.update(slope_bins=slice(None, 60))
+        coord_dict.update(
+            {
+                "slope_bins": np.array(["[0-10]", "[11-30]", "$>$30"], dtype=str),
+            },
+        )
+        rename_dict.update({"slope_bins": "Slope [°]"})
+
+    if "forest_mask_bins" in dataset.coords:
+        coord_dict.update(
+            {
+                "forest_mask_bins": ["Open", "Forest"],
+            },
+        )
+        rename_dict.update({"forest_mask_bins": "Landcover"})
+
+    if "sensor_zenith_bins" in dataset.coords:
+        selection_dict.update(sensor_zenith_bins=slice(None, 75))
+        coord_dict.update(
+            {
+                "sensor_zenith_bins": np.array(["[0-15]", "[15-30]", "[30-45]", "[45-60]", "$>$60"], dtype=str),
+            },
+        )
+        rename_dict.update({"sensor_zenith_bins": "View Zenith Angle [°]"})
+
+    if "ref_bins" in dataset.coords:
+        selection_dict.update(ref_bins=slice(None, 100))
+
+        if dataset.sizes["ref_bins"] == 7:
+            coord_dict.update(
+                {
+                    "ref_bins": pd.CategoricalIndex(
+                        data=["0", "[1-25]", "[26-50]", "[51-75]", "[75-99]", "100"],
+                        categories=["0", "[1-25]", "[26-50]", "[51-75]", "[75-99]", "100"],
+                        ordered=True,
+                    ),
+                },
+            )
+        elif dataset.sizes["ref_bins"] == 4:
+            coord_dict.update(
+                {
+                    "ref_bins": pd.CategoricalIndex(
+                        data=["0", "[1-99]", "100"],
+                        categories=["0", "[1-99]", "100"],
+                        ordered=True,
+                    ),
+                },
+            )
+        else:
+            raise NotImplementedError("reference bins range not known")
+        rename_dict.update({"ref_bins": "Ref FSC [\%]"})
+
+    dataset = dataset.sel(time=slice("2023-11", "2024-06"), altitude_bins=slice(900, None), **selection_dict)
+    dataset = dataset.assign_coords(coord_dict)
+
+    dataset = dataset.rename(rename_dict)
     return dataset

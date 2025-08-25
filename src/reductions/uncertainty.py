@@ -1,4 +1,3 @@
-from copy import deepcopy
 from typing import Dict
 
 import numpy as np
@@ -6,20 +5,7 @@ import xarray as xr
 from xarray.groupers import BinGrouper
 
 from logger_setup import default_logger as logger
-from products.plot_settings import (
-    MF_NO_FOREST_RED_BAND_SCREEEN_VAR_NAME,
-    NASA_L3_JPSS1_VAR_NAME,
-    NASA_L3_MODIS_TERRA_VAR_NAME,
-    NASA_L3_MULTIPLATFORM_VAR_NAME,
-    NASA_L3_SNPP_VAR_NAME,
-)
-from reductions.completeness import (
-    MeteoFranceSnowCoverProductCompleteness,
-    NASASnowCoverProductCompleteness,
-    S2SnowCoverProductCompleteness,
-)
-from reductions.statistics_base import EvaluationConfig, EvaluationVsHighResBase, generate_evaluation_io
-from winter_year import WinterYear
+from reductions.statistics_base import EvaluationVsHighResBase
 
 
 class Uncertainty(EvaluationVsHighResBase):
