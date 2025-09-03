@@ -7,8 +7,6 @@ from matplotlib.figure import Figure
 from scipy.ndimage import gaussian_filter
 from sklearn.linear_model import LinearRegression
 
-from winter_year import WinterYear
-
 
 def fit_regression(data_to_fit: xr.DataArray):
     xx, yy = np.meshgrid(data_to_fit.coords["x"].values, data_to_fit.coords["y"].values)
@@ -19,7 +17,7 @@ def fit_regression(data_to_fit: xr.DataArray):
     return (
         regression.coef_[0][0],
         regression.intercept_[0],
-        regression.score(model_x_data, model_y_data, data_to_fit.values.ravel()),
+        regression.score(model_x_data, model_y_data, weights),
     )
 
 
@@ -55,7 +53,7 @@ def fancy_scatter_plot(
         ":",
         lw=1.5,
         color="chocolate",
-        label=f"Linear fit R²={score:.2f},   ",  # m={float(coeff_slope):.2f}",   b={float(intercept):.2f}",
+        label=f"Linear fit R²={score:.2f},slope={float(coeff_slope):.2f},intercept={float(intercept):.2f}",
     )
     # ax.plot(regression_x_axis, regression_x_axis, color="k", linewidth=0.5, label="y=x")
     ax.grid(False)

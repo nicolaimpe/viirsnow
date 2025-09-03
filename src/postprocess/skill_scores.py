@@ -106,11 +106,15 @@ def plot_multiple_scores_sns(
     g.set_axis_labels(xlabel, "Score [-]")
 
 
-def compute_results_df(metrics_dict: xr.Dataset) -> pd.DataFrame:
+def compute_contingency_results_df(
+    snow_cover_products: List[SnowCoverProduct], metric_datasets: List[xr.Dataset]
+) -> pd.DataFrame:
     results = []
-    for metrics_ds in metrics_dict.values():
+    for metrics_ds in metric_datasets:
         results.append(compute_all_scores(metrics_ds))
-    results = xr.concat(results, pd.Index(list(metrics_dict.keys()), name="product")).to_dataframe()
+    results = xr.concat(
+        results, dim=xr.DataArray([prod.plot_name for prod in snow_cover_products], dims="product")
+    ).to_dataframe()
     results = results.reset_index(["product"])
     return pd.DataFrame(results)
 
@@ -243,6 +247,30 @@ def line_plot_total_count(snow_cover_products: List[SnowCoverProduct], analysis_
     ax.set_ylabel("Number of clear pixel correspondences [-]")
     ax.set_xlabel(analysis_var)
     ax.legend([Line2D([0], [0], linestyle="-", color="gray")], ["\# pixel"])
+
+
+def compute_n_pixels_results_df(
+    snow_cover_products: List[SnowCoverProduct], metric_datasets: List[xr.Dataset]
+) -> pd.DataFrame:
+    results = []
+    for metrics_ds in metric_datasets:
+        total_number_of_pixels = (
+            metrics_ds["true_positive"].sum()
+            + metrics_ds["true_negative"].sum()
+            + metrics_ds["false_negative"].sum()
+            + metrics_ds["false_positive"].sum()
+        )
+        # snow_metrics_ds = metrics_ds.sel(ref_bins=slice(25,100))
+        # snow_pixels = snow_metrics_ds['true_positive'].sum() + snow_metrics_ds['false_negative'].sum()+ snow_metrics_ds['true_negative'].sum()+ snow_metrics_ds['false_positive'].sum()
+        snow_pixels = metrics_ds["true_positive"].sum() + metrics_ds["false_negative"].sum()
+        out_dataset = xr.Dataset({"n_tot_pixels": total_number_of_pixels, "n_snow_pixels": snow_pixels})
+        results.append(out_dataset)
+    results = xr.concat(
+        results, dim=xr.DataArray([prod.plot_name for prod in snow_cover_products], dims="product")
+    ).to_dataframe()
+
+    results = results.reset_index(["product"])
+    return pd.DataFrame(results)
 
 
 # if __name__ == "__main__":

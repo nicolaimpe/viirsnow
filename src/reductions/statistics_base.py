@@ -160,10 +160,9 @@ class EvaluationVsHighResBase(MountainParametrization):
             ref_time_series=ref_time_series,
             config=config,
         )
-
         result = combined_dataset.groupby("time").map(self.time_step_analysis, bins_dict=analysis_bin_dict)
-        logger.info("Reducing time coordinate per month")
-        result = result.resample({"time": "1ME"}).sum(dim="time")
+        # logger.info("Reducing time coordinate per month")
+        # result = result.resample({"time": "1ME"}).sum(dim="time")
         if netcdf_export_path:
             logger.info(f"Exporting to {netcdf_export_path}")
             result.to_netcdf(netcdf_export_path, encoding=generate_xarray_compression_encodings(result))

@@ -5,14 +5,7 @@ import xarray as xr
 from xarray.groupers import BinGrouper
 
 from logger_setup import default_logger as logger
-from products.plot_settings import MF_NO_FOREST_RED_BAND_SCREEEN_VAR_NAME
-from reductions.completeness import (
-    MeteoFranceSnowCoverProductCompleteness,
-    NASASnowCoverProductCompleteness,
-    S2SnowCoverProductCompleteness,
-)
-from reductions.statistics_base import EvaluationConfig, EvaluationVsHighResBase, generate_evaluation_io
-from winter_year import WinterYear
+from reductions.statistics_base import EvaluationConfig, EvaluationVsHighResBase
 
 
 class Scatter(EvaluationVsHighResBase):
@@ -29,15 +22,19 @@ class Scatter(EvaluationVsHighResBase):
 
         quant_mask_ref = self.ref_analyzer.quantitative_mask(dataset.data_vars["ref"])
         quant_mask_test = self.test_analyzer.quantitative_mask(dataset.data_vars["test"])
-        n_intersecting_pixels = (quant_mask_test & quant_mask_ref).sum()
+        quantitative_mask_union = quant_mask_test & quant_mask_ref
+        n_intersecting_pixels = quantitative_mask_union.sum()
 
         if n_intersecting_pixels < 2:
             logger.info("No intersection found on this day. Returning a zeros array.")
             return xr.DataArray(0, coords=xr.Coordinates({k + "_bins": v.labels for k, v in bins_dict.items()}))
 
-        dataset.data_vars["ref"][:] = dataset.data_vars["ref"].where(quant_mask_ref) * 100 / self.ref_analyzer.max_fsc
-        dataset.data_vars["test"][:] = dataset.data_vars["test"].where(quant_mask_test) * 100 / self.test_analyzer.max_fsc
-
+        dataset.data_vars["ref"].values = (
+            dataset.data_vars["ref"].where(quantitative_mask_union) * 100 / self.test_analyzer.max_fsc
+        )
+        dataset.data_vars["test"].values = (
+            dataset.data_vars["test"].where(quantitative_mask_union) * 100 / self.test_analyzer.max_fsc
+        )
         scatter = dataset.groupby(bins_dict).map(self.compute_scatter_plot)
 
         return scatter

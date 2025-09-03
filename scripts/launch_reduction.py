@@ -107,6 +107,7 @@ if __name__ == "__main__":
             )
 
             config.test_var_name = ("NDSI_Snow_Cover",)
+            config.ref_fsc_step = 1
 
         metrics_calcuator.launch_analysis(
             test_time_series=test_time_series,

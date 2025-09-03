@@ -16,23 +16,40 @@ def fancy_table(
     # Apply gradient coloring
     styled_df = dataframe_to_print.style
 
-    def highlight_product(val):
-        return "background-color: whitesmoke; color: black; font-weight: bold; text-align: center"
-
-    styled_df = styled_df.map(highlight_product, subset=["product"])
-
     for col, cmap in color_maps.items():
         if col in dataframe_to_print.columns:
             styled_df = styled_df.background_gradient(subset=[col], cmap=cmap, vmin=vmins[col], vmax=vmaxs[col])
 
-    styled_df = styled_df.set_properties(**{"text-align": "center"})  # Center-align all text
+    styled_df = styled_df.set_properties(align="center", **{"text-align": "center"})  # Center-align all text
     styled_df = styled_df.set_table_styles(
-        [{"selector": "th", "props": [("background-color", "lightgrey"), ("color", "black"), ("font-weight", "bold")]}]
+        [
+            {
+                "selector": "th",
+                "props": [
+                    ("background-color", "lightgrey"),
+                    ("color", "black"),
+                    ("font-weight", "bold"),
+                    ("width", "75px"),
+                    ("text-align", "center"),
+                    ("font-family", "serif"),
+                    ("text-usetex", True),
+                ],
+            }
+        ]
     )
     # Compact DataFrame
     styled_df = styled_df.hide(level=None)
-    # Only show 2 digits after comma
-    styled_df = styled_df.format(precision=2)
+
+    def smart_format(x):
+        # small or large numbers → scientific
+        if type(x) is str:
+            return x
+        if abs(x) >= 1e4 or (abs(x) > 0 and abs(x) < 0.001):
+            return f"{x:.2e}"
+        else:
+            return f"{x:.2f}"
+
+    styled_df.format({k: smart_format for k in dataframe_to_print.columns})
     return styled_df
 
 
@@ -105,7 +122,9 @@ def open_reduced_dataset_for_plot(product: SnowCoverProduct, analysis_folder: st
         selection_dict.update(slope_bins=slice(None, 60))
         coord_dict.update(
             {
-                "slope_bins": np.array(["[0-10]", "[11-30]", "$>$30"], dtype=str),
+                "slope_bins": pd.CategoricalIndex(
+                    data=["[0-10]", "[11-30]", "$>$30"], categories=["[0-10]", "[11-30]", "$>$30"], ordered=True
+                ),
             },
         )
         rename_dict.update({"slope_bins": "Slope [°]"})
@@ -122,7 +141,11 @@ def open_reduced_dataset_for_plot(product: SnowCoverProduct, analysis_folder: st
         selection_dict.update(sensor_zenith_bins=slice(None, 75))
         coord_dict.update(
             {
-                "sensor_zenith_bins": np.array(["[0-15]", "[15-30]", "[30-45]", "[45-60]", "$>$60"], dtype=str),
+                "sensor_zenith_bins": pd.CategoricalIndex(
+                    data=["[0-15]", "[15-30]", "[30-45]", "[45-60]", "$>$60"],
+                    categories=["[0-15]", "[15-30]", "[30-45]", "[45-60]", "$>$60"],
+                    ordered=True,
+                ),
             },
         )
         rename_dict.update({"sensor_zenith_bins": "View Zenith Angle [°]"})

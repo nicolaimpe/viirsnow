@@ -391,6 +391,17 @@ def line_plot_rmse(snow_cover_products: List[SnowCoverProduct], analysis_folder:
     ax.legend([Line2D([0], [0], linestyle="-", color="gray")], ["RMSE"])
 
 
+def compute_uncertainty_results_df(snow_cover_products: List[SnowCoverProduct], metric_datasets: List[xr.Dataset]):
+    reduced_datasets = []
+    for dataset in metric_datasets:
+        reduced_datasets.append(histograms_to_biais_rmse(dataset.groupby("time.month").sum()))
+    concatenated = xr.concat(
+        reduced_datasets, pd.Index([prod.plot_name for prod in snow_cover_products], name="product"), coords="minimal"
+    )
+    reduced_df = concatenated.to_dataframe().reset_index("product")
+    return reduced_df
+
+
 # if __name__ == "__main__":
 #     wy = WinterYear(2023, 2024)
 #     analysis_type = "uncertainty"
