@@ -49,7 +49,6 @@ class MeteoFranceExperience:
         fsc = rasterio.open(fsc_file).read(1)
         no_forest = np.where(old_product == METEOFRANCE_CLASSES["forest_with_snow"], fsc, old_product)
 
-        print(len(red_band_file))
         if len(red_band_file) != 1:
             print("0 or more than 1 band files found for this acquisition. Red band screen not applied.")
             modified = no_forest

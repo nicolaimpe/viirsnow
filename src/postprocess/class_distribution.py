@@ -99,7 +99,7 @@ def annual_area_fancy_plot(
         _, axs = plt.subplots(4, 1, figsize=(10, 6), sharex=True, layout="constrained")
 
     [ax.set_ylabel("Surface [km²]", fontproperties=font_manager.FontProperties(size=10)) for ax in axs[:3]]
-    axs[3].set_ylabel("RMSE [% FSC]", fontproperties=font_manager.FontProperties(size=10))
+    axs[3].set_ylabel("RMSE [\% FSC]", fontproperties=font_manager.FontProperties(size=10))
     custom_leg = [
         patches.Patch(color=PRODUCT_PLOT_COLORS[product_name], label=PRODUCT_PLOT_NAMES[product_name])
         for product_name in metrics_dict_completeness

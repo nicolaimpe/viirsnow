@@ -13,7 +13,7 @@ from geotools import gdf_to_binary_mask
 from grids import GeoGrid
 from logger_setup import default_logger as logger
 from products.snow_cover_product import SnowCoverProduct
-from reductions.snow_cover_extent_cross_comparison import WinterYear
+from winter_year import WinterYear
 
 
 def check_input_daily_tif_files(input_tif_files: List[str]) -> List[str]:
@@ -69,6 +69,21 @@ class HarmonisationBase:
             daily_composite.data_vars[key][:] = daily_composite.data_vars[key].where(daily_composite.data_vars[key] > value, 0)
         return daily_composite
 
+    def export_daily_data(self, day: datetime, daily_data: xr.Dataset):
+        out_path = f"{str(self.output_folder)}/{day.strftime('%Y%m%d')}.nc"
+        daily_composite = daily_data.expand_dims(time=[day])
+        daily_composite.to_netcdf(out_path)
+
+    def export_time_series(self, winter_year: WinterYear):
+        out_tmp_paths = glob(f"{str(self.output_folder)}/[{winter_year.from_year}-{winter_year.to_year}]*.nc")
+        time_series = xr.open_mfdataset(out_tmp_paths, mask_and_scale=False)
+        encodings = generate_xarray_compression_encodings(time_series)
+        encodings.update(time={"calendar": "gregorian", "units": f"days since {str(winter_year.from_year)}-10-01"})
+        out_path = f"{self.output_folder}/WY_{winter_year.from_year}_{winter_year.to_year}_{self.product.name}.nc"
+        logger.info(f"Exporting to {out_path}")
+        time_series.to_netcdf(out_path, encoding=encodings)
+        [os.remove(file) for file in out_tmp_paths]
+
     def create_time_series(
         self,
         winter_year: WinterYear,
@@ -76,19 +91,18 @@ class HarmonisationBase:
         low_value_thresholds: Dict[str, float] | None = None,
     ):
         files = self.get_all_files_of_winter_year(winter_year=winter_year)
-        out_tmp_paths = []
 
         for day in winter_year.iterate_days():
             logger.info(f"Processing day {day}")
-
+            # if day.year == 2023 or day.month < 4:
+            #     continue
             day_files = self.get_daily_files(files, day=day)
 
             day_files = self.check_daily_files(day_files=day_files)
 
-            if day.year == 2023 or day.month < 6:
-                out_path = f"{str(self.output_folder)}/{day.strftime('%Y%m%d')}.nc"
-                out_tmp_paths.append(out_path)
-                continue
+            #     out_path = f"{str(self.output_folder)}/{day.strftime('%Y%m%d')}.nc"
+            #     out_tmp_paths.append(out_path)
+            #     continue
             if len(day_files) == 0:
                 logger.info(f"Skip day {day.date()} because 0 files were found on this date")
                 continue
@@ -105,17 +119,5 @@ class HarmonisationBase:
                 continue
             if low_value_thresholds is not None:
                 daily_composite = self.low_values_screen(daily_composite=daily_composite, thresholds=low_value_thresholds)
-
-            out_path = f"{str(self.output_folder)}/{day.strftime('%Y%m%d')}.nc"
-            out_tmp_paths.append(out_path)
-
-            daily_composite = daily_composite.expand_dims(time=[day])
-            daily_composite.to_netcdf(out_path)
-        out_tmp_paths = glob(f"{str(self.output_folder)}/[{winter_year.from_year}-{winter_year.to_year}]*.nc")
-        time_series = xr.open_mfdataset(out_tmp_paths, mask_and_scale=False)
-        encodings = generate_xarray_compression_encodings(time_series)
-        encodings.update(time={"calendar": "gregorian", "units": f"days since {str(winter_year.from_year)}-10-01"})
-        out_path = f"{self.output_folder}/WY_{winter_year.from_year}_{winter_year.to_year}_{self.product.name}.nc"
-        logger.info(f"Exporting to {out_path}")
-        time_series.to_netcdf(out_path, encoding=encodings)
-        [os.remove(file) for file in out_tmp_paths]
+            self.export_daily_data(day=day, daily_data=daily_composite)
+        self.export_time_series(winter_year=winter_year)

@@ -20,7 +20,7 @@ from harmonisation.reprojections import reprojection_l3_nasa_to_grid
 from logger_setup import default_logger as logger
 from products.filenames import get_all_nasa_filenames_per_product, open_modis_ndsi_snow_cover
 from products.snow_cover_product import VJ110A1, VNP10A1, SnowCoverProduct, V10A1Multiplatform
-from reductions.snow_cover_extent_cross_comparison import WinterYear
+from winter_year import WinterYear
 
 
 class V10Harmonisation(HarmonisationBase):
@@ -64,68 +64,7 @@ class V10Harmonisation(HarmonisationBase):
         return out_dataset
 
 
-# class NASAPseudoL3Harmonisation(HarmonisationBase):
-#     def __init__(self, output_grid: GeoGrid, data_folder: str, output_folder: str):
-#         super().__init__(NASA_PSEUDO_L3_VAR_NAME, output_grid, data_folder, output_folder)
-
-#     def get_all_files_of_winter_year(self, winter_year: WinterYear) -> List[str]:
-#         snow_cover_and_sat_angle_file_list = get_all_nasa_filenames_per_product(
-#             data_folder=self.data_folder, product_id="VNP10_UTM_375m"
-#         )
-#         snow_cover_and_sat_angle_file_list.extend(
-#             get_all_nasa_filenames_per_product(data_folder=self.data_folder, product_id="VNP03IMG_UTM_375m")
-#         )
-#         return snow_cover_and_sat_angle_file_list
-
-#     def get_daily_files(self, all_winter_year_files: List[str], day: datetime) -> List[str]:
-#         return [file for file in all_winter_year_files if day.strftime("A%Y%j") in file]
-
-#     def check_daily_files(self, day_files: List[str]) -> List[str]:
-#         daily_snow_cover_files = [file for file in day_files if "VNP10_UTM_375m" in file]
-#         daily_geometry_files = [file for file in day_files if "VNP03IMG_UTM_375m" in file]
-#         daily_snow_cover_files, daily_geometry_files = match_daily_snow_cover_and_geometry_nasa(
-#             daily_snow_cover_files, daily_geometry_files
-#         )
-#         for day_file in daily_snow_cover_files:
-#             try:
-#                 xr.open_dataset(day_file).data_vars["NDSI_Snow_Cover"].values
-#             except OSError:
-#                 logger.info(f"Could not open file {day_file}. Removing it from processing")
-#                 daily_snow_cover_files.remove(day_file)
-#                 continue
-
-#         for day_file in daily_geometry_files:
-#             try:
-#                 xr.open_dataset(day_file).data_vars["sensor_zenith"].values
-#             except OSError:
-#                 logger.info(f"Could not open file {day_file}. Removing it from processing")
-#                 daily_geometry_files.remove(day_file)
-#                 continue
-#         daily_snow_cover_files.extend(daily_geometry_files)
-#         return daily_snow_cover_files
-
-#     def create_spatial_composite(self, day_files: List[str]) -> xr.Dataset:
-#         daily_snow_cover_files = [file for file in day_files if "VNP10_UTM_375m" in file]
-#         daily_geometry_files = [file for file in day_files if "VNP03IMG_UTM_375m" in file]
-#         nasa_composite = create_temporal_composite_nasa(
-#             daily_snow_cover_files=daily_snow_cover_files, daily_geometry_files=daily_geometry_files
-#         )
-
-#         out_dataset = nasa_composite.assign(
-#             {
-#                 "snow_cover_fraction": xr.DataArray(
-#                     nasa_ndsi_snow_cover_to_fraction(
-#                         ndsi_snow_cover_product=nasa_composite.data_vars["NDSI_Snow_Cover"].values
-#                     ),
-#                     coords=nasa_composite.data_vars["NDSI_Snow_Cover"].coords,
-#                 )
-#             }
-#         )
-
-#         return out_dataset
-
-
-class V10MultiplatformHarmonisation:
+class V10MultiplatformHarmonisation(HarmonisationBase):
     def __init__(self, data_folder: str, output_folder: str):
         self.data_folder = data_folder
         self.output_folder = output_folder
@@ -141,14 +80,8 @@ class V10MultiplatformHarmonisation:
             mask_and_scale=False,
         )
 
-        out_tmp_paths = []
         for day in winter_year.iterate_days():
             logger.info(f"Processing day {day}")
-
-            # if day.month != 12:  # and day.month != 9:  # and day.month != 2:
-            #     continue
-            # if day.day > 6:
-            #     break
 
             day_data_arrays = []
             if day in snpp_year.coords["time"].values:
@@ -170,20 +103,8 @@ class V10MultiplatformHarmonisation:
                 }
             )
 
-            out_path = f"{str(self.output_folder)}/{day.strftime('%Y%m%d')}.nc"
-            out_tmp_paths.append(out_path)
-
-            daily_composite = daily_composite.expand_dims(time=[day])
-            daily_composite.to_netcdf(out_path)
-        out_tmp_paths = glob(f"{str(self.output_folder)}/[{winter_year.from_year}-{winter_year.to_year}]*.nc")
-        time_series = xr.open_mfdataset(out_tmp_paths, mask_and_scale=False)
-        encodings = generate_xarray_compression_encodings(time_series)
-        encodings.update(time={"calendar": "gregorian", "units": f"days since {str(winter_year.from_year)}-10-01"})
-        time_series.to_netcdf(
-            f"{self.output_folder}/WY_{winter_year.from_year}_{winter_year.to_year}_{self.product.name}.nc",
-            encoding=encodings,
-        )
-        [os.remove(file) for file in out_tmp_paths]
+            self.export_daily_data(day=day, daily_data=daily_composite)
+        self.export_time_series(winter_year=winter_year)
 
 
 class MOD10Harmonisation(HarmonisationBase):
@@ -229,7 +150,7 @@ if __name__ == "__main__":
     massifs_shapefile = "/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/vectorial/massifs/massifs.shp"
     nasa_l3_folder = "/home/imperatoren/work/VIIRS_S2_comparison/data/"
     output_folder = "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_7/"
-    grid = UTM500mGrid()
+    grid = UTM375mGrid()
     platform = "snpp"
     logger.info(f"NASA L3 processing {platform}")
     V10Harmonisation(

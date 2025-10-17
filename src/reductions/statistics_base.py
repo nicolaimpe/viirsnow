@@ -1,26 +1,26 @@
+import abc
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Dict, Tuple
 
 import numpy as np
 import xarray as xr
-from xarray.groupers import BinGrouper, UniqueGrouper
+from xarray.groupers import BinGrouper
 
+from compression import generate_xarray_compression_encodings
+from logger_setup import default_logger as logger
 from reductions.completeness import SnowCoverProductCompleteness
+from reductions.semidistributed import MountainParametrization, MountainParams
 from winter_year import WinterYear
 
 
 @dataclass
-class EvaluationConfig:
+class EvaluationConfig(MountainParams):
     ref_var_name: str = ("snow_cover_fraction",)
     test_var_name: str = ("snow_cover_fraction",)
     ref_fsc_step: int = (25,)
     sensor_zenith_analysis: bool = True
-    forest_mask_path: str | None = None
     sub_roi_mask_path: str | None = None
-    slope_map_path: str | None = None
-    aspect_map_path: str | None = None
-    dem_path: str | None = None
 
 
 def generate_evaluation_io(
@@ -39,8 +39,8 @@ def generate_evaluation_io(
         f"{output_folder}/{analysis_type}_WY_{year.from_year}_{year.to_year}_{test_product_name}_vs_{ref_product_name}.nc"
     )
 
-    test_time_series = xr.open_dataset(f"{working_folder}/time_series/{test_time_series_name}")
-    ref_time_series = xr.open_dataset(f"{working_folder}/time_series/{ref_time_series_name}")
+    test_time_series = xr.open_dataset(f"{working_folder}/time_series/{test_time_series_name}", mask_and_scale=False)
+    ref_time_series = xr.open_dataset(f"{working_folder}/time_series/{ref_time_series_name}", mask_and_scale=False)
 
     if period is not None:
         test_time_series = test_time_series.sel(time=period)
@@ -49,7 +49,7 @@ def generate_evaluation_io(
     return ref_time_series, test_time_series, output_filename
 
 
-class EvaluationVsHighResBase:
+class EvaluationVsHighResBase(MountainParametrization):
     def __init__(
         self,
         reference_analyzer: SnowCoverProductCompleteness,
@@ -95,54 +95,10 @@ class EvaluationVsHighResBase:
         )
 
     @staticmethod
-    def forest_bins() -> BinGrouper:
-        return BinGrouper(np.array([-1, 0, 1]), labels=["no_forest", "forest"], right=True)
-
-    @staticmethod
-    def sub_roi_bins() -> BinGrouper:
-        return BinGrouper(
-            np.array([0, 1, 2, 3, 4, 5, 6]), labels=["Alps", "Pyrenees", "Corse", "Massif Central", "Jura", "Vosges"]
-        )
-
-    @staticmethod
-    def slope_bins() -> BinGrouper:
-        return BinGrouper(
-            np.array([0, *np.arange(10, 70, 20), 90]), labels=np.array([*np.arange(10, 70, 20), 90]), include_lowest=True
-        )
-
-    @staticmethod
-    def aspect_bins() -> BinGrouper:
-        return BinGrouper(np.arange(-22.5, 360, 45), labels=np.array(["N", "NE", "E", "SE", "S", "SW", "W", "NW"]))
-
-    @staticmethod
-    def altitude_bins(altitude_band: int = 600) -> BinGrouper:
-        return BinGrouper(
-            np.array([0, *np.arange(900, 3900, altitude_band), 4800]),
-            labels=np.array([0, *np.arange(900, 3900, altitude_band)]),
-        )
-
-    @staticmethod
     def month_bins(winter_year: WinterYear) -> BinGrouper:
         wy_datetime = winter_year.to_datetime()
         wy_datetime.extend([datetime(year=wy_datetime[-1].year, month=wy_datetime[-1].month + 1, day=1)])
         return BinGrouper(wy_datetime[2:10], labels=[month_datetime for month_datetime in wy_datetime[2:9]])
-
-    @staticmethod
-    def aspect_map_transform(aspect_map: xr.DataArray) -> xr.DataArray:
-        """
-        Aspect map in degrees azimuth
-
-        Transform the aspect map so that its values are monotonically incresing from N to NW,
-        without dividing the North in two bins (NNW [337.5-360] and NNE [0-315])
-        This is convenient for BinGrouper object
-
-        """
-        # Transform the aspect map so that its values are monotonically incresing from N to NW,
-        # without dividing the North in two bins (NNW [337.5-360] and NNE [0-315])
-        # This is convenient for BinGrouper object
-
-        aspect_map = aspect_map.where(aspect_map < 337.5, aspect_map - 360)
-        return aspect_map
 
     def prepare_analysis(
         self,
@@ -157,15 +113,22 @@ class EvaluationVsHighResBase:
         #     raise NotImplementedError("This function supposes that the reference data maximum is 205")
 
         common_days = np.intersect1d(test_time_series["time"], ref_time_series["time"])
-
         combined_dataset = xr.Dataset(
             {
                 "ref": ref_time_series.data_vars[config.ref_var_name[0]].sel(time=common_days),
                 "test": test_time_series.data_vars[config.test_var_name[0]].sel(time=common_days),
             },
         )
-
-        analysis_bin_dict = dict(ref=self.ref_fsc_bins(config.ref_fsc_step))
+        combined_dataset, analysis_bin_dict = self.semidistributed_parametrization(
+            dataset=combined_dataset,
+            config=MountainParams(
+                slope_map_path=config.slope_map_path,
+                aspect_map_path=config.aspect_map_path,
+                dem_path=config.dem_path,
+                forest_mask_path=config.forest_mask_path,
+            ),
+        )
+        analysis_bin_dict.update(ref=self.ref_fsc_bins(config.ref_fsc_step))
 
         if config.sensor_zenith_analysis:
             analysis_bin_dict.update(sensor_zenith=self.sensor_zenith_bins())
@@ -173,31 +136,34 @@ class EvaluationVsHighResBase:
                 sensor_zenith=test_time_series.data_vars["sensor_zenith_angle"].sel(time=common_days)
             )
 
-        if config.forest_mask_path is not None:
-            forest_mask = xr.open_dataarray(config.forest_mask_path)
-            combined_dataset = combined_dataset.assign(forest_mask=forest_mask.sel(band=1).drop_vars("band"))
-            analysis_bin_dict.update(forest_mask=self.forest_bins())
-
         if config.sub_roi_mask_path is not None:
             sub_roi_mask = xr.open_dataarray(config.sub_roi_mask_path)
             combined_dataset = combined_dataset.assign(sub_roi=sub_roi_mask.sel(band=1).drop_vars("band"))
             analysis_bin_dict.update(sub_roi=self.sub_roi_bins())
 
-        if config.slope_map_path is not None:
-            slope_map = xr.open_dataarray(config.slope_map_path)
-            combined_dataset = combined_dataset.assign(slope=slope_map.sel(band=1).drop_vars("band"))
-            analysis_bin_dict.update(slope=self.slope_bins())
-
-        if config.aspect_map_path is not None:
-            aspect_map = xr.open_dataarray(config.aspect_map_path)
-            aspect_map = self.aspect_map_transform(aspect_map.sel(band=1).drop_vars("band"))
-            combined_dataset = combined_dataset.assign(aspect=aspect_map)
-            analysis_bin_dict.update(aspect=self.aspect_bins())
-
-        if config.dem_path is not None:
-            dem_map = xr.open_dataarray(config.dem_path)
-            combined_dataset = combined_dataset.assign(altitude=dem_map.sel(band=1).drop_vars("band"))
-            analysis_bin_dict.update(altitude=self.altitude_bins())
-
         combined_dataset = combined_dataset.drop_vars("spatial_ref")
         return combined_dataset, analysis_bin_dict
+
+    @abc.abstractmethod
+    def time_step_analysis(self, bins_dict: Dict[str, BinGrouper]):
+        pass
+
+    def launch_analysis(
+        self,
+        test_time_series: xr.Dataset,
+        ref_time_series: xr.Dataset,
+        config: EvaluationConfig,
+        netcdf_export_path: str | None = None,
+    ) -> xr.Dataset:
+        combined_dataset, analysis_bin_dict = self.prepare_analysis(
+            test_time_series=test_time_series,
+            ref_time_series=ref_time_series,
+            config=config,
+        )
+        result = combined_dataset.groupby("time").map(self.time_step_analysis, bins_dict=analysis_bin_dict)
+        # logger.info("Reducing time coordinate per month")
+        # result = result.resample({"time": "1ME"}).sum(dim="time")
+        if netcdf_export_path:
+            logger.info(f"Exporting to {netcdf_export_path}")
+            result.to_netcdf(netcdf_export_path, encoding=generate_xarray_compression_encodings(result))
+        return result
