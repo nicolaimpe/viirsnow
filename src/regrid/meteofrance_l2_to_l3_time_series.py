@@ -7,27 +7,26 @@ from rasterio.enums import Resampling
 
 from geotools import GeoGrid, reproject_using_grid
 from grids import UTM375mGrid
-from harmonisation.daily_composites import (
-    create_temporal_composite_meteofrance_multiplatform,
-    create_temporal_composite_meteofrance_single_platform,
-)
-from harmonisation.harmonisation_base import HarmonisationBase, check_input_daily_tif_files
-from harmonisation.reprojections import reprojection_l3_meteofrance_to_grid
 from logger_setup import default_logger as logger
-from products.classes import METEOFRANCE_CLASSES
-from products.filenames import get_all_meteofrance_sat_angle_filenames, get_all_meteofrance_type_filenames
-from products.snow_cover_product import (
-    MeteoFranceArchive,
-    MeteoFranceJPSS1Prototype,
-    MeteoFranceJPSS2Prototype,
-    MeteoFranceMultiplatformPrototype,
-    MeteoFranceSNPPPrototype,
-    SnowCoverProduct,
-)
-from reductions.snow_cover_extent_cross_comparison import WinterYear
+from products.classes import METEOFRANCE_ARCHIVE_CLASSES
+from products.filenames import (
+    get_all_meteofrance_archive_sat_angle_filenames,
+    get_all_meteofrance_archive_type_filenames)
+from products.snow_cover_product import (MeteoFranceArchive,
+                                         MeteoFranceJPSS1Prototype,
+                                         MeteoFranceJPSS2Prototype,
+                                         MeteoFranceMultiplatformPrototype,
+                                         MeteoFranceSNPPPrototype,
+                                         SnowCoverProduct)
+from regrid.daily_composites import (
+    create_temporal_composite_meteofrance_multiplatform,
+    create_temporal_composite_meteofrance_single_platform)
+from regrid.regrid_base import RegridBase, check_input_daily_tif_files
+from regrid.reprojections import reprojection_l3_meteofrance_to_grid
+from winter_year import WinterYear
 
 
-class MeteoFranceHarmonisation(HarmonisationBase):
+class MeteoFranceArchiveRegrid(RegridBase):
     def __init__(self, product: SnowCoverProduct, output_grid: GeoGrid, data_folder: str, output_folder: str, suffix: str):
         super().__init__(product, output_grid, data_folder, output_folder)
         self.suffix = suffix
@@ -39,11 +38,11 @@ class MeteoFranceHarmonisation(HarmonisationBase):
         return check_input_daily_tif_files(input_tif_files=day_files)
 
     def get_all_files_of_winter_year(self, winter_year: WinterYear) -> List[str]:
-        snow_cover_and_sat_angle_file_list = get_all_meteofrance_type_filenames(
+        snow_cover_and_sat_angle_file_list = get_all_meteofrance_archive_type_filenames(
             data_folder=self.data_folder, winter_year=winter_year, suffix=self.suffix, platform=self.product.platform
         )
         snow_cover_and_sat_angle_file_list.extend(
-            get_all_meteofrance_sat_angle_filenames(
+            get_all_meteofrance_archive_sat_angle_filenames(
                 data_folder=self.data_folder, winter_year=winter_year, suffix=suffix, platform=self.product.platform
             )
         )
@@ -64,7 +63,7 @@ class MeteoFranceHarmonisation(HarmonisationBase):
         meteofrance_view_angle = reproject_using_grid(
             dataset=daily_temporal_composite.data_vars["sensor_zenith_angle"],
             output_grid=grid,
-            nodata=METEOFRANCE_CLASSES["nodata"][0],
+            nodata=METEOFRANCE_ARCHIVE_CLASSES["nodata"][0],
             resampling_method=Resampling.nearest,
         )
         if "ndsi" in self.suffix:
@@ -80,7 +79,7 @@ class MeteoFranceHarmonisation(HarmonisationBase):
         return out_dataset
 
 
-class MeteoFranceMultiplatformHarmonisation(HarmonisationBase):
+class MeteoFranceMultiplatformRegrid(RegridBase):
     def __init__(self, output_grid: GeoGrid, data_folder: str, output_folder: str, suffix: str):
         super().__init__(
             product=MeteoFranceMultiplatformPrototype(),
@@ -101,7 +100,7 @@ class MeteoFranceMultiplatformHarmonisation(HarmonisationBase):
         platform_dict = {"npp": "SNPP", "noaa20": "JPSS1", "noaa21": "JPSS2"}
         for platform in platform_dict:
             snow_cover_and_sat_angle_file_list.extend(
-                get_all_meteofrance_type_filenames(
+                get_all_meteofrance_archive_type_filenames(
                     data_folder=f"{self.data_folder}/{platform_dict[platform]}",
                     winter_year=winter_year,
                     suffix=self.suffix,
@@ -110,7 +109,7 @@ class MeteoFranceMultiplatformHarmonisation(HarmonisationBase):
             )
 
             snow_cover_and_sat_angle_file_list.extend(
-                get_all_meteofrance_sat_angle_filenames(
+                get_all_meteofrance_archive_sat_angle_filenames(
                     data_folder=f"{self.data_folder}/{platform_dict[platform]}/",
                     winter_year=winter_year,
                     suffix=self.suffix,
@@ -132,14 +131,14 @@ class MeteoFranceMultiplatformHarmonisation(HarmonisationBase):
         meteofrance_view_angle = reproject_using_grid(
             dataset=daily_temporal_composite.data_vars["sensor_zenith_angle"],
             output_grid=grid,
-            nodata=METEOFRANCE_CLASSES["nodata"][0],
+            nodata=METEOFRANCE_ARCHIVE_CLASSES["nodata"][0],
             resampling_method=Resampling.nearest,
         )
 
         meteofrance_platform = reproject_using_grid(
             dataset=daily_temporal_composite.data_vars["platform"],
             output_grid=grid,
-            nodata=METEOFRANCE_CLASSES["nodata"][0],
+            nodata=METEOFRANCE_ARCHIVE_CLASSES["nodata"][0],
             resampling_method=Resampling.nearest,
         )
         if "ndsi" in self.suffix:
@@ -169,7 +168,7 @@ if __name__ == "__main__":
         output_folder = "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_8/time_series/"
 
         logger.info(f"Méteo-France {suffix} processing")
-        MeteoFranceHarmonisation(
+        MeteoFranceArchiveRegrid(
             product=MeteoFranceJPSS2Prototype(),
             output_grid=grid,
             data_folder=meteofrance_cms_folder,
@@ -178,7 +177,7 @@ if __name__ == "__main__":
         ).create_time_series(winter_year=year, roi_shapefile=massifs_shapefile)
 
         # logger.info("Méteo-France multiplatform processing")
-        # MeteoFranceMultiplatformHarmonisation(
+        # MeteoFranceMultiplatformRegrid(
         #     output_grid=grid,
         #     data_folder=meteofrance_cms_folder,
         #     output_folder=output_folder,

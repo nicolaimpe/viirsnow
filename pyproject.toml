@@ -5,7 +5,7 @@ description = "Code for paper \"Evaluation of VIIRS snow cover products in Frenc
 authors = [
     {name = "Nicola Imperatoren", email = "nicola.imperatore@meteo.fr"},
 ]
-dependencies = ["ipykernel>=6.30.1", "numpy>=2.3.3", "xarray>=2025.9.0", "dask>=2025.9.1", "netcdf4>=1.7.2", "matplotlib>=3.10.6", "seaborn>=0.13.2", "jinja2>=3.1.6", "scores>=2.2.0", "scikit-learn>=1.7.2", "geopandas>=1.1.1", "rioxarray>=0.19.0", "pyhdf>=0.11.6"]
+dependencies = ["ipykernel>=6.30.1", "numpy>=2.3.3", "xarray>=2025.9.0", "dask>=2025.9.1", "netcdf4>=1.7.2", "matplotlib>=3.10.6", "seaborn>=0.13.2", "jinja2>=3.1.6", "scores>=2.2.0", "scikit-learn>=1.7.2", "geopandas>=1.1.1", "rioxarray>=0.19.0", "pyhdf>=0.11.6", "ruff>=0.14.1"]
 requires-python = ">=3.12"
 readme = "README.md"
 license = {text = "MIT"}

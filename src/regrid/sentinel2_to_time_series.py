@@ -5,15 +5,15 @@ import xarray as xr
 
 from fractional_snow_cover import gascoin
 from grids import GeoGrid, UTM375mGrid, UTM500mGrid
-from harmonisation.daily_composites import create_spatial_s2_composite_sca
-from harmonisation.harmonisation_base import HarmonisationBase, check_input_daily_tif_files
+from regrid.daily_composites import create_spatial_s2_composite_sca
+from regrid.regrid_base import RegridBase, check_input_daily_tif_files
 from logger_setup import default_logger as logger
 from products.filenames import get_all_s2_theia_files_of_winter_year
 from products.snow_cover_product import Sentinel2Theia, SnowCoverProduct
 from winter_year import WinterYear
 
 
-class S2Harmonisation(HarmonisationBase):
+class S2Regrid(RegridBase):
     def __init__(self, product: SnowCoverProduct, output_grid: GeoGrid, data_folder: str, output_folder: str):
         super().__init__(product=product, output_grid=output_grid, data_folder=data_folder, output_folder=output_folder)
 
@@ -24,7 +24,7 @@ class S2Harmonisation(HarmonisationBase):
         return [file for file in all_winter_year_files if day.strftime("%Y%m%d") in file]
 
 
-class S2TheiaSCAHarmonisation(S2Harmonisation):
+class S2TheiaSCARegrid(S2Regrid):
     def __init__(self, output_grid: GeoGrid, data_folder: str, output_folder: str, fsc_thresh: int | None = None):
         super().__init__(Sentinel2Theia(), output_grid, data_folder, output_folder)
         self.fsc_thresh = fsc_thresh
@@ -48,6 +48,6 @@ if __name__ == "__main__":
         fsc = int(gascoin(ndsi=ndsi / 100, f_veg=0) * 100)
         logger.info("S2 Theia processing")
 
-        S2TheiaSCAHarmonisation(
+        S2TheiaSCARegrid(
             output_grid=grid, data_folder=s2_theia_folder, output_folder=output_folder, fsc_thresh=fsc
         ).create_time_series(winter_year=year, roi_shapefile=massifs_shapefile)

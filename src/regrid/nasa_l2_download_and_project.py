@@ -10,10 +10,10 @@ import xarray as xr
 
 from compression import generate_xarray_compression_encodings
 from grids import GeoGrid, SIN375mGrid
-from harmonisation.reprojections import reproject_l2_nasa_to_grid
 from logger_setup import default_logger as logger
 from products.classes import NASA_CLASSES
 from products.filenames import get_datetime_from_viirs_nasa_filepath
+from regrid.reprojections import reproject_l2_nasa_to_grid
 from winter_year import WinterYear
 
 NASA_L2_SNOW_PRODUCTS_IDS = ["VNP10", "VJ110", "VNP10_NRT", "VJ110_NRT"]
@@ -128,10 +128,10 @@ def reproject_daily_products(
 
 
 if __name__ == "__main__":
-    download_from = "home"  # "office", "home"
+    download_from= "home"  # "office", "home"
     data_folder = (
         "/home/imperatoren/work/VIIRS_S2_comparison/data"
-        if download_from == "home"
+        if download_from== "home"
         else "/home/imperatoren/work/viirsnow/data"
     )
     product_collection = "V10"  # V10 V03IMG

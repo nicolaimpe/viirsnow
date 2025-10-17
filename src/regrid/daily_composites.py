@@ -9,12 +9,14 @@ import xarray as xr
 
 from geotools import extract_netcdf_coords_from_rasterio_raster
 from grids import GeoGrid, georef_netcdf, georef_netcdf_rioxarray
-from harmonisation.reprojections import resample_s2_to_grid
 from logger_setup import default_logger as logger
-from products.classes import METEOFRANCE_CLASSES, NASA_CLASSES, S2_CLASSES
-from products.filenames import get_datetime_from_viirs_nasa_filepath, open_modis_ndsi_snow_cover
+from products.classes import (METEOFRANCE_ARCHIVE_CLASSES, NASA_CLASSES,
+                              S2_CLASSES)
+from products.filenames import (get_datetime_from_viirs_nasa_filepath,
+                                open_modis_ndsi_snow_cover)
 from products.georef import MODIS_CRS
 from reductions.completeness import mask_of_pixels_in_range
+from regrid.reprojections import resample_s2_to_grid
 
 
 def create_spatial_l3_nasa_viirs_composite(daily_snow_cover_files: List[str]) -> xr.DataArray:
@@ -162,8 +164,8 @@ def create_temporal_composite_meteofrance_single_platform(
     out_view_angle = best_observation_angle
 
     # Invalid observations
-    invalid_masks = rearrenged_snow_cover > METEOFRANCE_CLASSES["water"][0]
-    invalid_mask_out_snow_cover = out_snow_cover > METEOFRANCE_CLASSES["water"][0]
+    invalid_masks = rearrenged_snow_cover > METEOFRANCE_ARCHIVE_CLASSES["water"][0]
+    invalid_mask_out_snow_cover = out_snow_cover > METEOFRANCE_ARCHIVE_CLASSES["water"][0]
 
     for idx in range(snow_cover_daily_images.shape[0]):
         # pixels that are marked as invalid in the best observation but not in another observation
@@ -172,7 +174,7 @@ def create_temporal_composite_meteofrance_single_platform(
         # Replace data also for view zenith angle and platform
         out_view_angle = np.where(pixels_to_reverse_mask, rearrenged_view_angle[idx], out_view_angle)
 
-        invalid_mask_out_snow_cover = out_snow_cover > METEOFRANCE_CLASSES["water"][0]
+        invalid_mask_out_snow_cover = out_snow_cover > METEOFRANCE_ARCHIVE_CLASSES["water"][0]
 
     # Here we output in netcdf for export but it can be changed
     sample_data = (
@@ -253,8 +255,8 @@ def create_temporal_composite_meteofrance_multiplatform(
     out_platform = best_platform
 
     # Invalid observations
-    invalid_masks = rearrenged_snow_cover > METEOFRANCE_CLASSES["water"][0]
-    invalid_mask_out_snow_cover = out_snow_cover > METEOFRANCE_CLASSES["water"][0]
+    invalid_masks = rearrenged_snow_cover > METEOFRANCE_ARCHIVE_CLASSES["water"][0]
+    invalid_mask_out_snow_cover = out_snow_cover > METEOFRANCE_ARCHIVE_CLASSES["water"][0]
 
     for idx in range(snow_cover_daily_images.shape[0]):
         # pixels that are marked as invalid in the best observation but not in another observation
@@ -263,7 +265,7 @@ def create_temporal_composite_meteofrance_multiplatform(
         # Replace data also for view zenith angle and platform
         out_view_angle = np.where(pixels_to_reverse_mask, rearrenged_view_angle[idx], out_view_angle)
         out_platform = np.where(pixels_to_reverse_mask, rearrenged_platform[idx], out_platform)
-        invalid_mask_out_snow_cover = out_snow_cover > METEOFRANCE_CLASSES["water"][0]
+        invalid_mask_out_snow_cover = out_snow_cover > METEOFRANCE_ARCHIVE_CLASSES["water"][0]
 
     # Here we output in netcdf for export but it can be changed
     sample_data = (
@@ -315,7 +317,7 @@ def create_temporal_composite_meteofrance_multiplatform(
 #     # View angles Météo-France encoded on half degree
 #     view_angles_daily_array = view_angles_daily_array / 2
 
-#     invalid_masks = snow_cover_daily_images > METEOFRANCE_CLASSES["water"][0]
+#     invalid_masks = snow_cover_daily_images > METEOFRANCE_ARCHIVE_CLASSES["water"][0]
 
 #     # Take best observation
 #     best_observation_index = np.nanargmin(view_angles_daily_array, axis=0)
@@ -329,7 +331,7 @@ def create_temporal_composite_meteofrance_multiplatform(
 #     # In this part we recover observations taken at a worse zenith angle if in the best observation composite the pixel is invalid
 #     out_snow_cover = snow_cover_best_observation
 #     out_view_angle = best_observation_angle
-#     invalid_mask_best_observation = snow_cover_best_observation > METEOFRANCE_CLASSES["water"][0]
+#     invalid_mask_best_observation = snow_cover_best_observation > METEOFRANCE_ARCHIVE_CLASSES["water"][0]
 #     for idx in range(n_obs):
 #         out_snow_cover = np.where(
 #             invalid_masks[idx]
@@ -363,13 +365,13 @@ def create_temporal_l2_naive_composite_meteofrance(daily_files: List[str]) -> xr
         logger.info(f"Reading file {day_file}")
         new_acquisition = rasterio.open(day_file).read(1)
 
-        no_data_mask = day_data == METEOFRANCE_CLASSES["nodata"]
+        no_data_mask = day_data == METEOFRANCE_ARCHIVE_CLASSES["nodata"]
         day_data = np.where(no_data_mask, new_acquisition, day_data)
 
-        cloud_mask_old = day_data == METEOFRANCE_CLASSES["clouds"]
+        cloud_mask_old = day_data == METEOFRANCE_ARCHIVE_CLASSES["clouds"]
 
-        cloud_mask_new = new_acquisition == METEOFRANCE_CLASSES["clouds"]
-        nodata_mask_new = new_acquisition == METEOFRANCE_CLASSES["nodata"]
+        cloud_mask_new = new_acquisition == METEOFRANCE_ARCHIVE_CLASSES["clouds"]
+        nodata_mask_new = new_acquisition == METEOFRANCE_ARCHIVE_CLASSES["nodata"]
         no_observation_mask_new = cloud_mask_new | nodata_mask_new
         observation_mask_new = no_observation_mask_new == False
         new_observations_mask = cloud_mask_old & observation_mask_new

@@ -1,12 +1,13 @@
 from dataclasses import dataclass
 from typing import Dict
 
-from products.classes import METEOFRANCE_CLASSES, NASA_CLASSES, S2_CLASSES
+from products.classes import (METEOFRANCE_ARCHIVE_CLASSES,
+                              METEOFRANCE_COMPOSITE_CLASSES, NASA_CLASSES,
+                              S2_CLASSES)
 from reductions.completeness import (
-    MeteoFranceSnowCoverProductCompleteness,
-    NASASnowCoverProductCompleteness,
-    S2SnowCoverProductCompleteness,
-)
+    MeteoFranceArchiveSnowCoverProductCompleteness,
+    MeteoFranceCompositeSnowCoverProductCompleteness,
+    NASASnowCoverProductCompleteness, S2SnowCoverProductCompleteness)
 
 
 class SnowCoverProduct:
@@ -23,65 +24,65 @@ class SnowCoverProduct:
         return self.plot_name
 
 
-class MeteoFranceSnowCoverProduct(SnowCoverProduct):
-    def __init__(self, name, classes, plot_color, plot_name, platform=None):
-        super().__init__(name, classes, plot_color, plot_name, platform)
-        self.analyzer = MeteoFranceSnowCoverProductCompleteness()
 
-
-class MeteoFranceArchive(MeteoFranceSnowCoverProduct):
+class MeteoFranceArchive(SnowCoverProduct):
     def __init__(self):
         super().__init__(
-            name="meteofrance_orig",
-            classes=METEOFRANCE_CLASSES,
+            name="meteofrance_archive",
+            classes=METEOFRANCE_ARCHIVE_CLASSES,
             plot_color="tab:blue",
             plot_name="Météo-France archive",
             platform="snpp",
         )
+        self.analyzer = MeteoFranceArchiveSnowCoverProductCompleteness()
 
 
-class MeteoFranceSNPPPrototype(MeteoFranceSnowCoverProduct):
+class MeteoFranceEvalSNPP(SnowCoverProduct):
     def __init__(self):
         super().__init__(
             name="meteofrance_prototype_snpp",
-            classes=METEOFRANCE_CLASSES,
+            classes=METEOFRANCE_COMPOSITE_CLASSES,
             plot_color="orange",
             plot_name="Météo-France SNPP",
             platform="snpp",
         )
+        self.analyzer = MeteoFranceCompositeSnowCoverProductCompleteness()
 
 
-class MeteoFranceJPSS1Prototype(MeteoFranceSnowCoverProduct):
+class MeteoFranceEvalJPSS1(SnowCoverProduct):
     def __init__(self):
         super().__init__(
-            name="meteofrance_prototype_jpss1",
-            classes=METEOFRANCE_CLASSES,
+            name="meteofrance_eval_jpss1",
+            classes=METEOFRANCE_COMPOSITE_CLASSES,
             plot_color="darkgoldenrod",
             plot_name="Météo-France JPSS1",
             platform="noaa20",
         )
+        self.analyzer = MeteoFranceCompositeSnowCoverProductCompleteness()
 
 
-class MeteoFranceJPSS2Prototype(MeteoFranceSnowCoverProduct):
+class MeteoFranceEvalJPSS2(SnowCoverProduct):
     def __init__(self):
         super().__init__(
-            name="meteofrance_prototype_jpss2",
-            classes=METEOFRANCE_CLASSES,
+            name="meteofrance_eval_jpss2",
+            classes=METEOFRANCE_COMPOSITE_CLASSES,
             plot_color="sienna",
             plot_name="Météo-France JPSS2",
             platform="noaa21",
         )
+        self.analyzer = MeteoFranceCompositeSnowCoverProductCompleteness()
 
 
-class MeteoFranceMultiplatformPrototype(MeteoFranceSnowCoverProduct):
+class MeteoFranceComposite(SnowCoverProduct):
     def __init__(self):
         super().__init__(
-            name="meteofrance_prototype_multiplatform",
-            classes=METEOFRANCE_CLASSES,
+            name="meteofrance_eval_multiplatform",
+            classes=METEOFRANCE_COMPOSITE_CLASSES,
             plot_color="lightcoral",
             plot_name="Météo-France multi-platform",
-            platform=None,
+            platform="all",
         )
+        self.analyzer = MeteoFranceCompositeSnowCoverProductCompleteness()
 
 
 class NASASnowCoverProduct(SnowCoverProduct):

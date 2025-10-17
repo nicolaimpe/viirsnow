@@ -27,7 +27,7 @@ def check_input_daily_tif_files(input_tif_files: List[str]) -> List[str]:
     return input_tif_files
 
 
-class HarmonisationBase:
+class RegridBase:
     def __init__(self, product: SnowCoverProduct, output_grid: GeoGrid, data_folder: str, output_folder: str):
         self.product = product
         self.grid = output_grid
