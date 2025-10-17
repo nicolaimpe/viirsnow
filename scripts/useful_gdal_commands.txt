@@ -10,3 +10,5 @@ ncdump -c ../data/V10A1/VNP10A1.A2023002.h08v05.002.2023093170258.h5  | grep "Ch
 X0=$(ncdump -v XDim ../data/V10A1/VNP10A1.A2023002.h08v06.002.2023093170129.h5 | sed -n 's/.*XDim = \(.*\),.*/\1/p' | awk -F ',' '{print $1}')
 
 gdal_translate -a_ullr -5.0025000 51.4975000 10.0025000 40.9975000 -a_srs epsg:4326 CCNPPJSNOW_mask_20250113_1234_68471.png CCNPPJSNOW_mask_20250113_1234_68471.tif
+
+gdalwarp -q -overwrite -t_srs EPSG:32631 -te $xmin $ymin $xmax $ymax -srcnodata None -r max -tr 250 250 $f $outf/max.tif

@@ -1,84 +1,11 @@
 import numpy as np
 import xarray as xr
-from pyresample import kd_tree
-from pyresample.geometry import AreaDefinition, SwathDefinition
 from rasterio.enums import Resampling
 
 from compression import generate_xarray_compression_encodings
 from geotools import reproject_dataset, reproject_using_grid
 from grids import GeoGrid, georef_netcdf_rioxarray
 from products.classes import METEOFRANCE_CLASSES, NASA_CLASSES, S2_CLASSES
-
-
-def extract_swath_lon_lats(
-    l2_geolocation_data_group: xr.Dataset, bowtie_trim_mask: xr.DataArray | None = None
-) -> SwathDefinition:
-    if bowtie_trim_mask is not None:
-        lons_modif = np.ma.masked_array(l2_geolocation_data_group.data_vars["longitude"], bowtie_trim_mask)
-        lats_modif = np.ma.masked_array(l2_geolocation_data_group.data_vars["latitude"], bowtie_trim_mask)
-        swath_def = SwathDefinition(lons=lons_modif, lats=lats_modif)
-    else:
-        lons = np.ma.masked_array(l2_geolocation_data_group.data_vars["longitude"])
-        lats = np.ma.masked_array(l2_geolocation_data_group.data_vars["latitude"])
-        swath_def = SwathDefinition(lons=lons, lats=lats)
-    return swath_def
-
-
-def reproject_l2_nasa_to_grid(
-    output_grid: GeoGrid,
-    l2_geolocation_dataset: xr.Dataset,
-    l2_dataset: xr.Dataset,
-    bowtie_trim_mask: xr.DataArray | None = None,
-    output_filename: str | None = None,
-    area_name: str = "France",
-    area_description: str = "France CMS bounding box",
-    radius_of_influence: float = 1000,
-    fill_value: int | float = 255,
-):
-    swath_def = extract_swath_lon_lats(l2_geolocation_data_group=l2_geolocation_dataset, bowtie_trim_mask=bowtie_trim_mask)
-    area_def = AreaDefinition(
-        area_id=area_name,
-        description=area_description,
-        proj_id=area_name,
-        projection=output_grid.crs,
-        width=output_grid.width,
-        height=output_grid.height,
-        area_extent=output_grid.extent_llx_lly_urx_ury,
-    )
-
-    reprojected_data_vars = {}
-    for data_var_name, data_var in l2_dataset.items():
-        reprojected_l2_data = kd_tree.resample_nearest(
-            source_geo_def=swath_def,
-            data=data_var.values,
-            target_geo_def=area_def,
-            radius_of_influence=radius_of_influence,
-            fill_value=fill_value,
-            nprocs=8,
-        )
-        # That's ugly sorry me of the future. Basically we need to force the data array georeferecing with its attributes
-        # but then we extract it to be able to use xr.assign later
-        reprojected_data_vars.update(
-            {
-                data_var_name: georef_netcdf_rioxarray(
-                    xr.DataArray(
-                        data=reprojected_l2_data,
-                        coords={"y": output_grid.ycoords, "x": output_grid.xcoords},
-                    ),
-                    crs=output_grid.crs,
-                )
-            }
-        )
-
-    output_dataset = xr.Dataset(reprojected_data_vars)
-    output_dataset_encoding = generate_xarray_compression_encodings(output_dataset)
-    output_dataset_encoding = {k: v.update(_FillValue=fill_value) for k, v in output_dataset_encoding.items()}
-    if output_filename is not None:
-        output_dataset.to_netcdf(
-            output_filename,
-            encoding=output_dataset_encoding,
-        )
-    return output_dataset
 
 
 def reprojection_l3_nasa_to_grid(nasa_snow_cover: xr.DataArray, output_grid: GeoGrid) -> xr.DataArray:

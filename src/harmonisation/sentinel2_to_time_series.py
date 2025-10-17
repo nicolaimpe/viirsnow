@@ -37,9 +37,8 @@ class S2TheiaSCAHarmonisation(S2Harmonisation):
 
 
 if __name__ == "__main__":
-    year = WinterYear(2023, 2024)
+    year = WinterYear(2024, 2025)
     massifs_shapefile = "/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/vectorial/massifs/massifs.shp"
-    s2_clms_folder = "/home/imperatoren/work/VIIRS_S2_comparison/data/S2_CLMS"
     s2_theia_folder = "/home/imperatoren/work/VIIRS_S2_comparison/data/LIS_FSC_PREOP"
 
     grid = UTM375mGrid()
@@ -48,7 +47,7 @@ if __name__ == "__main__":
 
         fsc = int(gascoin(ndsi=ndsi / 100, f_veg=0) * 100)
         logger.info("S2 Theia processing")
-        print("fsc thresh", fsc)
+
         S2TheiaSCAHarmonisation(
             output_grid=grid, data_folder=s2_theia_folder, output_folder=output_folder, fsc_thresh=fsc
         ).create_time_series(winter_year=year, roi_shapefile=massifs_shapefile)

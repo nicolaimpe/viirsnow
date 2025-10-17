@@ -315,7 +315,7 @@ def plot_custom_spans(snow_cover_products: List[SnowCoverProduct], analysis_fold
     ax.set_xticks(x_positions - box_width_data * ((len(snow_cover_products) + 1) // 2), labels=analysis_coords)
     ax.set_xlim(x_positions[0] - (len(snow_cover_products) + 1) * box_width_data, x_positions[-1])
     ax.set_ylim(-65, 65)
-    ax.set_ylabel("Bias [\% FSC]")
+    ax.set_ylabel("Residuals [\% FSC]")
     ax.set_xlabel(analysis_var)
     (l1,) = ax.plot([0, 1], [0, 1], c="gray", lw=1e-12)
     (l2,) = ax.plot(0, 0, c="gray", markersize=1e-12)

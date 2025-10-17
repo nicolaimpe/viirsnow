@@ -195,5 +195,3 @@ def fancy_scatter_plot(
     #     ax[i].set_title(PRODUCT_PLOT_NAMES[k])
     #     ax[i].set_ylabel("S2 FSC [%]")
     #     ax[i].set_xlabel(f"{PRODUCT_PLOT_NAMES[k]} NDSI [%]")
-
-    plt.show()

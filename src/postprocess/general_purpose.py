@@ -173,6 +173,7 @@ def open_reduced_dataset_for_plot(product: SnowCoverProduct, analysis_folder: st
                     ),
                 },
             )
+
         else:
             raise NotImplementedError("reference bins range not known")
         rename_dict.update({"ref_bins": "Ref FSC [\%]"})

@@ -13,7 +13,7 @@ from geotools import gdf_to_binary_mask
 from grids import GeoGrid
 from logger_setup import default_logger as logger
 from products.snow_cover_product import SnowCoverProduct
-from reductions.snow_cover_extent_cross_comparison import WinterYear
+from winter_year import WinterYear
 
 
 def check_input_daily_tif_files(input_tif_files: List[str]) -> List[str]:

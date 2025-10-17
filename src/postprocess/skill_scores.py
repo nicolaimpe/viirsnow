@@ -71,7 +71,7 @@ def plot_multiple_confusion_table(snow_cover_products: List[SnowCoverProduct], a
     n_prods = len(snow_cover_products)
     fig, axs = plt.subplots(ncols=n_prods, figsize=(6 * n_prods, 5))
     fig.suptitle("Confusion table comparison - " + title_complement + "\n")
-    for i, product in snow_cover_products:
+    for i, product in enumerate(snow_cover_products):
         metrics_ds = open_reduced_dataset_for_plot(product, analysis_folder=analysis_folder, analysis_type="confusion_table")
         accuracy = compute_score(metrics_ds, "accuracy").values
         plot_confusion_table(metrics_ds, axes=axs[i])
