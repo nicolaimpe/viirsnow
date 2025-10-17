@@ -29,6 +29,34 @@ def compute_area_of_class_mask(mask: xr.DataArray) -> float:
     return mask.sum().values * np.abs(math.prod(gsd))
 
 
+def compute_area_of_class_precise(input_data_array: xr.DataArray, class_name: str='clouds'):
+
+    class_mask = analyzer.mask_of_class(class_name, input_data_array)
+
+    polygons = []
+    for geom, val in shapes(class_mask.astype('u1').values, transform=input_data_array.rio.transform()):
+        if val:                                  # only take mask pixels (val == 1)
+            polygons.append(shape(geom))
+
+    # merge into one geometry if many (optional)
+
+    union_geom = unary_union(polygons)           # geometry in UTM coords
+
+    
+    # transform to lon/lat (EPSG:4326)
+    transformer = Transformer.from_crs(input_data_array.rio.crs, "EPSG:4326", always_xy=True)
+    def proj_to_lonlat(x, y, z=None):
+        return transformer.transform(x, y)
+
+    lonlat_geom = shapely_transform(proj_to_lonlat, union_geom)
+
+    # compute ellipsoidal area (pyproj.Geod)
+    geod = Geod(ellps='WGS84')
+    # pyproj.Geod.geometry_area_perimeter returns (area, perimeter) for shapely geometries
+    area, _ = geod.geometry_area_perimeter(lonlat_geom)
+    return xr.DataArray(abs(area))
+
+
 class SnowCoverProductCompleteness:
     def __init__(
         self,
