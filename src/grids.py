@@ -19,12 +19,30 @@ OUPUT_GRID_X_SIZE, OUPUT_GRID_Y_SIZE = 2800, 2200
 RESAMPLING = Resampling.nearest
 
 
+class GeoGridError(Exception):
+    pass
+
+
 class GeoGrid:
     def __init__(
-        self, resolution: float, x0: float, y0: float, width: int, height: int, crs: CRS | None = None, name: str | None = None
+        self,
+        resolution: float | int | Tuple[float, float],
+        x0: float,
+        y0: float,
+        width: int,
+        height: int,
+        crs: CRS | None = None,
+        name: str | None = None,
     ) -> None:
         self.crs = crs
-        self.resolution = resolution
+        if type(resolution) is float or type(resolution) is int:
+            self.resolution_x = resolution
+            self.resolution_y = resolution
+        elif len(resolution) == 2:
+            self.resolution_x = resolution[0]
+            self.resolution_y = resolution[1]
+        else:
+            raise GeoGridError("Problem with resolution argument")
         self.x0 = x0
         self.y0 = y0
         self.width = width
@@ -51,27 +69,27 @@ class GeoGrid:
 
     @property
     def xmin(self):
-        return self.x0 + self.resolution / 2
+        return self.x0 + self.resolution_x / 2
 
     @property
     def ymax(self):
-        return self.y0 - self.resolution / 2
+        return self.y0 - self.resolution_y / 2
 
     @property
     def xmax(self):
-        return self.xmin + (self.width - 1) * self.resolution
+        return self.xmin + (self.width - 1) * self.resolution_x
 
     @property
     def ymin(self):
-        return self.ymax - (self.height - 1) * self.resolution
+        return self.ymax - (self.height - 1) * self.resolution_y
 
     @property
     def xend(self):
-        return self.x0 + self.width * self.resolution
+        return self.x0 + self.width * self.resolution_x
 
     @property
     def yend(self):
-        return self.y0 - self.height * self.resolution
+        return self.y0 - self.height * self.resolution_y
 
     @property
     def extent_llx_lly_urx_ury(self):
@@ -87,7 +105,7 @@ class GeoGrid:
 
     @property
     def affine(self) -> Affine:
-        return from_origin(self.x0, self.y0, self.resolution, self.resolution)
+        return from_origin(self.x0, self.y0, self.resolution_x, self.resolution_y)
 
     @property
     def shape(self) -> Tuple[int, int]:
@@ -177,7 +195,7 @@ class LatLon375mGrid(GeoGrid):
     def __init__(self):
         super().__init__(
             crs=CRS.from_epsg(4326),
-            resolution=0.003374035989717,
+            resolution=(0.003374578177758, 0.0033740359897170007),
             x0=-5.0033746,
             y0=51.496626,
             width=4447,

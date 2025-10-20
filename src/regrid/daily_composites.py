@@ -10,10 +10,8 @@ import xarray as xr
 from geotools import extract_netcdf_coords_from_rasterio_raster
 from grids import GeoGrid, georef_netcdf, georef_netcdf_rioxarray
 from logger_setup import default_logger as logger
-from products.classes import (METEOFRANCE_ARCHIVE_CLASSES, NASA_CLASSES,
-                              S2_CLASSES)
-from products.filenames import (get_datetime_from_viirs_nasa_filepath,
-                                open_modis_ndsi_snow_cover)
+from products.classes import METEOFRANCE_ARCHIVE_CLASSES, NASA_CLASSES, S2_CLASSES
+from products.filenames import get_datetime_from_viirs_nasa_filepath, open_modis_ndsi_snow_cover
 from products.georef import MODIS_CRS
 from reductions.completeness import mask_of_pixels_in_range
 from regrid.reprojections import resample_s2_to_grid
@@ -83,7 +81,7 @@ def create_spatial_s2_composite(day_files: List[str], output_grid: GeoGrid) -> x
 
 
 def create_spatial_s2_composite_sca(day_files: List[str], output_grid: GeoGrid, fsc_thresh: int | None = 51) -> xr.Dataset:
-    day_data_array = xr.DataArray(np.uint8(S2_CLASSES["nodata"][0]), coords=output_grid.xarray_coords)
+    day_data_array = xr.DataArray(S2_CLASSES["nodata"][0], coords=output_grid.xarray_coords).astype("u1")
     for filepath in day_files:
         logger.info(f"Processing product {Path(filepath).name}")
         s2_image = rioxarray.open_rasterio(filepath)

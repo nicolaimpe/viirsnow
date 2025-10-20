@@ -5,11 +5,11 @@ import xarray as xr
 
 from fractional_snow_cover import gascoin
 from grids import GeoGrid, UTM375mGrid, UTM500mGrid
-from regrid.daily_composites import create_spatial_s2_composite_sca
-from regrid.regrid_base import RegridBase, check_input_daily_tif_files
 from logger_setup import default_logger as logger
 from products.filenames import get_all_s2_theia_files_of_winter_year
 from products.snow_cover_product import Sentinel2Theia, SnowCoverProduct
+from regrid.daily_composites import create_spatial_s2_composite_sca
+from regrid.regrid_base import RegridBase, check_input_daily_tif_files
 from winter_year import WinterYear
 
 
@@ -39,7 +39,7 @@ class S2TheiaSCARegrid(S2Regrid):
 if __name__ == "__main__":
     year = WinterYear(2024, 2025)
     massifs_shapefile = "/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/vectorial/massifs/massifs.shp"
-    s2_theia_folder = "/home/imperatoren/work/VIIRS_S2_comparison/data/LIS_FSC_PREOP"
+    s2_theia_folder = "/home/imperatoren/work/VIIRS_S2_comparison/data/S2_THEIA"
 
     grid = UTM375mGrid()
     for ndsi in [45]:

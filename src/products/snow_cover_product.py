@@ -1,13 +1,13 @@
 from dataclasses import dataclass
 from typing import Dict
 
-from products.classes import (METEOFRANCE_ARCHIVE_CLASSES,
-                              METEOFRANCE_COMPOSITE_CLASSES, NASA_CLASSES,
-                              S2_CLASSES)
+from products.classes import METEOFRANCE_ARCHIVE_CLASSES, METEOFRANCE_COMPOSITE_CLASSES, NASA_CLASSES, S2_CLASSES
 from reductions.completeness import (
     MeteoFranceArchiveSnowCoverProductCompleteness,
     MeteoFranceCompositeSnowCoverProductCompleteness,
-    NASASnowCoverProductCompleteness, S2SnowCoverProductCompleteness)
+    NASASnowCoverProductCompleteness,
+    S2SnowCoverProductCompleteness,
+)
 
 
 class SnowCoverProduct:
@@ -22,7 +22,6 @@ class SnowCoverProduct:
 
     def __repr__(self):
         return self.plot_name
-
 
 
 class MeteoFranceArchive(SnowCoverProduct):
@@ -40,11 +39,11 @@ class MeteoFranceArchive(SnowCoverProduct):
 class MeteoFranceEvalSNPP(SnowCoverProduct):
     def __init__(self):
         super().__init__(
-            name="meteofrance_prototype_snpp",
+            name="meteofrance_eval_snpp",
             classes=METEOFRANCE_COMPOSITE_CLASSES,
             plot_color="orange",
             plot_name="Météo-France SNPP",
-            platform="snpp",
+            platform="npp",
         )
         self.analyzer = MeteoFranceCompositeSnowCoverProductCompleteness()
 
@@ -76,7 +75,7 @@ class MeteoFranceEvalJPSS2(SnowCoverProduct):
 class MeteoFranceComposite(SnowCoverProduct):
     def __init__(self):
         super().__init__(
-            name="meteofrance_eval_multiplatform",
+            name="meteofrance_multiplatform",
             classes=METEOFRANCE_COMPOSITE_CLASSES,
             plot_color="lightcoral",
             plot_name="Météo-France multi-platform",

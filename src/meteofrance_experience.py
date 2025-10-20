@@ -6,7 +6,7 @@ from typing import List
 import numpy as np
 import rasterio
 
-from products.classes import METEOFRANCE_CLASSES
+from products.classes import METEOFRANCE_ARCHIVE_CLASSES
 from winter_year import WinterYear
 
 
@@ -47,7 +47,7 @@ class MeteoFranceExperience:
         fsc_file = [f for f in self.fsc_files if time.strftime("%Y%m%d_%H%M") in f][0]
         red_band_file = [f for f in self.red_band_files if time.strftime("%Y%m%d_%H%M") in f]
         fsc = rasterio.open(fsc_file).read(1)
-        no_forest = np.where(old_product == METEOFRANCE_CLASSES["forest_with_snow"], fsc, old_product)
+        no_forest = np.where(old_product == METEOFRANCE_ARCHIVE_CLASSES["forest_with_snow"], fsc, old_product)
 
         if len(red_band_file) != 1:
             print("0 or more than 1 band files found for this acquisition. Red band screen not applied.")
@@ -56,9 +56,9 @@ class MeteoFranceExperience:
             red_band = rasterio.open(red_band_file[0]).read(1)
             low_refl_mask = red_band <= red_band_screen_value
             modified = np.where(
-                no_forest > METEOFRANCE_CLASSES["snow_cover"][-1],
+                no_forest > METEOFRANCE_ARCHIVE_CLASSES["snow_cover"][-1],
                 no_forest,
-                np.where(1 - low_refl_mask, no_forest, METEOFRANCE_CLASSES["no_snow"][0]),
+                np.where(1 - low_refl_mask, no_forest, METEOFRANCE_ARCHIVE_CLASSES["no_snow"][0]),
             )
         return modified
 
