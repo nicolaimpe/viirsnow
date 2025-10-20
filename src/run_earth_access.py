@@ -1,6 +1,6 @@
 import earthaccess
 
-from harmonisation.nasa_l2_download_and_project import download_daily_products_from_sxcen
+from regrid.nasa_l2_download_and_project import download_daily_products_from_sxcen
 from winter_year import WinterYear
 
 # product_name = "VJ110A1"

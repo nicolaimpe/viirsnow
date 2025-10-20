@@ -36,6 +36,18 @@ class MeteoFranceArchive(SnowCoverProduct):
         self.analyzer = MeteoFranceArchiveSnowCoverProductCompleteness()
 
 
+class MeteoFrancePrototypeSNPP(SnowCoverProduct):
+    def __init__(self):
+        super().__init__(
+            name="meteofrance_prototype_snpp",
+            classes=METEOFRANCE_COMPOSITE_CLASSES,
+            plot_color="tan",
+            plot_name="Météo-France prototype SNPP",
+            platform="npp",
+        )
+        self.analyzer = MeteoFranceCompositeSnowCoverProductCompleteness()
+
+
 class MeteoFranceEvalSNPP(SnowCoverProduct):
     def __init__(self):
         super().__init__(

@@ -8,6 +8,7 @@ import xarray as xr
 from xarray.groupers import BinGrouper
 
 from compression import generate_xarray_compression_encodings
+from grids import GeoGrid, UTM375mGrid
 from logger_setup import default_logger as logger
 from reductions.completeness import SnowCoverProductCompleteness
 from reductions.semidistributed import MountainParametrization, MountainParams
@@ -29,11 +30,12 @@ def generate_evaluation_io(
     year: WinterYear,
     ref_product_name: str,
     test_product_name: str,
+    grid: GeoGrid | None = UTM375mGrid(),
     period: slice | None = None,
 ) -> Tuple[xr.Dataset, xr.Dataset, str]:
     output_folder = f"{working_folder}/analyses/{analysis_type}"
-    ref_time_series_name = f"WY_{year.from_year}_{year.to_year}_{ref_product_name}.nc"
-    test_time_series_name = f"WY_{year.from_year}_{year.to_year}_{test_product_name}.nc"
+    ref_time_series_name = f"WY_{year.from_year}_{year.to_year}_{ref_product_name}_{grid.name.lower()}.nc"
+    test_time_series_name = f"WY_{year.from_year}_{year.to_year}_{test_product_name}_{grid.name.lower()}.nc"
 
     output_filename = (
         f"{output_folder}/{analysis_type}_WY_{year.from_year}_{year.to_year}_{test_product_name}_vs_{ref_product_name}.nc"

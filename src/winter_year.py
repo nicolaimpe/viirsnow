@@ -1,10 +1,10 @@
+import abc
 from datetime import datetime
 from typing import Dict, List, Tuple
-import numpy as np
 
+import numpy as np
 import pandas as pd
 import xarray as xr
-import abc
 
 
 class AbstractYear(abc.ABC):
@@ -123,3 +123,6 @@ class WinterYear(AbstractYear):
 
     def to_tuple(self) -> Tuple[int, int]:
         return (self.from_year, self.to_year)
+
+    def to_filename_format(self) -> str:
+        return f"WY_{self.from_year}_{self.to_year}"
