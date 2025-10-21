@@ -94,7 +94,7 @@ class RegridBase:
         files = self.get_all_files_of_winter_year(winter_year=winter_year)
 
         for day in winter_year.iterate_days():
-            # if day.day > 5 or day.month != 2:
+            # if day.day > 18 or day.month != 12:
             #     continue
             logger.info(f"Processing day {day}")
             day_files = self.get_daily_files(files, day=day)

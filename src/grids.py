@@ -26,7 +26,7 @@ class GeoGridError(Exception):
 class GeoGrid:
     def __init__(
         self,
-        resolution: float | int | Tuple[float, float],
+        resolution: float | int | np.float64 | Tuple[float, float],
         x0: float,
         y0: float,
         width: int,
@@ -35,7 +35,7 @@ class GeoGrid:
         name: str | None = None,
     ) -> None:
         self.crs = crs
-        if type(resolution) is float or type(resolution) is int:
+        if type(resolution) is float or type(resolution) is int or type(resolution) is np.float64:
             self.resolution_x = resolution
             self.resolution_y = resolution
         elif len(resolution) == 2:

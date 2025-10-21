@@ -102,6 +102,14 @@ class WinterYear(AbstractYear):
     def days_per_month(self):
         return np.array(list(self.n_of_days_dict.values()))
 
+    @property
+    def begin_day_of_year(self):
+        return datetime(year=self.from_year, month=10, day=1).strftime("%Y%d")
+
+    @property
+    def end_day_of_year(self):
+        return datetime(year=self.to_year, month=30, day=30).strftime("%Y%d")
+
     def iterate_days(self):
         for day in pd.date_range(start=f"{self.from_year}/10/01", end=f"{self.to_year}/09/30", freq="D"):
             yield day

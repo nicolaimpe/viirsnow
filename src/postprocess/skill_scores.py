@@ -11,7 +11,7 @@ from pandas.io.formats.style import Styler
 from scores.categorical import BasicContingencyManager
 from sklearn.metrics import ConfusionMatrixDisplay
 
-from postprocess.general_purpose import fancy_table, open_reduced_dataset_for_plot, sel_evaluation_domain
+from postprocess.general_purpose import AnalysisContainer, fancy_table, open_reduced_dataset_for_plot, sel_evaluation_domain
 from products.snow_cover_product import SnowCoverProduct
 from reductions.statistics_base import EvaluationVsHighResBase
 from winter_year import WinterYear
@@ -161,12 +161,15 @@ def compute_skill_scores_for_parameter(
     return results
 
 
-def line_plot_accuracy_f1_score(
-    snow_cover_products: List[SnowCoverProduct], analysis_folder: str, analysis_var: str, ax: Axes
-):
+def line_plot_accuracy_f1_score(analysis: AnalysisContainer, analysis_var: str, ax: Axes):
     metrics_datasets = [
-        open_reduced_dataset_for_plot(product=prod, analysis_folder=analysis_folder, analysis_type="confusion_table")
-        for prod in snow_cover_products
+        open_reduced_dataset_for_plot(
+            product=prod,
+            analysis_folder=analysis.analysis_folder,
+            analysis_type="confusion_table",
+            winter_year=analysis.winter_year,
+        )
+        for prod in analysis.products
     ]
     new_metrics_datasets = []
     if "Ref FSC [\%]" in metrics_datasets[0].sizes.keys():
@@ -180,12 +183,12 @@ def line_plot_accuracy_f1_score(
                 xr.concat([md.sel({"Ref FSC [\%]": "0"}), fractions, md.sel({"Ref FSC [\%]": "100"})], dim="Ref FSC [\%]")
             )
     skill_scores = compute_skill_scores_for_parameter(
-        snow_cover_products=snow_cover_products, metrics_datasets=new_metrics_datasets, variable=analysis_var
+        snow_cover_products=analysis.products, metrics_datasets=new_metrics_datasets, variable=analysis_var
     )
     skill_scores = skill_scores.where(skill_scores != 0, np.nan)
     x_coords_conf = new_metrics_datasets[0].coords[analysis_var].values
     skill_scores = skill_scores.sel({analysis_var: x_coords_conf})
-    for prod in snow_cover_products:
+    for prod in analysis.products:
         ax.plot(
             x_coords_conf,
             skill_scores.sel(product=prod.name).data_vars["accuracy"],
@@ -212,11 +215,14 @@ def line_plot_accuracy_f1_score(
     ax.grid(True)
 
 
-def line_plot_total_count(snow_cover_products: List[SnowCoverProduct], analysis_folder: str, analysis_var: str, ax: Axes):
+def line_plot_total_count(analysis: AnalysisContainer, analysis_var: str, ax: Axes):
     metrics_data_arrays = []
-    for prod in snow_cover_products:
+    for prod in analysis.products:
         metrics_ds = open_reduced_dataset_for_plot(
-            product=prod, analysis_folder=analysis_folder, analysis_type="confusion_table"
+            product=prod,
+            analysis_folder=analysis.analysis_folder,
+            analysis_type="confusion_table",
+            winter_year=analysis.winter_year,
         )
         metrics_ds = metrics_ds.sum(dim=[d for d in metrics_ds.sizes.keys() if d != analysis_var])
         metrics_data_arrays.append(
@@ -227,11 +233,11 @@ def line_plot_total_count(snow_cover_products: List[SnowCoverProduct], analysis_
         )
 
     total_count_ds = xr.concat(
-        metrics_data_arrays, dim=xr.DataArray([prod.name for prod in snow_cover_products], dims="product")
+        metrics_data_arrays, dim=xr.DataArray([prod.name for prod in analysis.products], dims="product")
     )
     x_coords_unc = total_count_ds.coords[analysis_var].values
 
-    for prod in snow_cover_products:
+    for prod in analysis.products:
         ax.plot(
             x_coords_unc,
             total_count_ds.sel(product=prod.name),

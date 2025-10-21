@@ -44,12 +44,15 @@ def int_to_year_day(year: int, day: int) -> str:
     return str(year) + "{:03d}".format(day)
 
 
-def get_all_nasa_filenames_per_product(product_id: str, data_folder: str) -> List[str] | None:
+def get_all_nasa_filenames_per_product(product_id: str, data_folder: str, winter_year: WinterYear) -> List[str] | None:
     version_id = "002"
     if product_id == "MOD10A1":
         version_id = "061"
-    path_pattern = f"{data_folder}/{nasa_collection_per_product_id[product_id]}/{product_id}/{product_id}*.{version_id}*.{nasa_format_per_product[product_id]}"
-    return glob(path_pattern)
+    file_list = []
+    for day in winter_year.iterate_days():
+        path_pattern = f"{data_folder}/{nasa_collection_per_product_id[product_id]}/{product_id}/{product_id}.A{day.strftime('%Y%j')}*.{version_id}*.{nasa_format_per_product[product_id]}"
+        file_list.extend(glob(path_pattern))
+    return file_list
 
 
 def get_datetime_from_viirs_meteofrance_filepath(filepath: str) -> str:

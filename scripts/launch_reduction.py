@@ -2,14 +2,15 @@ from typing import List
 
 import xarray as xr
 
+from grids import LatLon375mGrid, UTM375mGrid
 from logger_setup import default_logger as logger
 from products.snow_cover_product import (
     VJ110A1,
     VNP10A1,
-    MeteoFranceJPSS1Prototype,
-    MeteoFranceJPSS2Prototype,
-    MeteoFranceMultiplatformPrototype,
-    MeteoFranceSNPPPrototype,
+    MeteoFranceComposite,
+    MeteoFranceEvalJPSS1,
+    MeteoFranceEvalJPSS2,
+    MeteoFranceEvalSNPP,
     Sentinel2Theia,
     SnowCoverProduct,
 )
@@ -32,30 +33,36 @@ config_mountains = MountainParams(
 config = EvaluationConfig(ref_fsc_step=25, sensor_zenith_analysis=False, sub_roi_mask_path=None, **config_mountains.__dict__)
 
 products: List[SnowCoverProduct] = [
-    # MeteoFranceSNPPPrototype(),
-    # MeteoFranceJPSS1Prototype(),
-    # MeteoFranceJPSS2Prototype(),
-    # MeteoFranceMultiplatformPrototype(),
+    # MeteoFranceEvalSNPP(),
+    # MeteoFranceEvalJPSS1(),
+    # MeteoFranceEvalJPSS2(),
+    # MeteoFranceComposite(),
     # VJ110A1(),
     # MeteoFranceSNPPPrototype(),
     VNP10A1(),
 ]
 
-reduction_type = "scatter"
-
+reduction_type = "uncertainty"
+wy = WinterYear(2024, 2025)
+grid = UTM375mGrid()
+period = slice("2024-11", None)
 if __name__ == "__main__":
     for product in products:
         logger.info(f"Evaluating product {product}")
 
         if reduction_type == "completeness":
             logger.info("Completeness analysis starting")
-            test_series = xr.open_dataset(f"{output_folder}/time_series/WY_2023_2024_{product.name}.nc")
+            test_series = xr.open_dataset(
+                f"{output_folder}/time_series/WY_{wy.from_year}_{wy.to_year}_{product.name}_{grid.name.lower()}.nc"
+            )
+
             product.analyzer.year_temporal_analysis(
                 snow_cover_product_time_series=test_series,
-                netcdf_export_path=f"{output_folder}/analyses/completeness/completeness_WY_2023_2024_{product.name}.nc",
-                period=None,
+                netcdf_export_path=f"{output_folder}/analyses/completeness/completeness_WY_{wy.from_year}_{wy.to_year}_{product.name}_{grid.name.lower()}.nc",
+                period=period,
                 config=config,
             )
+            continue
 
         if reduction_type == "uncertainty":
             logger.info("Uncertainty analysis")
@@ -63,12 +70,11 @@ if __name__ == "__main__":
             ref_time_series, test_time_series, output_filename = generate_evaluation_io(
                 analysis_type="uncertainty",
                 working_folder=working_folder,
-                year=WinterYear(2023, 2024),
+                year=wy,
                 test_product_name=product.name,
                 ref_product_name="S2_theia",
-                period=slice("2023-11", "2024-06"),
+                period=period,
             )
-
             metrics_calcuator = Uncertainty(reference_analyzer=Sentinel2Theia().analyzer, test_analyzer=product.analyzer)
 
         if reduction_type == "confusion_table":
@@ -77,11 +83,11 @@ if __name__ == "__main__":
             ref_time_series, test_time_series, output_filename = generate_evaluation_io(
                 analysis_type="confusion_table",
                 working_folder=working_folder,
-                year=WinterYear(2023, 2024),
+                year=wy,
                 test_product_name=product.name,
                 ref_product_name="S2_theia",
-                period=slice("2023-11", "2024-06"),
             )
+
             metrics_calcuator = ConfusionTable(
                 reference_analyzer=Sentinel2Theia().analyzer,
                 test_analyzer=product.analyzer,
@@ -95,10 +101,9 @@ if __name__ == "__main__":
             ref_time_series, test_time_series, output_filename = generate_evaluation_io(
                 analysis_type="scatter",
                 working_folder=working_folder,
-                year=WinterYear(2023, 2024),
+                year=wy,
                 test_product_name=product.name,
                 ref_product_name="S2_theia",
-                period=slice("2023-11", "2024-06"),
             )
 
             metrics_calcuator = Scatter(

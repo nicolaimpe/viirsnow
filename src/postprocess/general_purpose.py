@@ -1,4 +1,5 @@
-from typing import Dict, Tuple
+from dataclasses import dataclass
+from typing import Dict, List, Tuple
 
 import numpy as np
 import pandas as pd
@@ -88,6 +89,14 @@ def sel_evaluation_domain(analyses_dict: Dict[str, xr.Dataset], evaluation_domai
     return selection_dict, title
 
 
+@dataclass
+class AnalysisContainer:
+    products: List[SnowCoverProduct]
+    analysis_folder: str
+    winter_year: WinterYear
+    grid: GeoGrid
+
+
 def open_reduced_dataset(
     product: SnowCoverProduct, analysis_folder: str, analysis_type: str, winter_year: WinterYear
 ) -> xr.Dataset:
@@ -107,7 +116,7 @@ def open_reduced_dataset_completeness(
 def open_reduced_dataset_for_plot(
     product: SnowCoverProduct, analysis_folder: str, analysis_type: str, winter_year: WinterYear
 ) -> xr.Dataset:
-    dataset = open_reduced_dataset(product, analysis_folder, analysis_type)
+    dataset = open_reduced_dataset(product, analysis_folder, analysis_type, winter_year)
     # if "sensor_zenith_bins" not in dataset.sizes:
     #     dataset = dataset.expand_dims({"sensor_zenith_bins": 5})
 

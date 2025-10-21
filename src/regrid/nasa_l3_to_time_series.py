@@ -9,27 +9,27 @@ from compression import generate_xarray_compression_encodings
 from fractional_snow_cover import nasa_ndsi_snow_cover_to_fraction
 from grids import GeoGrid, UTM375mGrid, UTM500mGrid
 from logger_setup import default_logger as logger
-from products.filenames import (get_all_nasa_filenames_per_product,
-                                open_modis_ndsi_snow_cover)
-from products.snow_cover_product import (VJ110A1, VNP10A1, SnowCoverProduct,
-                                         V10A1Multiplatform)
-from regrid.daily_composites import (create_spatial_l3_nasa_modis_composite,
-                                     create_spatial_l3_nasa_viirs_composite,
-                                     create_temporal_composite_nasa,
-                                     create_temporal_l3_naive_composite_nasa,
-                                     match_daily_snow_cover_and_geometry_nasa)
+from products.filenames import get_all_nasa_filenames_per_product, open_modis_ndsi_snow_cover
+from products.snow_cover_product import VJ110A1, VNP10A1, NASASnowCoverProduct, SnowCoverProduct, V10A1Multiplatform
+from regrid.daily_composites import (
+    create_spatial_l3_nasa_modis_composite,
+    create_spatial_l3_nasa_viirs_composite,
+    create_temporal_composite_nasa,
+    create_temporal_l3_naive_composite_nasa,
+    match_daily_snow_cover_and_geometry_nasa,
+)
 from regrid.regrid_base import RegridBase
 from regrid.reprojections import reprojection_l3_nasa_to_grid
 from winter_year import WinterYear
 
 
 class V10Regrid(RegridBase):
-    def __init__(self, product: SnowCoverProduct, output_grid: GeoGrid, data_folder: str, output_folder: str):
+    def __init__(self, product: NASASnowCoverProduct, output_grid: GeoGrid, data_folder: str, output_folder: str):
         super().__init__(product, output_grid, data_folder, output_folder)
 
     def get_all_files_of_winter_year(self, winter_year: WinterYear) -> List[str]:
         snow_cover_file_list = get_all_nasa_filenames_per_product(
-            data_folder=self.data_folder, product_id=self.product.product_id
+            data_folder=self.data_folder, product_id=self.product.product_id, winter_year=winter_year
         )
         return snow_cover_file_list
 
@@ -112,9 +112,7 @@ class MOD10Regrid(RegridBase):
         super().__init__(product.name, output_grid, data_folder, output_folder)
 
     def get_all_files_of_winter_year(self, winter_year: WinterYear) -> List[str]:
-        snow_cover_file_list = get_all_nasa_filenames_per_product(
-            data_folder=self.data_folder, product_id=self.product.name
-        )
+        snow_cover_file_list = get_all_nasa_filenames_per_product(data_folder=self.data_folder, product_id=self.product.name)
         return snow_cover_file_list
 
     def get_daily_files(self, all_winter_year_files: List[str], day: datetime) -> List[str]:
@@ -146,14 +144,16 @@ class MOD10Regrid(RegridBase):
 
 
 if __name__ == "__main__":
-    year = WinterYear(2023, 2024)
+    year = WinterYear(2024, 2025)
     massifs_shapefile = "/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/vectorial/massifs/massifs.shp"
     nasa_l3_folder = "/home/imperatoren/work/VIIRS_S2_comparison/data/"
-    output_folder = "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_8/"
+    output_folder = "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_8/time_series"
     grid = UTM375mGrid()
     product = VNP10A1()
     logger.info(f"NASA L3 processing {product.name}")
-    V10Regrid(product=product,output_grid=grid, data_folder=nasa_l3_folder, output_folder=output_folder).create_time_series(winter_year=year, roi_shapefile=massifs_shapefile)
+    V10Regrid(product=product, output_grid=grid, data_folder=nasa_l3_folder, output_folder=output_folder).create_time_series(
+        winter_year=year, roi_shapefile=massifs_shapefile
+    )
 
     # logger.info("NASA psuedo L3 processing")
     # NASAPseudoL3Regrid(output_grid=grid, data_folder=nasa_l3_folder, output_folder=output_folder).create_time_series(

@@ -12,7 +12,13 @@ from matplotlib.lines import Line2D
 from pandas.io.formats.style import Styler
 from xarray.groupers import BinGrouper
 
-from postprocess.general_purpose import fancy_table, open_reduced_dataset, open_reduced_dataset_for_plot, sel_evaluation_domain
+from postprocess.general_purpose import (
+    AnalysisContainer,
+    fancy_table,
+    open_reduced_dataset,
+    open_reduced_dataset_for_plot,
+    sel_evaluation_domain,
+)
 from products.snow_cover_product import SnowCoverProduct
 from reductions.statistics_base import EvaluationVsHighResBase
 from winter_year import WinterYear
@@ -281,17 +287,23 @@ def smooth_data_np_convolve(arr, span):
     return np.convolve(arr, np.ones(span * 2 + 1) / (span * 2 + 1), mode="same")
 
 
-def plot_custom_spans(snow_cover_products: List[SnowCoverProduct], analysis_folder: str, analysis_var: str, ax: plt.Axes):
+def plot_custom_spans(analysis: AnalysisContainer, analysis_var: str, ax: plt.Axes):
     percentile_min, percentile_max = 5, 95
     sample_dataset = open_reduced_dataset_for_plot(
-        product=snow_cover_products[0], analysis_folder=analysis_folder, analysis_type="uncertainty"
+        product=analysis.products[0],
+        analysis_folder=analysis.analysis_folder,
+        analysis_type="uncertainty",
+        winter_year=analysis.winter_year,
     )
 
     x_positions = np.arange(len(sample_dataset.coords[analysis_var].values))
     x_positions = x_positions / len(x_positions)
-    for product in snow_cover_products:
+    for product in analysis.products:
         metrics_dataset = open_reduced_dataset_for_plot(
-            product=product, analysis_folder=analysis_folder, analysis_type="uncertainty"
+            product=product,
+            analysis_folder=analysis.analysis_folder,
+            analysis_type="uncertainty",
+            winter_year=analysis.winter_year,
         )
         analysis_coords = metrics_dataset.coords[analysis_var].values
         box_width_data = 0.2 / len(x_positions)
@@ -312,8 +324,8 @@ def plot_custom_spans(snow_cover_products: List[SnowCoverProduct], analysis_fold
             ax.hlines(whiskers_max, x_pos - box_width_data / 2, x_pos + box_width_data / 2, color=product.plot_color, lw=3)
         x_positions = x_positions + box_width_data
 
-    ax.set_xticks(x_positions - box_width_data * ((len(snow_cover_products) + 1) // 2), labels=analysis_coords)
-    ax.set_xlim(x_positions[0] - (len(snow_cover_products) + 1) * box_width_data, x_positions[-1])
+    ax.set_xticks(x_positions - box_width_data * ((len(analysis.products) + 1) // 2), labels=analysis_coords)
+    ax.set_xlim(x_positions[0] - (len(analysis.products) + 1) * box_width_data, x_positions[-1])
     ax.set_ylim(-65, 65)
     ax.set_ylabel("Residuals [\% FSC]")
     ax.set_xlabel(analysis_var)
@@ -368,18 +380,23 @@ class HandlerPoint(HandlerBase):
         return a_list
 
 
-def line_plot_rmse(snow_cover_products: List[SnowCoverProduct], analysis_folder: str, analysis_var: str, ax: Axes):
+def line_plot_rmse(analysis: AnalysisContainer, analysis_var: str, ax: Axes):
     metrics_datasets = [
-        open_reduced_dataset_for_plot(product=prod, analysis_folder=analysis_folder, analysis_type="uncertainty")
-        for prod in snow_cover_products
+        open_reduced_dataset_for_plot(
+            product=prod,
+            analysis_folder=analysis.analysis_folder,
+            analysis_type="uncertainty",
+            winter_year=analysis.winter_year,
+        )
+        for prod in analysis.products
     ]
     biais_rmse = postprocess_uncertainty_analysis(
-        snow_cover_products, metrics_datasets=metrics_datasets, analysis_var=analysis_var
+        analysis.products, metrics_datasets=metrics_datasets, analysis_var=analysis_var
     )
 
     x_coords_unc = biais_rmse.coords[analysis_var].values
 
-    for prod in snow_cover_products:
+    for prod in analysis.products:
         ax.plot(
             x_coords_unc, biais_rmse.data_vars["rmse"].sel(product=prod.name), "-o", color=prod.plot_color, markersize=5, lw=3
         )
