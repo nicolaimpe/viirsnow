@@ -41,8 +41,8 @@ class MeteoFrancePrototypeSNPP(SnowCoverProduct):
         super().__init__(
             name="meteofrance_prototype_snpp",
             classes=METEOFRANCE_COMPOSITE_CLASSES,
-            plot_color="tan",
-            plot_name="Météo-France prototype SNPP",
+            plot_color="orange",
+            plot_name="MF FSC L3 SNPP",
             platform="npp",
         )
         self.analyzer = MeteoFranceCompositeSnowCoverProductCompleteness()
@@ -54,7 +54,7 @@ class MeteoFranceEvalSNPP(SnowCoverProduct):
             name="meteofrance_eval_snpp",
             classes=METEOFRANCE_COMPOSITE_CLASSES,
             plot_color="orange",
-            plot_name="Météo-France SNPP",
+            plot_name="MF FSC L3 SNPP",
             platform="npp",
         )
         self.analyzer = MeteoFranceCompositeSnowCoverProductCompleteness()
@@ -66,7 +66,7 @@ class MeteoFranceEvalJPSS1(SnowCoverProduct):
             name="meteofrance_eval_jpss1",
             classes=METEOFRANCE_COMPOSITE_CLASSES,
             plot_color="darkgoldenrod",
-            plot_name="Météo-France JPSS1",
+            plot_name="MF FSC L3 JPSS1",
             platform="noaa20",
         )
         self.analyzer = MeteoFranceCompositeSnowCoverProductCompleteness()
@@ -78,7 +78,7 @@ class MeteoFranceEvalJPSS2(SnowCoverProduct):
             name="meteofrance_eval_jpss2",
             classes=METEOFRANCE_COMPOSITE_CLASSES,
             plot_color="sienna",
-            plot_name="Météo-France JPSS2",
+            plot_name="MF FSC L3 JPSS2",
             platform="noaa21",
         )
         self.analyzer = MeteoFranceCompositeSnowCoverProductCompleteness()
@@ -90,7 +90,7 @@ class MeteoFranceComposite(SnowCoverProduct):
             name="meteofrance_multiplatform",
             classes=METEOFRANCE_COMPOSITE_CLASSES,
             plot_color="lightcoral",
-            plot_name="Météo-France multi-platform",
+            plot_name="MF FSC L3 multi-platform",
             platform="all",
         )
         self.analyzer = MeteoFranceCompositeSnowCoverProductCompleteness()

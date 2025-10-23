@@ -37,17 +37,18 @@ class S2TheiaSCARegrid(S2Regrid):
 
 
 if __name__ == "__main__":
-    year = WinterYear(2024, 2025)
+    year = WinterYear(2023, 2024)
     massifs_shapefile = "/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/vectorial/massifs/massifs.shp"
     s2_theia_folder = "/home/imperatoren/work/VIIRS_S2_comparison/data/S2_THEIA"
+    output_folder = "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_8/time_series"
 
-    grid = UTM375mGrid()
-    for ndsi in [45]:
-        output_folder = "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_8/time_series"
+    grid = UTM500mGrid()
+    # for ndsi in [45]:
+    #     output_folder = "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_8/time_series"
 
-        fsc = int(gascoin(ndsi=ndsi / 100, f_veg=0) * 100)
-        logger.info("S2 Theia processing")
+    #     fsc = int(gascoin(ndsi=ndsi / 100, f_veg=0) * 100)
+    logger.info("S2 Theia processing")
 
-        S2TheiaSCARegrid(
-            output_grid=grid, data_folder=s2_theia_folder, output_folder=output_folder, fsc_thresh=fsc
-        ).create_time_series(winter_year=year, roi_shapefile=massifs_shapefile)
+    S2TheiaSCARegrid(
+        output_grid=grid, data_folder=s2_theia_folder, output_folder=output_folder, fsc_thresh=51
+    ).create_time_series(winter_year=year, roi_shapefile=massifs_shapefile)

@@ -37,9 +37,7 @@ def generate_evaluation_io(
     ref_time_series_name = f"WY_{year.from_year}_{year.to_year}_{ref_product_name}_{grid.name.lower()}.nc"
     test_time_series_name = f"WY_{year.from_year}_{year.to_year}_{test_product_name}_{grid.name.lower()}.nc"
 
-    output_filename = (
-        f"{output_folder}/{analysis_type}_WY_{year.from_year}_{year.to_year}_{test_product_name}_vs_{ref_product_name}.nc"
-    )
+    output_filename = f"{output_folder}/{analysis_type}_WY_{year.from_year}_{year.to_year}_{test_product_name}_vs_{ref_product_name}_{grid.name.lower()}.nc"
 
     test_time_series = xr.open_dataset(f"{working_folder}/time_series/{test_time_series_name}", mask_and_scale=False)
     ref_time_series = xr.open_dataset(f"{working_folder}/time_series/{ref_time_series_name}", mask_and_scale=False)

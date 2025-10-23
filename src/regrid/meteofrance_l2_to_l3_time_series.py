@@ -9,18 +9,12 @@ from geotools import GeoGrid, reproject_using_grid
 from grids import UTM375mGrid
 from logger_setup import default_logger as logger
 from products.classes import METEOFRANCE_ARCHIVE_CLASSES
-from products.filenames import (
-    get_all_meteofrance_archive_sat_angle_filenames,
-    get_all_meteofrance_archive_type_filenames)
-from products.snow_cover_product import (MeteoFranceArchive,
-                                         MeteoFranceJPSS1Prototype,
-                                         MeteoFranceJPSS2Prototype,
-                                         MeteoFranceMultiplatformPrototype,
-                                         MeteoFranceSNPPPrototype,
-                                         SnowCoverProduct)
+from products.filenames import get_all_meteofrance_archive_sat_angle_filenames, get_all_meteofrance_archive_type_filenames
+from products.snow_cover_product import MeteoFranceArchive, MeteoFranceComposite, MeteoFrancePrototypeSNPP, SnowCoverProduct
 from regrid.daily_composites import (
     create_temporal_composite_meteofrance_multiplatform,
-    create_temporal_composite_meteofrance_single_platform)
+    create_temporal_composite_meteofrance_single_platform,
+)
 from regrid.regrid_base import RegridBase, check_input_daily_tif_files
 from regrid.reprojections import reprojection_l3_meteofrance_to_grid
 from winter_year import WinterYear
@@ -82,7 +76,7 @@ class MeteoFranceArchiveRegrid(RegridBase):
 class MeteoFranceMultiplatformRegrid(RegridBase):
     def __init__(self, output_grid: GeoGrid, data_folder: str, output_folder: str, suffix: str):
         super().__init__(
-            product=MeteoFranceMultiplatformPrototype(),
+            product=MeteoFranceComposite(),
             output_grid=output_grid,
             data_folder=data_folder,
             output_folder=output_folder,
@@ -160,7 +154,7 @@ class MeteoFranceMultiplatformRegrid(RegridBase):
 if __name__ == "__main__":
     year = WinterYear(2023, 2024)
 
-    suffixes = ["no_forest_red_band_screen"]
+    suffixes = ["no_forest_red_band_screen_10"]
     massifs_shapefile = "/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/vectorial/massifs/massifs.shp"
     meteofrance_cms_folder = "/home/imperatoren/work/VIIRS_S2_comparison/data/CMS_rejeu/"
     grid = UTM375mGrid()
@@ -169,7 +163,7 @@ if __name__ == "__main__":
 
         logger.info(f"Méteo-France {suffix} processing")
         MeteoFranceArchiveRegrid(
-            product=MeteoFranceJPSS2Prototype(),
+            product=MeteoFrancePrototypeSNPP(),
             output_grid=grid,
             data_folder=meteofrance_cms_folder,
             output_folder=output_folder,

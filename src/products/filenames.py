@@ -119,8 +119,8 @@ def get_all_meteofrance_archive_type_filenames(
     data_folder: str, winter_year: WinterYear, platform: str, suffix: str
 ) -> List[str] | None:
     # Rejeu CMS
-    meteofrance_files = glob(f"{data_folder}/{suffix}/{winter_year.from_year}/1[0-2]/*{platform}*{suffix}.tif")
-    meteofrance_files.extend(glob(f"{data_folder}/{suffix}/{winter_year.to_year}/[0-9]*/*{platform}*{suffix}.tif"))
+    meteofrance_files = glob(f"{data_folder}/SNPP/{suffix}/{winter_year.from_year}/1[0-2]/*{platform}*{suffix}.tif")
+    meteofrance_files.extend(glob(f"{data_folder}/SNPP/{suffix}/{winter_year.to_year}/[0-9]*/*{platform}*{suffix}.tif"))
     return sorted(meteofrance_files)
 
 

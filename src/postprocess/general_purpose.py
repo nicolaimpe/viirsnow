@@ -141,7 +141,7 @@ def open_reduced_dataset_for_plot(
         coord_dict.update(
             {
                 "slope_bins": pd.CategoricalIndex(
-                    data=["[0-10]", "[11-30]", "$>$30"], categories=["[0-10]", "[11-30]", "$>$30"], ordered=True
+                    data=["[0-10]°", "[11-30]°", "$>$30°"], categories=["[0-10]°", "[11-30]°", "$>$30°"], ordered=True
                 ),
             },
         )
@@ -160,8 +160,8 @@ def open_reduced_dataset_for_plot(
         coord_dict.update(
             {
                 "sensor_zenith_bins": pd.CategoricalIndex(
-                    data=["[0-15]", "[15-30]", "[30-45]", "[45-60]", "$>$60"],
-                    categories=["[0-15]", "[15-30]", "[30-45]", "[45-60]", "$>$60"],
+                    data=["[0-15]°", "[15-30]°", "[30-45]°", "[45-60]°", "$>$60°"],
+                    categories=["[0-15]°", "[15-30]°", "[30-45]°", "[45-60]°", "$>$60°"],
                     ordered=True,
                 ),
             },
@@ -175,8 +175,8 @@ def open_reduced_dataset_for_plot(
             coord_dict.update(
                 {
                     "ref_bins": pd.CategoricalIndex(
-                        data=["0", "[1-25]", "[26-50]", "[51-75]", "[75-99]", "100"],
-                        categories=["0", "[1-25]", "[26-50]", "[51-75]", "[75-99]", "100"],
+                        data=["0%", "[1-25]%", "[26-50]%", "[51-75]%", "[75-99]%", "100%"],
+                        categories=["0%", "[1-25]%", "[26-50]%", "[51-75]%", "[75-99]%", "100%"],
                         ordered=True,
                     ),
                 },
@@ -185,8 +185,8 @@ def open_reduced_dataset_for_plot(
             coord_dict.update(
                 {
                     "ref_bins": pd.CategoricalIndex(
-                        data=["0", "[1-99]", "100"],
-                        categories=["0", "[1-99]", "100"],
+                        data=["0%", "[1-99]%", "100%"],
+                        categories=["0%", "[1-99]%", "100%"],
                         ordered=True,
                     ),
                 },
@@ -194,7 +194,7 @@ def open_reduced_dataset_for_plot(
 
         else:
             raise NotImplementedError("reference bins range not known")
-        rename_dict.update({"ref_bins": "Ref FSC [\%]"})
+        rename_dict.update({"ref_bins": "Ref FSC [%]"})
 
     dataset = dataset.sel(
         time=slice(f"{winter_year.from_year}-11", f"{winter_year.to_year}-06"),

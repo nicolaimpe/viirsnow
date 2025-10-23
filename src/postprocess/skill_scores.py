@@ -171,16 +171,17 @@ def line_plot_accuracy_f1_score(analysis: AnalysisContainer, analysis_var: str, 
         )
         for prod in analysis.products
     ]
+
     new_metrics_datasets = []
-    if "Ref FSC [\%]" in metrics_datasets[0].sizes.keys():
+    if "Ref FSC [%]" in metrics_datasets[0].sizes.keys():
         for md in metrics_datasets:
             fractions = (
-                md.sel({"Ref FSC [\%]": ["[1-25]", "[26-50]", "[51-75]", "[75-99]"]})
-                .sum(dim="Ref FSC [\%]")
-                .assign_coords({"Ref FSC [\%]": "[1-99]"})
+                md.sel({"Ref FSC [%]": ["[1-25]%", "[26-50]%", "[51-75]%", "[75-99]%"]})
+                .sum(dim="Ref FSC [%]")
+                .assign_coords({"Ref FSC [%]": "[1-99]%"})
             )
             new_metrics_datasets.append(
-                xr.concat([md.sel({"Ref FSC [\%]": "0"}), fractions, md.sel({"Ref FSC [\%]": "100"})], dim="Ref FSC [\%]")
+                xr.concat([md.sel({"Ref FSC [%]": "0%"}), fractions, md.sel({"Ref FSC [%]": "100%"})], dim="Ref FSC [%]")
             )
     skill_scores = compute_skill_scores_for_parameter(
         snow_cover_products=analysis.products, metrics_datasets=new_metrics_datasets, variable=analysis_var
@@ -194,7 +195,7 @@ def line_plot_accuracy_f1_score(analysis: AnalysisContainer, analysis_var: str, 
             skill_scores.sel(product=prod.name).data_vars["accuracy"],
             "-o",
             color=prod.plot_color,
-            markersize=3,
+            markersize=5,
             lw=2,
         )
         ax.plot(
@@ -202,7 +203,7 @@ def line_plot_accuracy_f1_score(analysis: AnalysisContainer, analysis_var: str, 
             skill_scores.sel(product=prod.name).data_vars["f1_score"],
             "--^",
             color=prod.plot_color,
-            markersize=5,
+            markersize=6,
             lw=3,
         )
     ax.legend(
@@ -210,8 +211,9 @@ def line_plot_accuracy_f1_score(analysis: AnalysisContainer, analysis_var: str, 
         ["Accuracy", "F1 score"],
     )
     ax.set_ylim(0.75, 1)
+    ax.set_xlim(-0.5, skill_scores.sizes[analysis_var] - 0.5)
     ax.set_ylabel("Score[-]")
-    ax.set_xlabel(analysis_var)
+    # ax.set_xlabel(analysis_var)
     ax.grid(True)
 
 
@@ -235,24 +237,22 @@ def line_plot_total_count(analysis: AnalysisContainer, analysis_var: str, ax: Ax
     total_count_ds = xr.concat(
         metrics_data_arrays, dim=xr.DataArray([prod.name for prod in analysis.products], dims="product")
     )
-    x_coords_unc = total_count_ds.coords[analysis_var].values
+    colors = [prod.plot_color for prod in analysis.products]
+    ax = sns.barplot(
+        xr.Dataset({"total_count": total_count_ds}).to_dataframe(),
+        x=analysis_var,
+        y="total_count",
+        hue="product",
+        width=0.1 * total_count_ds.sizes[analysis_var],
+        palette=colors,
+        ax=ax,
+    )
 
-    for prod in analysis.products:
-        ax.plot(
-            x_coords_unc,
-            total_count_ds.sel(product=prod.name),
-            "-o",
-            color=prod.plot_color,
-            markersize=5,
-            lw=3,
-        )
-
-    ax.grid(True)
     ax.set_yscale("log")
-    ax.set_ylim(bottom=5e4, top=1e7)
-    ax.set_ylabel("Number of clear pixel correspondences [-]")
-    ax.set_xlabel(analysis_var)
-    ax.legend([Line2D([0], [0], linestyle="-", color="gray")], ["\# pixel"])
+    ax.set_ylim(bottom=1e4, top=1e7)
+    ax.set_ylabel("Number of match-ups [-]")
+    ax.get_legend().remove()
+    ax.spines[["top", "right"]].set_visible(False)
 
 
 def compute_n_pixels_results_df(

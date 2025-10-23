@@ -8,20 +8,44 @@ from scipy.ndimage import gaussian_filter
 from sklearn.linear_model import LinearRegression
 
 
+def compute_correlation_coefficient_from_weights(weights: xr.DataArray):
+    i = np.arange(weights.sizes["y"])  # X values
+    j = np.arange(weights.sizes["x"])  # Y values
+
+    w = weights.values
+
+    # Compute expectations
+    N = np.sum(w)
+    Ex = np.sum(i[:, None] * w) / N
+    Ey = np.sum(j[None, :] * w) / N
+    Ex2 = np.sum((i[:, None] ** 2) * w) / N
+    Ey2 = np.sum((j[None, :] ** 2) * w) / N
+    Exy = np.sum((i[:, None] * j[None, :]) * w) / N
+
+    # Compute covariance and standard deviations
+    cov = Exy - Ex * Ey
+    sx = np.sqrt(Ex2 - Ex**2)
+    sy = np.sqrt(Ey2 - Ey**2)
+
+    # Pearson correlation
+    r = cov / (sx * sy)
+    return r
+
+
 def fit_regression(data_to_fit: xr.DataArray):
     xx, yy = np.meshgrid(data_to_fit.coords["x"].values, data_to_fit.coords["y"].values)
     model_x_data = xx.reshape((-1, 1))
     model_y_data = yy.reshape((-1, 1))
     weights = data_to_fit.values.ravel()
-    regression = LinearRegression().fit(X=model_x_data, y=model_y_data, sample_weight=weights)
+    regression = LinearRegression().fit(X=model_y_data, y=model_x_data, sample_weight=weights.T)
     return (
         regression.coef_[0][0],
         regression.intercept_[0],
-        regression.score(model_x_data, model_y_data, weights),
+        regression.score(model_y_data, model_x_data, weights),
     )
 
 
-def fancy_scatter_plot(
+def fancy_scatter_plot_with_fit(
     data_to_plt: xr.DataArray,
     ax: Axes,
     figure: Figure,
@@ -37,7 +61,10 @@ def fancy_scatter_plot(
         # That's ugly
         data_smooth = data_to_plt
 
-    coeff_slope, intercept, score = fit_regression(data_to_plt)
+    coeff_slope_ndsi, intercept_ndsi, score = fit_regression(data_to_plt)
+    # Invert model to draw regression
+    coeff_slope = 1 / coeff_slope_ndsi
+    intercept = -intercept_ndsi
     distr_min, distr_max = np.quantile(data_smooth, 0.20), np.quantile(data_smooth, 0.90)
     scatter_plot = ax.pcolormesh(
         data_to_plt.coords["x"].values,
@@ -57,7 +84,7 @@ def fancy_scatter_plot(
     )
     # ax.plot(regression_x_axis, regression_x_axis, color="k", linewidth=0.5, label="y=x")
     ax.grid(False)
-    ax.legend(loc="lower center", bbox_to_anchor=(0.5, -0.5), draggable=True, fontsize=14)
+    ax.legend(loc="lower center", bbox_to_anchor=(0.5, -0.35), draggable=True)
     ax.set_ylim(0, 100)
     ax.set_xlim(0, 100)
 

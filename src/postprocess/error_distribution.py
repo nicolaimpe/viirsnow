@@ -325,10 +325,14 @@ def plot_custom_spans(analysis: AnalysisContainer, analysis_var: str, ax: plt.Ax
         x_positions = x_positions + box_width_data
 
     ax.set_xticks(x_positions - box_width_data * ((len(analysis.products) + 1) // 2), labels=analysis_coords)
-    ax.set_xlim(x_positions[0] - (len(analysis.products) + 1) * box_width_data, x_positions[-1])
+    # ax.set_xlim(x_positions[0] - (len(analysis.products) + 1) * box_width_data, x_positions[-1])
+    ax.set_xlim(
+        -1 / ((len(analysis.products) + 1) * metrics_dataset.sizes[analysis_var]),
+        1 - 1 / ((len(analysis.products) + 1) * metrics_dataset.sizes[analysis_var]),
+    )
     ax.set_ylim(-65, 65)
-    ax.set_ylabel("Residuals [\% FSC]")
-    ax.set_xlabel(analysis_var)
+    ax.set_ylabel("Residuals [% FSC]")
+    # ax.set_xlabel(analysis_var)
     (l1,) = ax.plot([0, 1], [0, 1], c="gray", lw=1e-12)
     (l2,) = ax.plot(0, 0, c="gray", markersize=1e-12)
     ax.legend(
@@ -398,13 +402,13 @@ def line_plot_rmse(analysis: AnalysisContainer, analysis_var: str, ax: Axes):
 
     for prod in analysis.products:
         ax.plot(
-            x_coords_unc, biais_rmse.data_vars["rmse"].sel(product=prod.name), "-o", color=prod.plot_color, markersize=5, lw=3
+            x_coords_unc, biais_rmse.data_vars["rmse"].sel(product=prod.name), "-o", color=prod.plot_color, markersize=7, lw=3
         )
 
     ax.grid(True)
     ax.set_ylim(5, 30)
-    ax.set_ylabel("RMSE [\% FSC]")
-    ax.set_xlabel(analysis_var)
+    ax.set_xlim(-0.5, biais_rmse.sizes[analysis_var] - 0.5)
+    ax.set_ylabel("RMSE [% FSC]")
     ax.legend([Line2D([0], [0], linestyle="-", color="gray")], ["RMSE"])
 
 
