@@ -22,13 +22,13 @@ from reductions.statistics_base import EvaluationConfig, generate_evaluation_io
 from reductions.uncertainty import Uncertainty
 from winter_year import WinterYear
 
-output_folder = "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_8"
-working_folder = "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_8"
+output_folder = "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_9"
+working_folder = "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_9"
 config_mountains = MountainParams(
-    forest_mask_path="/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/forest_mask/corine_2018/corine_2018_forest_mask_utm_500m.tif",
-    slope_map_path="/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/dem/SLP_MSF_UTM31_500m_lanczos.tif",
-    aspect_map_path="/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/dem/ASP_MSF_UTM31_500m_lanczos.tif",
-    dem_path="/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/dem/DEM_MSF_UTM31_500m_lanczos.tif",
+    forest_mask_path="/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/forest_mask/corine_2018/corine_2018_forest_mask_utm_375m.tif",
+    slope_map_path="/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/dem/SLP_MSF_UTM31_375m_lanczos.tif",
+    aspect_map_path="/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/dem/ASP_MSF_UTM31_375m_lanczos.tif",
+    dem_path="/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/dem/DEM_MSF_UTM31_375m_lanczos.tif",
 )
 
 
@@ -39,15 +39,15 @@ products: List[SnowCoverProduct] = [
     # MeteoFranceEvalJPSS1(),
     # MeteoFranceEvalJPSS2(),
     # MeteoFranceComposite(),
-    # VJ110A1(),
+    VJ110A1(),
     # MeteoFranceSNPPPrototype(),
     VNP10A1(),
-    MOD10A1(),
+    # MOD10A1(),
 ]
 
-reduction_type = "uncertainty"
+reduction_type = "confusion_table"
 wy = WinterYear(2023, 2024)
-grid = UTM500mGrid()
+grid = UTM375mGrid()
 period = slice(f"{wy.from_year}-11-01", f"{wy.to_year}-06-30")
 if __name__ == "__main__":
     for product in products:

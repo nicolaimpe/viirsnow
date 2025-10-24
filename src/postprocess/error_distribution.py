@@ -294,6 +294,7 @@ def plot_custom_spans(analysis: AnalysisContainer, analysis_var: str, ax: plt.Ax
         analysis_folder=analysis.analysis_folder,
         analysis_type="uncertainty",
         winter_year=analysis.winter_year,
+        grid=analysis.grid,
     )
 
     x_positions = np.arange(len(sample_dataset.coords[analysis_var].values))
@@ -304,6 +305,7 @@ def plot_custom_spans(analysis: AnalysisContainer, analysis_var: str, ax: plt.Ax
             analysis_folder=analysis.analysis_folder,
             analysis_type="uncertainty",
             winter_year=analysis.winter_year,
+            grid=analysis.grid,
         )
         analysis_coords = metrics_dataset.coords[analysis_var].values
         box_width_data = 0.2 / len(x_positions)
@@ -391,6 +393,7 @@ def line_plot_rmse(analysis: AnalysisContainer, analysis_var: str, ax: Axes):
             analysis_folder=analysis.analysis_folder,
             analysis_type="uncertainty",
             winter_year=analysis.winter_year,
+            grid=analysis.grid,
         )
         for prod in analysis.products
     ]

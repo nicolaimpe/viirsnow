@@ -16,19 +16,14 @@ def compute_correlation_coefficient_from_weights(weights: xr.DataArray):
 
     # Compute expectations
     N = np.sum(w)
-    Ex = np.sum(i[:, None] * w) / N
-    Ey = np.sum(j[None, :] * w) / N
-    Ex2 = np.sum((i[:, None] ** 2) * w) / N
-    Ey2 = np.sum((j[None, :] ** 2) * w) / N
-    Exy = np.sum((i[:, None] * j[None, :]) * w) / N
-
-    # Compute covariance and standard deviations
-    cov = Exy - Ex * Ey
-    sx = np.sqrt(Ex2 - Ex**2)
-    sy = np.sqrt(Ey2 - Ey**2)
+    sum_x = np.sum(i[:, None] * w)
+    sum_y = np.sum(j[None, :] * w)
+    sum_x_square = np.sum((i[:, None] ** 2) * w)
+    sum_y_square = np.sum((j[None, :] ** 2) * w)
+    sum_x_y = np.sum((i[:, None] * j[None, :]) * w)
 
     # Pearson correlation
-    r = cov / (sx * sy)
+    r = (N * sum_x_y - sum_x * sum_y) / np.sqrt((N * sum_x_square - (sum_x) ** 2) * (N * sum_y_square - (sum_y) ** 2))
     return r
 
 
@@ -49,12 +44,13 @@ def fancy_scatter_plot_with_fit(
     data_to_plt: xr.DataArray,
     ax: Axes,
     figure: Figure,
-    low_threshold: int | None = None,
+    outlier_threshold: int | None = None,
     smoothing_window_size: int | None = 2,
 ):
     data_to_plt = data_to_plt.transpose("y", "x")
-    if low_threshold is not None:
-        data_to_plt = data_to_plt.where(data_to_plt >= low_threshold, 0)
+    if outlier_threshold is not None:
+        data_to_plt = data_to_plt.where(data_to_plt >= outlier_threshold, 0)
+
     if smoothing_window_size is not None:
         data_smooth = gaussian_filter(data_to_plt, sigma=smoothing_window_size)
     else:

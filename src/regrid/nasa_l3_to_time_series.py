@@ -56,7 +56,9 @@ class V10Regrid(RegridBase):
             {
                 "NDSI_Snow_Cover": nasa_snow_cover,
                 "snow_cover_fraction": xr.DataArray(
-                    nasa_ndsi_snow_cover_to_fraction(nasa_ndsi_snow_cover_product=nasa_snow_cover.values),
+                    nasa_ndsi_snow_cover_to_fraction(
+                        nasa_ndsi_snow_cover_product=nasa_snow_cover.values, method="salomonson_appel"
+                    ),
                     coords=nasa_snow_cover.coords,
                 ),
             }
@@ -149,13 +151,28 @@ if __name__ == "__main__":
     year = WinterYear(2023, 2024)
     massifs_shapefile = "/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/vectorial/massifs/massifs.shp"
     nasa_l3_folder = "/home/imperatoren/work/VIIRS_S2_comparison/data/"
-    output_folder = "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_8/time_series"
+    output_folder = "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_9/time_series"
+    grid = UTM375mGrid()
+
+    for product in [VJ110A1()]:
+        logger.info(f"NASA L3 processing {product.name}")
+        V10Regrid(
+            product=product, output_grid=grid, data_folder=nasa_l3_folder, output_folder=output_folder
+        ).create_time_series(winter_year=year, roi_shapefile=massifs_shapefile)
+
     grid = UTM500mGrid()
-    # product = VNP10A1()
-    # logger.info(f"NASA L3 processing {product.name}")
-    # V10Regrid(product=product, output_grid=grid, data_folder=nasa_l3_folder, output_folder=output_folder).create_time_series(
-    #     winter_year=year, roi_shapefile=massifs_shapefile
-    # )
+
+    product = VNP10A1()
+    logger.info(f"NASA L3 processing {product.name}")
+    V10Regrid(product=product, output_grid=grid, data_folder=nasa_l3_folder, output_folder=output_folder).create_time_series(
+        winter_year=year, roi_shapefile=massifs_shapefile
+    )
+
+    product = MOD10A1()
+    logger.info(f"NASA L3 processing {product.name}")
+    MOD10Regrid(product=product, output_grid=grid, data_folder=nasa_l3_folder, output_folder=output_folder).create_time_series(
+        winter_year=year, roi_shapefile=massifs_shapefile
+    )
 
     # logger.info("NASA psuedo L3 processing")
     # NASAPseudoL3Regrid(output_grid=grid, data_folder=nasa_l3_folder, output_folder=output_folder).create_time_series(
@@ -170,11 +187,11 @@ if __name__ == "__main__":
 
     # grid = UTM500mGrid()
     # platform = "terra"
-    product = MOD10A1()
-    logger.info(f"NASA L3 processing {product.name}")
-    MOD10Regrid(
-        product=product,
-        output_grid=grid,
-        data_folder=nasa_l3_folder,
-        output_folder=output_folder,
-    ).create_time_series(winter_year=year, roi_shapefile=massifs_shapefile)
+    # product = MOD10A1()
+    # logger.info(f"NASA L3 processing {product.name}")
+    # MOD10Regrid(
+    #     product=product,
+    #     output_grid=grid,
+    #     data_folder=nasa_l3_folder,
+    #     output_folder=output_folder,
+    # ).create_time_series(winter_year=year, roi_shapefile=massifs_shapefile)

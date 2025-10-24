@@ -98,10 +98,10 @@ class AnalysisContainer:
 
 
 def open_reduced_dataset(
-    product: SnowCoverProduct, analysis_folder: str, analysis_type: str, winter_year: WinterYear
+    product: SnowCoverProduct, analysis_folder: str, analysis_type: str, winter_year: WinterYear, grid: GeoGrid
 ) -> xr.Dataset:
     return xr.open_dataset(
-        f"{analysis_folder}/analyses/{analysis_type}/{analysis_type}_{winter_year.to_filename_format()}_{product.name}_vs_S2_theia.nc"
+        f"{analysis_folder}/analyses/{analysis_type}/{analysis_type}_{winter_year.to_filename_format()}_{product.name}_vs_S2_theia_{grid.name.lower()}.nc"
     )
 
 
@@ -114,9 +114,9 @@ def open_reduced_dataset_completeness(
 
 
 def open_reduced_dataset_for_plot(
-    product: SnowCoverProduct, analysis_folder: str, analysis_type: str, winter_year: WinterYear
+    product: SnowCoverProduct, analysis_folder: str, analysis_type: str, winter_year: WinterYear, grid: GeoGrid
 ) -> xr.Dataset:
-    dataset = open_reduced_dataset(product, analysis_folder, analysis_type, winter_year)
+    dataset = open_reduced_dataset(product, analysis_folder, analysis_type, winter_year, grid)
     # if "sensor_zenith_bins" not in dataset.sizes:
     #     dataset = dataset.expand_dims({"sensor_zenith_bins": 5})
 

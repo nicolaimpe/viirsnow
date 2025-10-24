@@ -110,7 +110,7 @@ class VNP10A1(NASASnowCoverProduct):
 
 class VJ110A1(NASASnowCoverProduct):
     def __init__(self):
-        self.product_id = "VNP10A1"
+        self.product_id = "VJ110A1"
         super().__init__(name="nasa_l3_jpss1", classes=NASA_CLASSES, plot_color="midnightblue", plot_name="NASA VIIRS JPSS1")
 
 

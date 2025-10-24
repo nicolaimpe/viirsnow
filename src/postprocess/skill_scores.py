@@ -168,6 +168,7 @@ def line_plot_accuracy_f1_score(analysis: AnalysisContainer, analysis_var: str, 
             analysis_folder=analysis.analysis_folder,
             analysis_type="confusion_table",
             winter_year=analysis.winter_year,
+            grid=analysis.grid,
         )
         for prod in analysis.products
     ]
@@ -225,6 +226,7 @@ def line_plot_total_count(analysis: AnalysisContainer, analysis_var: str, ax: Ax
             analysis_folder=analysis.analysis_folder,
             analysis_type="confusion_table",
             winter_year=analysis.winter_year,
+            grid=analysis.grid,
         )
         metrics_ds = metrics_ds.sum(dim=[d for d in metrics_ds.sizes.keys() if d != analysis_var])
         metrics_data_arrays.append(
