@@ -28,11 +28,11 @@ def histograms_to_biais_rmse(metrics_dataset: xr.Dataset) -> xr.Dataset:
     # From a histogram of differences (bias), compute uncertainty figures
     tot_occurrences = metrics_dataset.data_vars["n_occurrences"].sum()
     n_occur = metrics_dataset.data_vars["n_occurrences"]
-    biais_bins = metrics_dataset.coords["biais_bins"]
-    biais = (n_occur * biais_bins).sum() / tot_occurrences
-    rmse = np.sqrt((n_occur * biais_bins**2).sum() / tot_occurrences)
-    unbiaised_rmse = np.sqrt((n_occur * (biais_bins - biais) ** 2).sum() / tot_occurrences)
-    return xr.Dataset({"biais": biais, "rmse": rmse, "unbiaised_rmse": unbiaised_rmse})
+    residual_bins = metrics_dataset.coords["biais_bins"]
+    bias = (n_occur * residual_bins).sum() / tot_occurrences
+    rmse = np.sqrt((n_occur * residual_bins**2).sum() / tot_occurrences)
+    unbiaised_rmse = np.sqrt((n_occur * (residual_bins - bias) ** 2).sum() / tot_occurrences)
+    return xr.Dataset({"bias": bias, "rmse": rmse, "unbiased_rmse": unbiaised_rmse})
 
 
 def postprocess_uncertainty_analysis(
@@ -287,7 +287,7 @@ def smooth_data_np_convolve(arr, span):
     return np.convolve(arr, np.ones(span * 2 + 1) / (span * 2 + 1), mode="same")
 
 
-def plot_custom_spans(analysis: AnalysisContainer, analysis_var: str, ax: plt.Axes):
+def plot_error_bars(analysis: AnalysisContainer, analysis_var: str, ax: plt.Axes):
     percentile_min, percentile_max = 5, 95
     sample_dataset = open_reduced_dataset_for_plot(
         product=analysis.products[0],
@@ -315,7 +315,7 @@ def plot_custom_spans(analysis: AnalysisContainer, analysis_var: str, ax: plt.Ax
             reduced = product_analysis_var_dataset.groupby("biais_bins").sum(list(product_analysis_var_dataset.sizes.keys()))
             biais_rmse = histograms_to_biais_rmse(reduced)
             distr = histograms_to_distribution(reduced)
-            ax.scatter(x_pos, biais_rmse.data_vars["biais"], marker="o", color=product.plot_color, s=15, zorder=3)
+            ax.scatter(x_pos, biais_rmse.data_vars["bias"], marker="o", color=product.plot_color, s=35, zorder=3)
             whiskers_min = np.percentile(distr, percentile_min)
             whiskers_max = np.percentile(distr, percentile_max)
             ax.vlines(
@@ -339,7 +339,7 @@ def plot_custom_spans(analysis: AnalysisContainer, analysis_var: str, ax: plt.Ax
     (l2,) = ax.plot(0, 0, c="gray", markersize=1e-12)
     ax.legend(
         [l1, l2],
-        [f"{percentile_min}th and {percentile_max}th percentiles", "mean"],
+        [f"{percentile_min}th and {percentile_max}th percentiles", "bias"],
         handler_map={l1: HandlerSpan(), l2: HandlerPoint()},
     )
     ax.grid(axis="y")

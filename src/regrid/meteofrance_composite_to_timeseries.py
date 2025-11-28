@@ -87,10 +87,10 @@ if __name__ == "__main__":
     massifs_shapefile = "/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/vectorial/massifs/massifs.shp"
     meteofrance_cms_folder = "/home/imperatoren/work/VIIRS_S2_comparison/data/CMS_composite_multiplatform/rejeu_2024_2025/"
     grid = UTM375mGrid()
-    output_folder = "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_8/time_series/"
-    product = MeteoFranceComposite()
-    logger.info(f"{product.plot_name} processing")
+    output_folder = "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_10/time_series/"
+
     for product in [MeteoFranceComposite(), MeteoFranceEvalSNPP(), MeteoFranceEvalJPSS1(), MeteoFranceEvalJPSS2()]:
+        logger.info(f"{product.plot_name} processing")
         MeteoFranceCompositeRegrid(
             product=product,
             output_grid=grid,
