@@ -7,9 +7,10 @@ from typing import Dict, List
 import geopandas as gpd
 import rasterio
 import xarray as xr
+from rasterio.enums import Resampling
 
 from compression import generate_xarray_compression_encodings
-from geotools import gdf_to_binary_mask
+from geotools import gdf_to_binary_mask, reproject_using_grid
 from grids import GeoGrid
 from logger_setup import default_logger as logger
 from products.snow_cover_product import SnowCoverProduct
@@ -27,7 +28,7 @@ def check_input_daily_tif_files(input_tif_files: List[str]) -> List[str]:
     return input_tif_files
 
 
-class HarmonisationBase:
+class RegridBase:
     def __init__(self, product: SnowCoverProduct, output_grid: GeoGrid, data_folder: str, output_folder: str):
         self.product = product
         self.grid = output_grid
@@ -71,7 +72,7 @@ class HarmonisationBase:
 
     def export_daily_data(self, day: datetime, daily_data: xr.Dataset):
         out_path = f"{str(self.output_folder)}/{day.strftime('%Y%m%d')}.nc"
-        daily_composite = daily_data.expand_dims(time=[day])
+        daily_composite = daily_data.assign_coords(dict(time=[day]))
         daily_composite.to_netcdf(out_path)
 
     def export_time_series(self, winter_year: WinterYear):
@@ -79,7 +80,7 @@ class HarmonisationBase:
         time_series = xr.open_mfdataset(out_tmp_paths, mask_and_scale=False)
         encodings = generate_xarray_compression_encodings(time_series)
         encodings.update(time={"calendar": "gregorian", "units": f"days since {str(winter_year.from_year)}-10-01"})
-        out_path = f"{self.output_folder}/WY_{winter_year.from_year}_{winter_year.to_year}_{self.product.name}.nc"
+        out_path = f"{self.output_folder}/WY_{winter_year.from_year}_{winter_year.to_year}_{self.product.name}_{self.grid.name.lower()}.nc"
         logger.info(f"Exporting to {out_path}")
         time_series.to_netcdf(out_path, encoding=encodings)
         [os.remove(file) for file in out_tmp_paths]
@@ -93,16 +94,13 @@ class HarmonisationBase:
         files = self.get_all_files_of_winter_year(winter_year=winter_year)
 
         for day in winter_year.iterate_days():
-            logger.info(f"Processing day {day}")
-            # if day.year == 2023 or day.month < 4:
+            # if day.day > 5 or day.month != 12:
             #     continue
+            logger.info(f"Processing day {day}")
             day_files = self.get_daily_files(files, day=day)
 
             day_files = self.check_daily_files(day_files=day_files)
 
-            #     out_path = f"{str(self.output_folder)}/{day.strftime('%Y%m%d')}.nc"
-            #     out_tmp_paths.append(out_path)
-            #     continue
             if len(day_files) == 0:
                 logger.info(f"Skip day {day.date()} because 0 files were found on this date")
                 continue
@@ -110,7 +108,15 @@ class HarmonisationBase:
 
             if roi_shapefile is not None:
                 roi_mask = gdf_to_binary_mask(gdf=gpd.read_file(roi_shapefile), grid=self.grid)
-                daily_composite = daily_composite.where(roi_mask, self.product.classes["fill"][0])
+
+                # Handle numerical overflow grid misalignment
+                try:
+                    daily_composite = daily_composite.where(roi_mask, self.product.classes["fill"][0])
+                except xr.structure.alignment.AlignmentError:
+                    logger.info("Misalignment between snow cover map and ROI mask. Reproject ROI mask on output_grid.")
+                    roi_mask = reproject_using_grid(roi_mask, output_grid=self.grid, resampling_method=Resampling.nearest)
+                    daily_composite = daily_composite.where(roi_mask, self.product.classes["fill"][0])
+
                 for dv in daily_composite.data_vars.values():
                     dv.rio.write_nodata(self.product.classes["fill"][0], inplace=True)
 

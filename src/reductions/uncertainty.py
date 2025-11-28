@@ -24,7 +24,6 @@ class Uncertainty(EvaluationVsHighResBase):
         dataset = dataset.assign(biais=valid_test - valid_ref)
 
         n_intersecting_pixels = (quant_mask_test & quant_mask_ref).sum()
-
         if n_intersecting_pixels < 2:
             logger.info("No intersection found on this day. Returning a zeros array.")
             dummy_dict = {k + "_bins": v.labels for k, v in bins_dict.items()}

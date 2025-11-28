@@ -8,36 +8,59 @@ from scipy.ndimage import gaussian_filter
 from sklearn.linear_model import LinearRegression
 
 
+def compute_correlation_coefficient_from_weights(weights: xr.DataArray):
+    i = np.arange(weights.sizes["y"])  # X values
+    j = np.arange(weights.sizes["x"])  # Y values
+
+    w = weights.values
+
+    # Compute expectations
+    N = np.sum(w)
+    sum_x = np.sum(i[:, None] * w)
+    sum_y = np.sum(j[None, :] * w)
+    sum_x_square = np.sum((i[:, None] ** 2) * w)
+    sum_y_square = np.sum((j[None, :] ** 2) * w)
+    sum_x_y = np.sum((i[:, None] * j[None, :]) * w)
+
+    # Pearson correlation
+    r = (N * sum_x_y - sum_x * sum_y) / np.sqrt((N * sum_x_square - (sum_x) ** 2) * (N * sum_y_square - (sum_y) ** 2))
+    return r
+
+
 def fit_regression(data_to_fit: xr.DataArray):
     xx, yy = np.meshgrid(data_to_fit.coords["x"].values, data_to_fit.coords["y"].values)
     model_x_data = xx.reshape((-1, 1))
     model_y_data = yy.reshape((-1, 1))
     weights = data_to_fit.values.ravel()
-    regression = LinearRegression().fit(X=model_x_data, y=model_y_data, sample_weight=weights)
+    regression = LinearRegression().fit(X=model_y_data, y=model_x_data, sample_weight=weights.T)
     return (
         regression.coef_[0][0],
         regression.intercept_[0],
-        regression.score(model_x_data, model_y_data, weights),
+        regression.score(model_y_data, model_x_data, weights),
     )
 
 
-def fancy_scatter_plot(
+def fancy_scatter_plot_with_fit(
     data_to_plt: xr.DataArray,
     ax: Axes,
     figure: Figure,
-    low_threshold: int | None = None,
+    outlier_threshold: int | None = None,
     smoothing_window_size: int | None = 2,
 ):
     data_to_plt = data_to_plt.transpose("y", "x")
-    if low_threshold is not None:
-        data_to_plt = data_to_plt.where(data_to_plt >= low_threshold, 0)
+    if outlier_threshold is not None:
+        data_to_plt = data_to_plt.where(data_to_plt >= outlier_threshold, 0)
+
     if smoothing_window_size is not None:
         data_smooth = gaussian_filter(data_to_plt, sigma=smoothing_window_size)
     else:
         # That's ugly
         data_smooth = data_to_plt
 
-    coeff_slope, intercept, score = fit_regression(data_to_plt)
+    coeff_slope_ndsi, intercept_ndsi, score = fit_regression(data_to_plt)
+    # Invert model to draw regression
+    coeff_slope = 1 / coeff_slope_ndsi
+    intercept = -intercept_ndsi
     distr_min, distr_max = np.quantile(data_smooth, 0.20), np.quantile(data_smooth, 0.90)
     scatter_plot = ax.pcolormesh(
         data_to_plt.coords["x"].values,
@@ -57,7 +80,7 @@ def fancy_scatter_plot(
     )
     # ax.plot(regression_x_axis, regression_x_axis, color="k", linewidth=0.5, label="y=x")
     ax.grid(False)
-    ax.legend(loc="lower center", bbox_to_anchor=(0.5, -0.5), draggable=True, fontsize=14)
+    ax.legend(loc="lower center", bbox_to_anchor=(0.5, -0.35), draggable=True)
     ax.set_ylim(0, 100)
     ax.set_xlim(0, 100)
 

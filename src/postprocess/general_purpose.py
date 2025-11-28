@@ -1,4 +1,5 @@
-from typing import Dict, Tuple
+from dataclasses import dataclass
+from typing import Dict, List, Tuple
 
 import numpy as np
 import pandas as pd
@@ -6,8 +7,10 @@ import xarray as xr
 from pandas.io.formats.style import Styler
 from xarray.groupers import BinGrouper
 
+from grids import GeoGrid
 from products.snow_cover_product import SnowCoverProduct
 from reductions.statistics_base import EvaluationVsHighResBase
+from winter_year import WinterYear
 
 
 def fancy_table(
@@ -31,7 +34,6 @@ def fancy_table(
                     ("font-weight", "bold"),
                     ("width", "75px"),
                     ("text-align", "center"),
-                    ("font-family", "serif"),
                     ("text-usetex", True),
                 ],
             }
@@ -87,18 +89,34 @@ def sel_evaluation_domain(analyses_dict: Dict[str, xr.Dataset], evaluation_domai
     return selection_dict, title
 
 
-def open_reduced_dataset(product: SnowCoverProduct, analysis_folder: str, analysis_type: str) -> xr.Dataset:
+@dataclass
+class AnalysisContainer:
+    products: List[SnowCoverProduct]
+    analysis_folder: str
+    winter_year: WinterYear
+    grid: GeoGrid
+
+
+def open_reduced_dataset(
+    product: SnowCoverProduct, analysis_folder: str, analysis_type: str, winter_year: WinterYear, grid: GeoGrid
+) -> xr.Dataset:
     return xr.open_dataset(
-        f"{analysis_folder}/analyses/{analysis_type}/{analysis_type}_WY_2023_2024_{product.name}_vs_S2_theia.nc"
+        f"{analysis_folder}/analyses/{analysis_type}/{analysis_type}_{winter_year.to_filename_format()}_{product.name}_vs_S2_theia_{grid.name.lower()}.nc"
     )
 
 
-def open_reduced_dataset_completeness(product: SnowCoverProduct, analysis_folder: str) -> xr.Dataset:
-    return xr.open_dataset(f"{analysis_folder}/analyses/completeness/completeness_WY_2023_2024_{product.name}.nc")
+def open_reduced_dataset_completeness(
+    product: SnowCoverProduct, analysis_folder: str, winter_year: WinterYear, grid: GeoGrid
+) -> xr.Dataset:
+    return xr.open_dataset(
+        f"{analysis_folder}/analyses/completeness/completeness_{winter_year.to_filename_format()}_{product.name}_{grid.name.lower()}.nc"
+    )
 
 
-def open_reduced_dataset_for_plot(product: SnowCoverProduct, analysis_folder: str, analysis_type: str) -> xr.Dataset:
-    dataset = open_reduced_dataset(product, analysis_folder, analysis_type)
+def open_reduced_dataset_for_plot(
+    product: SnowCoverProduct, analysis_folder: str, analysis_type: str, winter_year: WinterYear, grid: GeoGrid
+) -> xr.Dataset:
+    dataset = open_reduced_dataset(product, analysis_folder, analysis_type, winter_year, grid)
     # if "sensor_zenith_bins" not in dataset.sizes:
     #     dataset = dataset.expand_dims({"sensor_zenith_bins": 5})
 
@@ -123,7 +141,7 @@ def open_reduced_dataset_for_plot(product: SnowCoverProduct, analysis_folder: st
         coord_dict.update(
             {
                 "slope_bins": pd.CategoricalIndex(
-                    data=["[0-10]", "[11-30]", "$>$30"], categories=["[0-10]", "[11-30]", "$>$30"], ordered=True
+                    data=["[0-10]°", "[11-30]°", "$>$30°"], categories=["[0-10]°", "[11-30]°", "$>$30°"], ordered=True
                 ),
             },
         )
@@ -142,8 +160,8 @@ def open_reduced_dataset_for_plot(product: SnowCoverProduct, analysis_folder: st
         coord_dict.update(
             {
                 "sensor_zenith_bins": pd.CategoricalIndex(
-                    data=["[0-15]", "[15-30]", "[30-45]", "[45-60]", "$>$60"],
-                    categories=["[0-15]", "[15-30]", "[30-45]", "[45-60]", "$>$60"],
+                    data=["[0-15]°", "[15-30]°", "[30-45]°", "[45-60]°", "$>$60°"],
+                    categories=["[0-15]°", "[15-30]°", "[30-45]°", "[45-60]°", "$>$60°"],
                     ordered=True,
                 ),
             },
@@ -157,8 +175,8 @@ def open_reduced_dataset_for_plot(product: SnowCoverProduct, analysis_folder: st
             coord_dict.update(
                 {
                     "ref_bins": pd.CategoricalIndex(
-                        data=["0", "[1-25]", "[26-50]", "[51-75]", "[75-99]", "100"],
-                        categories=["0", "[1-25]", "[26-50]", "[51-75]", "[75-99]", "100"],
+                        data=["0%", "[1-25]%", "[26-50]%", "[51-75]%", "[75-99]%", "100%"],
+                        categories=["0%", "[1-25]%", "[26-50]%", "[51-75]%", "[75-99]%", "100%"],
                         ordered=True,
                     ),
                 },
@@ -167,8 +185,8 @@ def open_reduced_dataset_for_plot(product: SnowCoverProduct, analysis_folder: st
             coord_dict.update(
                 {
                     "ref_bins": pd.CategoricalIndex(
-                        data=["0", "[1-99]", "100"],
-                        categories=["0", "[1-99]", "100"],
+                        data=["0%", "[1-99]%", "100%"],
+                        categories=["0%", "[1-99]%", "100%"],
                         ordered=True,
                     ),
                 },
@@ -176,9 +194,13 @@ def open_reduced_dataset_for_plot(product: SnowCoverProduct, analysis_folder: st
 
         else:
             raise NotImplementedError("reference bins range not known")
-        rename_dict.update({"ref_bins": "Ref FSC [\%]"})
+        rename_dict.update({"ref_bins": "Ref FSC [%]"})
 
-    dataset = dataset.sel(time=slice("2023-11", "2024-06"), altitude_bins=slice(900, None), **selection_dict)
+    dataset = dataset.sel(
+        time=slice(f"{winter_year.from_year}-11", f"{winter_year.to_year}-06"),
+        altitude_bins=slice(900, None),
+        **selection_dict,
+    )
     dataset = dataset.assign_coords(coord_dict)
 
     dataset = dataset.rename(rename_dict)

@@ -44,13 +44,15 @@ def int_to_year_day(year: int, day: int) -> str:
     return str(year) + "{:03d}".format(day)
 
 
-def get_all_nasa_filenames_per_product(product_id: str, data_folder: str) -> List[str] | None:
+def get_all_nasa_filenames_per_product(product_id: str, data_folder: str, winter_year: WinterYear) -> List[str] | None:
     version_id = "002"
     if product_id == "MOD10A1":
         version_id = "061"
-    path_pattern = f"{data_folder}/{nasa_collection_per_product_id[product_id]}/{product_id}/{product_id}*.{version_id}*.{nasa_format_per_product[product_id]}"
-    print(path_pattern)
-    return glob(path_pattern)
+    file_list = []
+    for day in winter_year.iterate_days():
+        path_pattern = f"{data_folder}/{nasa_collection_per_product_id[product_id]}/{product_id}/{product_id}.A{day.strftime('%Y%j')}*.{version_id}*.{nasa_format_per_product[product_id]}"
+        file_list.extend(glob(path_pattern))
+    return file_list
 
 
 def get_datetime_from_viirs_meteofrance_filepath(filepath: str) -> str:
@@ -113,24 +115,31 @@ def get_daily_meteofrance_filenames(day: datetime, data_folder: str) -> List[str
     return glob(f"{data_folder}/VIIRS{day.year}/*EOFR62_SNPP*{day.strftime('%Y%m%d')}*.LT")
 
 
-def get_all_meteofrance_type_filenames(
+def get_all_meteofrance_archive_type_filenames(
     data_folder: str, winter_year: WinterYear, platform: str, suffix: str
 ) -> List[str] | None:
     # Rejeu CMS
-    meteofrance_files = glob(f"{data_folder}/{suffix}/{winter_year.from_year}/1[0-2]/*{platform}*{suffix}.tif")
-    meteofrance_files.extend(glob(f"{data_folder}/{suffix}/{winter_year.to_year}/[0-9]*/*{platform}*{suffix}.tif"))
+    meteofrance_files = glob(f"{data_folder}/SNPP/{suffix}/{winter_year.from_year}/1[0-2]/*{platform}*{suffix}.tif")
+    meteofrance_files.extend(glob(f"{data_folder}/SNPP/{suffix}/{winter_year.to_year}/[0-9]*/*{platform}*{suffix}.tif"))
     return sorted(meteofrance_files)
 
 
-def get_all_meteofrance_sat_angle_filenames(
+def get_all_meteofrance_archive_sat_angle_filenames(
     data_folder: str, winter_year: WinterYear, suffix: str, platform: str
 ) -> List[str] | None:
     # Rejeu CMS
-    print(f"{data_folder}/{suffix}/{winter_year.from_year}/1[0-2]*/*{platform}*SatelliteZenithAngleMod.tif")
     meteofrance_files = glob(f"{data_folder}/{suffix}/{winter_year.from_year}/1[0-2]*/*{platform}*SatelliteZenithAngleMod.tif")
     meteofrance_files.extend(
         glob(f"{data_folder}/{suffix}/{winter_year.to_year}/[0-9]*/*{platform}*SatelliteZenithAngleMod.tif")
     )
+    return sorted(meteofrance_files)
+
+
+def get_all_meteofrance_composite_filenames(data_folder: str, winter_year: WinterYear, platform: str) -> List[str] | None:
+    # Rejeu CMS
+    print(f"{data_folder}/{winter_year.from_year}1[0-2]/1[0-2]/*{platform}*.nc")
+    meteofrance_files = glob(f"{data_folder}/{winter_year.from_year}1[0-2]/1[0-2]/*{platform}*.nc")
+    meteofrance_files.extend(glob(f"{data_folder}/{winter_year.to_year}0[1-9]/0[1-9]/*{platform}*.nc"))
     return sorted(meteofrance_files)
 
 

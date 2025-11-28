@@ -1,18 +1,18 @@
 import earthaccess
 
-from harmonisation.nasa_l2_download_and_project import download_daily_products_from_sxcen
+from regrid.nasa_l2_download_and_project import download_daily_products_from_sxcen
 from winter_year import WinterYear
 
-# product_name = "VJ110A1"
-# data_folder = "/home/imperatoren/work/VIIRS_S2_comparison/data/V10A1"
+product_name = "VNP10A1"
+data_folder = "/home/imperatoren/work/VIIRS_S2_comparison/data/V10A1"
 # # 1. Login
-earthaccess.login()
+# earthaccess.login()
 
 # # 2. Search
 # results = earthaccess.search_data(
 #     short_name=product_name,  # ATLAS/ICESat-2 L3A Land Ice Height, VNP10?
 #     bounding_box=(-2, 41, 10, 49),  # Only include files in area of interest...
-#     temporal=("2023-10-01", "2024-09-30"),  # ...and time period of interest
+#     temporal=("2024-11-01", "2025-06-30"),  # ...and time period of interest
 # )
 
 # # 3. Access

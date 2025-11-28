@@ -6,9 +6,17 @@ from typing import Dict, Tuple
 
 import numpy as np
 import xarray as xr
+from pyproj import Geod, Transformer
+from shapely import unary_union
 
 from logger_setup import default_logger as logger
-from products.classes import METEOFRANCE_CLASSES, NASA_CLASSES, NODATA_NASA_CLASSES, S2_CLASSES
+from products.classes import (
+    METEOFRANCE_ARCHIVE_CLASSES,
+    METEOFRANCE_COMPOSITE_CLASSES,
+    NASA_CLASSES,
+    NODATA_NASA_CLASSES,
+    S2_CLASSES,
+)
 from reductions.semidistributed import MountainParametrization, MountainParams
 
 
@@ -29,32 +37,32 @@ def compute_area_of_class_mask(mask: xr.DataArray) -> float:
     return mask.sum().values * np.abs(math.prod(gsd))
 
 
-def compute_area_of_class_precise(input_data_array: xr.DataArray, class_name: str='clouds'):
+# def compute_area_of_class_precise(input_data_array: xr.DataArray, class_name: str='clouds'):
 
-    class_mask = analyzer.mask_of_class(class_name, input_data_array)
+#     class_mask = analyzer.mask_of_class(class_name, input_data_array)
 
-    polygons = []
-    for geom, val in shapes(class_mask.astype('u1').values, transform=input_data_array.rio.transform()):
-        if val:                                  # only take mask pixels (val == 1)
-            polygons.append(shape(geom))
+#     polygons = []
+#     for geom, val in shapes(class_mask.astype('u1').values, transform=input_data_array.rio.transform()):
+#         if val:                                  # only take mask pixels (val == 1)
+#             polygons.append(shape(geom))
 
-    # merge into one geometry if many (optional)
+#     # merge into one geometry if many (optional)
 
-    union_geom = unary_union(polygons)           # geometry in UTM coords
+#     union_geom = unary_union(polygons)           # geometry in UTM coords
 
-    
-    # transform to lon/lat (EPSG:4326)
-    transformer = Transformer.from_crs(input_data_array.rio.crs, "EPSG:4326", always_xy=True)
-    def proj_to_lonlat(x, y, z=None):
-        return transformer.transform(x, y)
 
-    lonlat_geom = shapely_transform(proj_to_lonlat, union_geom)
+#     # transform to lon/lat (EPSG:4326)
+#     transformer = Transformer.from_crs(input_data_array.rio.crs, "EPSG:4326", always_xy=True)
+#     def proj_to_lonlat(x, y, z=None):
+#         return transformer.transform(x, y)
 
-    # compute ellipsoidal area (pyproj.Geod)
-    geod = Geod(ellps='WGS84')
-    # pyproj.Geod.geometry_area_perimeter returns (area, perimeter) for shapely geometries
-    area, _ = geod.geometry_area_perimeter(lonlat_geom)
-    return xr.DataArray(abs(area))
+#     lonlat_geom = shapely_transform(proj_to_lonlat, union_geom)
+
+#     # compute ellipsoidal area (pyproj.Geod)
+#     geod = Geod(ellps='WGS84')
+#     # pyproj.Geod.geometry_area_perimeter returns (area, perimeter) for shapely geometries
+#     area, _ = geod.geometry_area_perimeter(lonlat_geom)
+#     return xr.DataArray(abs(area))
 
 
 class SnowCoverProductCompleteness:
@@ -74,7 +82,7 @@ class SnowCoverProductCompleteness:
     @property
     def max_value(self) -> int:
         values = []
-        for value in METEOFRANCE_CLASSES.values():
+        for value in METEOFRANCE_ARCHIVE_CLASSES.values():
             if type(value) is not range:
                 values.append(value[0])
             else:
@@ -191,9 +199,9 @@ class SnowCoverProductCompleteness:
             year_results_dataset.to_netcdf(Path(netcdf_export_path))
 
 
-class MeteoFranceSnowCoverProductCompleteness(SnowCoverProductCompleteness):
+class MeteoFranceArchiveSnowCoverProductCompleteness(SnowCoverProductCompleteness):
     def __init__(self) -> None:
-        super().__init__(classes=METEOFRANCE_CLASSES, nodata_mapping=None)
+        super().__init__(classes=METEOFRANCE_ARCHIVE_CLASSES, nodata_mapping=None)
 
     def total_snow_mask(self, data_array: xr.DataArray) -> xr.DataArray:
         snow_meteofrance = self.mask_of_class("snow_cover", data_array) | self.mask_of_class("forest_with_snow", data_array)
@@ -205,6 +213,19 @@ class MeteoFranceSnowCoverProductCompleteness(SnowCoverProductCompleteness):
             | self.mask_of_class("forest_without_snow", data_array)
             | self.mask_of_class("water", data_array)
         )
+        return no_snow_meteofrance
+
+
+class MeteoFranceCompositeSnowCoverProductCompleteness(SnowCoverProductCompleteness):
+    def __init__(self) -> None:
+        super().__init__(classes=METEOFRANCE_COMPOSITE_CLASSES, nodata_mapping=None)
+
+    def total_snow_mask(self, data_array: xr.DataArray) -> xr.DataArray:
+        snow_meteofrance = self.mask_of_class("snow_cover", data_array)
+        return snow_meteofrance
+
+    def total_no_snow_mask(self, data_array: xr.DataArray) -> xr.DataArray:
+        no_snow_meteofrance = self.mask_of_class("no_snow", data_array) | self.mask_of_class("water", data_array)
         return no_snow_meteofrance
 
 

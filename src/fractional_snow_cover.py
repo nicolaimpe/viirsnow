@@ -18,6 +18,12 @@ def salomonson_appel_regression(ndsi: npt.NDArray) -> npt.NDArray:
     return snow_cover_fraction
 
 
+def my_regression(ndsi: npt.NDArray) -> npt.NDArray:
+    snow_cover_fraction = 1.56 * ndsi - 0.03
+    snow_cover_fraction = np.clip(snow_cover_fraction, a_max=1, a_min=0)
+    return snow_cover_fraction
+
+
 def ndsi_snow_cover_to_fraction(
     ndsi_snow_cover_product: npt.NDArray,
     snow_cover_ndsi_threshold: int = 10,
@@ -28,6 +34,8 @@ def ndsi_snow_cover_to_fraction(
     masked_ndsi_snow_cover = ma.masked_array(ndsi_snow_cover_product, mask=(1 - snow_mask)) / max_ndsi
     if method == "salomonson_appel":
         snow_cover_fraction = salomonson_appel_regression(masked_ndsi_snow_cover)
+    elif method == "mine":
+        snow_cover_fraction = my_regression(masked_ndsi_snow_cover)
     else:
         raise NotImplementedError(f"Fractional snow cover method {method} not known.")
     out_fractional_snow_cover = (snow_cover_fraction.data * max_ndsi).astype(np.uint8)
@@ -36,8 +44,10 @@ def ndsi_snow_cover_to_fraction(
     return out_fractional_snow_cover
 
 
-def nasa_ndsi_snow_cover_to_fraction(nasa_ndsi_snow_cover_product: npt.NDArray) -> npt.NDArray:
-    return ndsi_snow_cover_to_fraction(nasa_ndsi_snow_cover_product, snow_cover_ndsi_threshold=10, max_ndsi=100)
+def nasa_ndsi_snow_cover_to_fraction(
+    nasa_ndsi_snow_cover_product: npt.NDArray, method: str = "salomonson_appel"
+) -> npt.NDArray:
+    return ndsi_snow_cover_to_fraction(nasa_ndsi_snow_cover_product, snow_cover_ndsi_threshold=0, max_ndsi=100, method=method)
 
 
 def meteofrance_ndsi_snow_cover_to_fraction(meteofrance_ndsi_snow_cover_product: npt.NDArray) -> npt.NDArray:

@@ -12,7 +12,13 @@ from matplotlib.lines import Line2D
 from pandas.io.formats.style import Styler
 from xarray.groupers import BinGrouper
 
-from postprocess.general_purpose import fancy_table, open_reduced_dataset, open_reduced_dataset_for_plot, sel_evaluation_domain
+from postprocess.general_purpose import (
+    AnalysisContainer,
+    fancy_table,
+    open_reduced_dataset,
+    open_reduced_dataset_for_plot,
+    sel_evaluation_domain,
+)
 from products.snow_cover_product import SnowCoverProduct
 from reductions.statistics_base import EvaluationVsHighResBase
 from winter_year import WinterYear
@@ -22,11 +28,11 @@ def histograms_to_biais_rmse(metrics_dataset: xr.Dataset) -> xr.Dataset:
     # From a histogram of differences (bias), compute uncertainty figures
     tot_occurrences = metrics_dataset.data_vars["n_occurrences"].sum()
     n_occur = metrics_dataset.data_vars["n_occurrences"]
-    biais_bins = metrics_dataset.coords["biais_bins"]
-    biais = (n_occur * biais_bins).sum() / tot_occurrences
-    rmse = np.sqrt((n_occur * biais_bins**2).sum() / tot_occurrences)
-    unbiaised_rmse = np.sqrt((n_occur * (biais_bins - biais) ** 2).sum() / tot_occurrences)
-    return xr.Dataset({"biais": biais, "rmse": rmse, "unbiaised_rmse": unbiaised_rmse})
+    residual_bins = metrics_dataset.coords["biais_bins"]
+    bias = (n_occur * residual_bins).sum() / tot_occurrences
+    rmse = np.sqrt((n_occur * residual_bins**2).sum() / tot_occurrences)
+    unbiaised_rmse = np.sqrt((n_occur * (residual_bins - bias) ** 2).sum() / tot_occurrences)
+    return xr.Dataset({"bias": bias, "rmse": rmse, "unbiased_rmse": unbiaised_rmse})
 
 
 def postprocess_uncertainty_analysis(
@@ -281,17 +287,25 @@ def smooth_data_np_convolve(arr, span):
     return np.convolve(arr, np.ones(span * 2 + 1) / (span * 2 + 1), mode="same")
 
 
-def plot_custom_spans(snow_cover_products: List[SnowCoverProduct], analysis_folder: str, analysis_var: str, ax: plt.Axes):
+def plot_error_bars(analysis: AnalysisContainer, analysis_var: str, ax: plt.Axes):
     percentile_min, percentile_max = 5, 95
     sample_dataset = open_reduced_dataset_for_plot(
-        product=snow_cover_products[0], analysis_folder=analysis_folder, analysis_type="uncertainty"
+        product=analysis.products[0],
+        analysis_folder=analysis.analysis_folder,
+        analysis_type="uncertainty",
+        winter_year=analysis.winter_year,
+        grid=analysis.grid,
     )
 
     x_positions = np.arange(len(sample_dataset.coords[analysis_var].values))
     x_positions = x_positions / len(x_positions)
-    for product in snow_cover_products:
+    for product in analysis.products:
         metrics_dataset = open_reduced_dataset_for_plot(
-            product=product, analysis_folder=analysis_folder, analysis_type="uncertainty"
+            product=product,
+            analysis_folder=analysis.analysis_folder,
+            analysis_type="uncertainty",
+            winter_year=analysis.winter_year,
+            grid=analysis.grid,
         )
         analysis_coords = metrics_dataset.coords[analysis_var].values
         box_width_data = 0.2 / len(x_positions)
@@ -301,7 +315,7 @@ def plot_custom_spans(snow_cover_products: List[SnowCoverProduct], analysis_fold
             reduced = product_analysis_var_dataset.groupby("biais_bins").sum(list(product_analysis_var_dataset.sizes.keys()))
             biais_rmse = histograms_to_biais_rmse(reduced)
             distr = histograms_to_distribution(reduced)
-            ax.scatter(x_pos, biais_rmse.data_vars["biais"], marker="o", color=product.plot_color, s=15, zorder=3)
+            ax.scatter(x_pos, biais_rmse.data_vars["bias"], marker="o", color=product.plot_color, s=35, zorder=3)
             whiskers_min = np.percentile(distr, percentile_min)
             whiskers_max = np.percentile(distr, percentile_max)
             ax.vlines(
@@ -312,16 +326,20 @@ def plot_custom_spans(snow_cover_products: List[SnowCoverProduct], analysis_fold
             ax.hlines(whiskers_max, x_pos - box_width_data / 2, x_pos + box_width_data / 2, color=product.plot_color, lw=3)
         x_positions = x_positions + box_width_data
 
-    ax.set_xticks(x_positions - box_width_data * ((len(snow_cover_products) + 1) // 2), labels=analysis_coords)
-    ax.set_xlim(x_positions[0] - (len(snow_cover_products) + 1) * box_width_data, x_positions[-1])
+    ax.set_xticks(x_positions - box_width_data * ((len(analysis.products) + 1) // 2), labels=analysis_coords)
+    # ax.set_xlim(x_positions[0] - (len(analysis.products) + 1) * box_width_data, x_positions[-1])
+    ax.set_xlim(
+        -1 / ((len(analysis.products) + 1) * metrics_dataset.sizes[analysis_var]),
+        1 - 1 / ((len(analysis.products) + 1) * metrics_dataset.sizes[analysis_var]),
+    )
     ax.set_ylim(-65, 65)
-    ax.set_ylabel("Residuals [\% FSC]")
-    ax.set_xlabel(analysis_var)
+    ax.set_ylabel("Residuals [% FSC]")
+    # ax.set_xlabel(analysis_var)
     (l1,) = ax.plot([0, 1], [0, 1], c="gray", lw=1e-12)
     (l2,) = ax.plot(0, 0, c="gray", markersize=1e-12)
     ax.legend(
         [l1, l2],
-        [f"{percentile_min}th and {percentile_max}th percentiles", "mean"],
+        [f"{percentile_min}th and {percentile_max}th percentiles", "bias"],
         handler_map={l1: HandlerSpan(), l2: HandlerPoint()},
     )
     ax.grid(axis="y")
@@ -368,26 +386,32 @@ class HandlerPoint(HandlerBase):
         return a_list
 
 
-def line_plot_rmse(snow_cover_products: List[SnowCoverProduct], analysis_folder: str, analysis_var: str, ax: Axes):
+def line_plot_rmse(analysis: AnalysisContainer, analysis_var: str, ax: Axes):
     metrics_datasets = [
-        open_reduced_dataset_for_plot(product=prod, analysis_folder=analysis_folder, analysis_type="uncertainty")
-        for prod in snow_cover_products
+        open_reduced_dataset_for_plot(
+            product=prod,
+            analysis_folder=analysis.analysis_folder,
+            analysis_type="uncertainty",
+            winter_year=analysis.winter_year,
+            grid=analysis.grid,
+        )
+        for prod in analysis.products
     ]
     biais_rmse = postprocess_uncertainty_analysis(
-        snow_cover_products, metrics_datasets=metrics_datasets, analysis_var=analysis_var
+        analysis.products, metrics_datasets=metrics_datasets, analysis_var=analysis_var
     )
 
     x_coords_unc = biais_rmse.coords[analysis_var].values
 
-    for prod in snow_cover_products:
+    for prod in analysis.products:
         ax.plot(
-            x_coords_unc, biais_rmse.data_vars["rmse"].sel(product=prod.name), "-o", color=prod.plot_color, markersize=5, lw=3
+            x_coords_unc, biais_rmse.data_vars["rmse"].sel(product=prod.name), "-o", color=prod.plot_color, markersize=7, lw=3
         )
 
     ax.grid(True)
     ax.set_ylim(5, 30)
-    ax.set_ylabel("RMSE [\% FSC]")
-    ax.set_xlabel(analysis_var)
+    ax.set_xlim(-0.5, biais_rmse.sizes[analysis_var] - 0.5)
+    ax.set_ylabel("RMSE [% FSC]")
     ax.legend([Line2D([0], [0], linestyle="-", color="gray")], ["RMSE"])
 
 
