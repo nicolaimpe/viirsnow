@@ -40,12 +40,12 @@ class MeteoFrancePrototypeSNPP(SnowCoverProduct):
     def __init__(self):
         super().__init__(
             name="meteofrance_prototype_snpp",
-            classes=METEOFRANCE_COMPOSITE_CLASSES,
+            classes=METEOFRANCE_ARCHIVE_CLASSES,
             plot_color="orange",
             plot_name="MF FSC L3 SNPP",
             platform="npp",
         )
-        self.analyzer = MeteoFranceCompositeSnowCoverProductCompleteness()
+        self.analyzer = MeteoFranceArchiveSnowCoverProductCompleteness()
 
 
 class MeteoFranceEvalSNPP(SnowCoverProduct):

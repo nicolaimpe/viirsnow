@@ -177,12 +177,12 @@ def line_plot_accuracy_f1_score(analysis: AnalysisContainer, analysis_var: str, 
     if "Ref FSC [%]" in metrics_datasets[0].sizes.keys():
         for md in metrics_datasets:
             fractions = (
-                md.sel({"Ref FSC [%]": ["[1-25]%", "[26-50]%", "[51-75]%", "[75-99]%"]})
+                md.sel({"Ref FSC [%]": ["[1-25]", "[26-50]", "[51-75]", "[75-99]"]})
                 .sum(dim="Ref FSC [%]")
-                .assign_coords({"Ref FSC [%]": "[1-99]%"})
+                .assign_coords({"Ref FSC [%]": "[1-99]"})
             )
             new_metrics_datasets.append(
-                xr.concat([md.sel({"Ref FSC [%]": "0%"}), fractions, md.sel({"Ref FSC [%]": "100%"})], dim="Ref FSC [%]")
+                xr.concat([md.sel({"Ref FSC [%]": "0"}), fractions, md.sel({"Ref FSC [%]": "100"})], dim="Ref FSC [%]")
             )
     skill_scores = compute_skill_scores_for_parameter(
         snow_cover_products=analysis.products, metrics_datasets=new_metrics_datasets, variable=analysis_var
@@ -252,7 +252,7 @@ def line_plot_total_count(analysis: AnalysisContainer, analysis_var: str, ax: Ax
 
     ax.set_yscale("log")
     ax.set_ylim(bottom=1e4, top=1e7)
-    ax.set_ylabel("Number of match-ups [-]")
+    ax.set_ylabel("# of match-ups [-]")
     ax.get_legend().remove()
     ax.spines[["top", "right"]].set_visible(False)
 

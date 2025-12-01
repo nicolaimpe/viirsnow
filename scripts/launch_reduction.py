@@ -12,6 +12,7 @@ from products.snow_cover_product import (
     MeteoFranceEvalJPSS1,
     MeteoFranceEvalJPSS2,
     MeteoFranceEvalSNPP,
+    MeteoFrancePrototypeSNPP,
     Sentinel2Theia,
     SnowCoverProduct,
 )
@@ -35,18 +36,19 @@ config_mountains = MountainParams(
 config = EvaluationConfig(ref_fsc_step=25, sensor_zenith_analysis=False, sub_roi_mask_path=None, **config_mountains.__dict__)
 
 products: List[SnowCoverProduct] = [
-    MeteoFranceEvalSNPP(),
-    MeteoFranceEvalJPSS1(),
-    MeteoFranceEvalJPSS2(),
-    MeteoFranceComposite(),
+    MeteoFrancePrototypeSNPP(),
+    # MeteoFranceEvalSNPP(),
+    # MeteoFranceEvalJPSS1(),
+    # MeteoFranceEvalJPSS2(),
+    # MeteoFranceComposite(),
     # VJ110A1(),
     # MeteoFranceSNPPPrototype(),
     # VNP10A1(),
     # MOD10A1(),
 ]
 
-reduction_type = "completeness"
-wy = WinterYear(2024, 2025)
+reduction_type = "uncertainty"
+wy = WinterYear(2023, 2024)
 grid = UTM375mGrid()
 period = slice(f"{wy.from_year}-11-01", f"{wy.to_year}-06-30")
 if __name__ == "__main__":

@@ -332,14 +332,14 @@ def plot_error_bars(analysis: AnalysisContainer, analysis_var: str, ax: plt.Axes
         -1 / ((len(analysis.products) + 1) * metrics_dataset.sizes[analysis_var]),
         1 - 1 / ((len(analysis.products) + 1) * metrics_dataset.sizes[analysis_var]),
     )
-    ax.set_ylim(-65, 65)
+    ax.set_ylim(-70, 70)
     ax.set_ylabel("Residuals [% FSC]")
     # ax.set_xlabel(analysis_var)
     (l1,) = ax.plot([0, 1], [0, 1], c="gray", lw=1e-12)
     (l2,) = ax.plot(0, 0, c="gray", markersize=1e-12)
     ax.legend(
         [l1, l2],
-        [f"{percentile_min}th and {percentile_max}th percentiles", "bias"],
+        [f"P{percentile_min} and P{percentile_max}", "bias"],
         handler_map={l1: HandlerSpan(), l2: HandlerPoint()},
     )
     ax.grid(axis="y")

@@ -82,14 +82,14 @@ class MeteoFranceCompositeRegrid(RegridBase):
 
 
 if __name__ == "__main__":
-    year = WinterYear(2024, 2025)
+    year = WinterYear(2023, 2024)
 
     massifs_shapefile = "/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/vectorial/massifs/massifs.shp"
-    meteofrance_cms_folder = "/home/imperatoren/work/VIIRS_S2_comparison/data/CMS_composite_multiplatform/rejeu_2024_2025/"
+    meteofrance_cms_folder = "/home/imperatoren/work/VIIRS_S2_comparison/data/CMS_composite_multiplatform/CMS_rejeu/"
     grid = UTM375mGrid()
     output_folder = "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_10/time_series/"
 
-    for product in [MeteoFranceComposite(), MeteoFranceEvalSNPP(), MeteoFranceEvalJPSS1(), MeteoFranceEvalJPSS2()]:
+    for product in [MeteoFranceEvalSNPP()]:
         logger.info(f"{product.plot_name} processing")
         MeteoFranceCompositeRegrid(
             product=product,
