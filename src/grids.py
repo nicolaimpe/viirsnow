@@ -152,6 +152,19 @@ class UTM375mGrid(GeoGrid):
         )
 
 
+class UTM20mGrid(GeoGrid):
+    def __init__(self) -> None:
+        super().__init__(
+            crs=CRS.from_epsg(DEFAULT_CRS),
+            resolution=20,
+            x0=OUTPUT_GRID_X0,
+            y0=OUTPUT_GRID_Y0,
+            width=OUPUT_GRID_X_SIZE,
+            height=OUPUT_GRID_Y_SIZE,
+            name="UTM_20m",
+        )
+
+
 class UTM500mGrid(GeoGrid):
     def __init__(self) -> None:
         super().__init__(
@@ -238,5 +251,4 @@ def georef_netcdf_rioxarray(data_array: xr.DataArray | xr.Dataset, crs: pyproj.C
     https://gis.stackexchange.com/questions/230093/set-projection-for-netcdf4-in-python
     """
 
-    return data_array.rio.write_crs(crs).rio.write_coordinate_system()
     return data_array.rio.write_crs(crs).rio.write_coordinate_system()

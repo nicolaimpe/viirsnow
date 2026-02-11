@@ -38,11 +38,13 @@ class S2TheiaSCARegrid(S2Regrid):
 
 if __name__ == "__main__":
     year = WinterYear(2023, 2024)
-    massifs_shapefile = "/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/vectorial/massifs/massifs.shp"
+    massifs_shapefile = "/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/vectorial/cantal_bbox.shp"
     s2_theia_folder = "/home/imperatoren/work/VIIRS_S2_comparison/data/S2_THEIA"
-    output_folder = "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_8/time_series"
+    output_folder = "/home/imperatoren/work/VIIRS_S2_comparison/geospatial_grid/data"
 
-    grid = UTM500mGrid()
+    from grids import UTM20mGrid
+
+    grid = UTM375mGrid()
     # for ndsi in [45]:
     #     output_folder = "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_8/time_series"
 

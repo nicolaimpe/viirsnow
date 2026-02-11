@@ -7,7 +7,7 @@ import xarray as xr
 
 from compression import generate_xarray_compression_encodings
 from fractional_snow_cover import nasa_ndsi_snow_cover_to_fraction
-from grids import GeoGrid, UTM375mGrid, UTM500mGrid
+from grids import GeoGrid, UTM375mGrid, UTM500mGrid, SIN375mGrid
 from logger_setup import default_logger as logger
 from products.filenames import get_all_nasa_filenames_per_product, open_modis_ndsi_snow_cover
 from products.snow_cover_product import MOD10A1, VJ110A1, VNP10A1, NASASnowCoverProduct, SnowCoverProduct, V10A1Multiplatform
@@ -147,10 +147,10 @@ class MOD10Regrid(RegridBase):
 
 if __name__ == "__main__":
     year = WinterYear(2023, 2024)
-    massifs_shapefile = "/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/vectorial/massifs/massifs.shp"
+    massifs_shapefile = "/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/vectorial/cantal_bbox.shp"
     nasa_l3_folder = "/home/imperatoren/work/VIIRS_S2_comparison/data/"
-    output_folder = "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_10/time_series"
-    grid = UTM375mGrid()
+    output_folder = "/home/imperatoren/work/VIIRS_S2_comparison/geospatial_grid/data"
+    grid = SIN375mGrid()
 
     for product in [VJ110A1()]:
         logger.info(f"NASA L3 processing {product.name}")

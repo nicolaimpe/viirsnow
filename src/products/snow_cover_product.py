@@ -39,10 +39,10 @@ class MeteoFranceArchive(SnowCoverProduct):
 class MeteoFrancePrototypeSNPP(SnowCoverProduct):
     def __init__(self):
         super().__init__(
-            name="meteofrance_prototype_snpp",
+            name="meteofrance_snpp_l3",
             classes=METEOFRANCE_ARCHIVE_CLASSES,
             plot_color="orange",
-            plot_name="MF FSC L3 SNPP",
+            plot_name="MF-FSC-VNP-L3",
             platform="npp",
         )
         self.analyzer = MeteoFranceArchiveSnowCoverProductCompleteness()
@@ -51,10 +51,10 @@ class MeteoFrancePrototypeSNPP(SnowCoverProduct):
 class MeteoFranceEvalSNPP(SnowCoverProduct):
     def __init__(self):
         super().__init__(
-            name="meteofrance_eval_snpp",
+            name="meteofrance_snpp_l3",
             classes=METEOFRANCE_COMPOSITE_CLASSES,
             plot_color="orange",
-            plot_name="MF FSC L3 SNPP",
+            plot_name="MF-FSC-VNP-L3",
             platform="npp",
         )
         self.analyzer = MeteoFranceCompositeSnowCoverProductCompleteness()
@@ -63,10 +63,10 @@ class MeteoFranceEvalSNPP(SnowCoverProduct):
 class MeteoFranceEvalJPSS1(SnowCoverProduct):
     def __init__(self):
         super().__init__(
-            name="meteofrance_eval_jpss1",
+            name="meteofrance_jpss1_l3",
             classes=METEOFRANCE_COMPOSITE_CLASSES,
             plot_color="darkgoldenrod",
-            plot_name="MF FSC L3 JPSS1",
+            plot_name="MF-FSC-VJ1-L3",
             platform="noaa20",
         )
         self.analyzer = MeteoFranceCompositeSnowCoverProductCompleteness()
@@ -75,10 +75,10 @@ class MeteoFranceEvalJPSS1(SnowCoverProduct):
 class MeteoFranceEvalJPSS2(SnowCoverProduct):
     def __init__(self):
         super().__init__(
-            name="meteofrance_eval_jpss2",
+            name="meteofrance_jpss2_l3",
             classes=METEOFRANCE_COMPOSITE_CLASSES,
             plot_color="sienna",
-            plot_name="MF FSC L3 JPSS2",
+            plot_name="MF-FSC-VJ2-L3",
             platform="noaa21",
         )
         self.analyzer = MeteoFranceCompositeSnowCoverProductCompleteness()
@@ -87,10 +87,10 @@ class MeteoFranceEvalJPSS2(SnowCoverProduct):
 class MeteoFranceComposite(SnowCoverProduct):
     def __init__(self):
         super().__init__(
-            name="meteofrance_multiplatform",
+            name="meteofrance_multiplatform_l3",
             classes=METEOFRANCE_COMPOSITE_CLASSES,
             plot_color="lightcoral",
-            plot_name="MF FSC L3 multi-platform",
+            plot_name="MF-FSC-VMP-L3",
             platform="all",
         )
         self.analyzer = MeteoFranceCompositeSnowCoverProductCompleteness()
@@ -105,13 +105,13 @@ class NASASnowCoverProduct(SnowCoverProduct):
 class VNP10A1(NASASnowCoverProduct):
     def __init__(self):
         self.product_id = "VNP10A1"
-        super().__init__(name="nasa_l3_snpp", classes=NASA_CLASSES, plot_color="darkturquoise", plot_name="NASA VIIRS SNPP")
+        super().__init__(name="nasa_l3_snpp", classes=NASA_CLASSES, plot_color="darkturquoise", plot_name="VNP10A1")
 
 
 class VJ110A1(NASASnowCoverProduct):
     def __init__(self):
         self.product_id = "VJ110A1"
-        super().__init__(name="nasa_l3_jpss1", classes=NASA_CLASSES, plot_color="midnightblue", plot_name="NASA VIIRS JPSS1")
+        super().__init__(name="nasa_l3_jpss1", classes=NASA_CLASSES, plot_color="midnightblue", plot_name="VJ110A1")
 
 
 class V10A1Multiplatform(NASASnowCoverProduct):
@@ -124,7 +124,7 @@ class V10A1Multiplatform(NASASnowCoverProduct):
 class MOD10A1(NASASnowCoverProduct):
     def __init__(self):
         self.product_id = "MOD10A1"
-        super().__init__(name="nasa_l3_terra", classes=NASA_CLASSES, plot_color="lightcoral", plot_name="NASA MODIS Terra")
+        super().__init__(name="nasa_l3_terra", classes=NASA_CLASSES, plot_color="lightcoral", plot_name="MOD10A1")
 
 
 class Sentinel2Theia(NASASnowCoverProduct):

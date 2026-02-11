@@ -5,7 +5,7 @@
 groups = ["default"]
 strategy = ["inherit_metadata"]
 lock_version = "4.5.0"
-content_hash = "sha256:5bf540a48440a2fcfa3379aed1585ce7cd3d8564e2f5c187e671f9277089e2fc"
+content_hash = "sha256:c42e862aef18c7c2c492fea8f76187cd6e47cc586fbf8503ff730de548d9650a"
 
 [[metadata.targets]]
 requires_python = ">=3.12"
@@ -820,6 +820,16 @@ groups = ["default"]
 files = [
     {file = "fsspec-2025.9.0-py3-none-any.whl", hash = "sha256:530dc2a2af60a414a832059574df4a6e10cce927f6f4a78209390fe38955cfb7"},
     {file = "fsspec-2025.9.0.tar.gz", hash = "sha256:19fd429483d25d28b65ec68f9f4adc16c17ea2c7c7bf54ec61360d478fb19c19"},
+]
+
+[[package]]
+name = "gdal"
+version = "3.12.1"
+requires_python = ">=3.8.0"
+summary = "GDAL: Geospatial Data Abstraction Library"
+groups = ["default"]
+files = [
+    {file = "gdal-3.12.1.tar.gz", hash = "sha256:c91644f7789d73c89f8baafa4fe61cedf5182081314862c05763223ecc39070b"},
 ]
 
 [[package]]

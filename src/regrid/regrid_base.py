@@ -94,8 +94,8 @@ class RegridBase:
         files = self.get_all_files_of_winter_year(winter_year=winter_year)
 
         for day in winter_year.iterate_days():
-            # if day.day > 5 or day.month != 12:
-            #     continue
+            if day.day > 15 or day.month != 12:
+                continue
             logger.info(f"Processing day {day}")
             day_files = self.get_daily_files(files, day=day)
 
@@ -125,5 +125,6 @@ class RegridBase:
                 continue
             if low_value_thresholds is not None:
                 daily_composite = self.low_values_screen(daily_composite=daily_composite, thresholds=low_value_thresholds)
+
             self.export_daily_data(day=day, daily_data=daily_composite)
         self.export_time_series(winter_year=winter_year)
