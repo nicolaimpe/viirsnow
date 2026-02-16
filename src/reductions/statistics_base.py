@@ -1,6 +1,5 @@
 import abc
 from dataclasses import dataclass
-from datetime import datetime
 from typing import Dict, Tuple
 
 import numpy as np
@@ -135,7 +134,9 @@ class EvaluationVsHighResBase(MountainBinner):
         bd = bd.set_xindex("ref_fsc_max")
         return bd
 
-    def launch_analysis(self, eval_time_series: xr.Dataset, ref_time_series: xr.Dataset):
+    def launch_analysis(
+        self, eval_time_series: xr.Dataset, ref_time_series: xr.Dataset, netcdf_export_path: str | None = None
+    ):
         common_days = np.intersect1d(ref_time_series["time"], eval_time_series["time"])
         combined_dataset = xr.Dataset(
             {
@@ -154,4 +155,7 @@ class EvaluationVsHighResBase(MountainBinner):
         transformed = self.index_and_rename_ref_fsc_coords()
         if self.config.sensor_zenith_analysis:
             transformed = self.index_and_rename_sza_coords(binned_data=transformed)
+        if netcdf_export_path:
+            logger.info(f"Exporting to {netcdf_export_path}")
+            transformed.to_netcdf(netcdf_export_path, encoding=generate_xarray_compression_encodings(transformed))
         return transformed

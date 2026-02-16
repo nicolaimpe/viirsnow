@@ -5,7 +5,7 @@
 groups = ["default"]
 strategy = ["inherit_metadata"]
 lock_version = "4.5.0"
-content_hash = "sha256:0be678aa48d9d07ccec8233311e976b0bc3e3e7bbe748dc482344df8597faf4c"
+content_hash = "sha256:849e56d21f23ddbbd39af04ffebcb661e4970131e4e824224834b22f487bd9b9"
 
 [[metadata.targets]]
 requires_python = ">=3.12"
@@ -2271,6 +2271,22 @@ dependencies = [
 files = [
     {file = "scores-2.2.0-py3-none-any.whl", hash = "sha256:73474dd381ac0788894e793c3ff507ab3f88ce19433db421392f95e0dbaa6325"},
     {file = "scores-2.2.0.tar.gz", hash = "sha256:195f5b02d227351b7d6675f04946cf1fe20126321a0fb0fc3c9d5037fa87c62c"},
+]
+
+[[package]]
+name = "seaborn"
+version = "0.13.2"
+requires_python = ">=3.8"
+summary = "Statistical data visualization"
+groups = ["default"]
+dependencies = [
+    "matplotlib!=3.6.1,>=3.4",
+    "numpy!=1.24.0,>=1.20",
+    "pandas>=1.2",
+]
+files = [
+    {file = "seaborn-0.13.2-py3-none-any.whl", hash = "sha256:636f8336facf092165e27924f223d3c62ca560b1f2bb5dff7ab7fad265361987"},
+    {file = "seaborn-0.13.2.tar.gz", hash = "sha256:93e60a40988f4d65e9f4885df477e2fdaff6b73a9ded434c1ab356dd57eefff7"},
 ]
 
 [[package]]

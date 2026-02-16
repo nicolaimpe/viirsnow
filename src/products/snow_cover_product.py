@@ -1,4 +1,3 @@
-from dataclasses import dataclass
 from typing import Dict
 
 from products.classes import METEOFRANCE_ARCHIVE_CLASSES, METEOFRANCE_COMPOSITE_CLASSES, NASA_CLASSES, S2_CLASSES

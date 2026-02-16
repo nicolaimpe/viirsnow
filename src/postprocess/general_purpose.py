@@ -1,13 +1,11 @@
 from dataclasses import dataclass
-from typing import Dict, List, Tuple
+from typing import Dict, List
 
-import numpy as np
 import pandas as pd
 import xarray as xr
+from geospatial_grid.gsgrid import GSGrid
 from pandas.io.formats.style import Styler
-from xarray.groupers import BinGrouper
 
-from grids import GeoGrid
 from products.snow_cover_product import SnowCoverProduct
 from reductions.statistics_base import EvaluationVsHighResBase
 from winter_year import WinterYear
@@ -55,50 +53,16 @@ def fancy_table(
     return styled_df
 
 
-def sel_evaluation_domain(analyses_dict: Dict[str, xr.Dataset], evaluation_domain: str) -> Tuple[Dict[str, xr.Dataset], str]:
-    if evaluation_domain == "general":
-        title = "November to June > 900 m"
-        selection_dict = {
-            k: v.sel(time=slice("2023-11", "2024-06"), altitude_bins=slice(900, None)) for k, v in analyses_dict.items()
-        }
-    elif evaluation_domain == "accumulation":
-        title = "Accumulation November to February > 900 m"
-        selection_dict = {
-            k: v.sel(time=slice("2023-11", "2024-02")).sel(altitude_bins=slice(900, None), drop=True)
-            for k, v in analyses_dict.items()
-        }
-    elif evaluation_domain == "ablation":
-        title = "Ablation March to July > 2100 m"
-        selection_dict = {
-            k: v.sel(time=slice("2024-03", "2024-06")).sel(altitude_bins=slice(1500, None), drop=True)
-            for k, v in analyses_dict.items()
-        }
-    selection_dict = {
-        k: v.assign_coords(
-            {
-                "aspect_bins": pd.CategoricalIndex(
-                    data=EvaluationVsHighResBase.aspect_bins().labels,
-                    categories=EvaluationVsHighResBase.aspect_bins().labels,
-                    ordered=True,
-                )
-            }
-        )
-        for k, v in selection_dict.items()
-    }
-
-    return selection_dict, title
-
-
 @dataclass
 class AnalysisContainer:
     products: List[SnowCoverProduct]
     analysis_folder: str
     winter_year: WinterYear
-    grid: GeoGrid
+    grid: GSGrid
 
 
 def open_reduced_dataset(
-    product: SnowCoverProduct, analysis_folder: str, analysis_type: str, winter_year: WinterYear, grid: GeoGrid
+    product: SnowCoverProduct, analysis_folder: str, analysis_type: str, winter_year: WinterYear, grid: GSGrid
 ) -> xr.Dataset:
     return xr.open_dataset(
         f"{analysis_folder}/analyses/{analysis_type}/{analysis_type}_{winter_year.to_filename_format()}_{product.name}_vs_S2_theia_{grid.name.lower()}.nc"
@@ -106,7 +70,7 @@ def open_reduced_dataset(
 
 
 def open_reduced_dataset_completeness(
-    product: SnowCoverProduct, analysis_folder: str, winter_year: WinterYear, grid: GeoGrid
+    product: SnowCoverProduct, analysis_folder: str, winter_year: WinterYear, grid: GSGrid
 ) -> xr.Dataset:
     return xr.open_dataset(
         f"{analysis_folder}/analyses/completeness/completeness_{winter_year.to_filename_format()}_{product.name}_{grid.name.lower()}.nc"
@@ -114,7 +78,7 @@ def open_reduced_dataset_completeness(
 
 
 def open_reduced_dataset_for_plot(
-    product: SnowCoverProduct, analysis_folder: str, analysis_type: str, winter_year: WinterYear, grid: GeoGrid
+    product: SnowCoverProduct, analysis_folder: str, analysis_type: str, winter_year: WinterYear, grid: GSGrid
 ) -> xr.Dataset:
     dataset = open_reduced_dataset(product, analysis_folder, analysis_type, winter_year, grid)
     # if "sensor_zenith_bins" not in dataset.sizes:

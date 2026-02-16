@@ -5,7 +5,6 @@ from typing import List
 
 import rasterio
 import xarray as xr
-from geospatial_grid.grid_database import UTM375mGrid
 from geospatial_grid.gsgrid import GSGrid
 from geospatial_grid.reprojections import reproject_using_grid
 from ndsi_fsc_calibration.regrid import RegridBase
@@ -13,7 +12,7 @@ from rasterio.enums import Resampling
 
 from logger_setup import default_logger as logger
 from products.classes import METEOFRANCE_ARCHIVE_CLASSES
-from products.snow_cover_product import MeteoFranceArchive, MeteoFranceComposite, MeteoFrancePrototypeSNPP, SnowCoverProduct
+from products.snow_cover_product import MeteoFranceComposite
 from regrid.daily_composites import (
     create_temporal_composite_meteofrance_multiplatform,
     create_temporal_composite_meteofrance_single_platform,
@@ -94,7 +93,7 @@ class MeteoFranceArchiveRegrid(RegridBase):
 
         meteofrance_view_angle = reproject_using_grid(
             dataset=daily_temporal_composite.data_vars["sensor_zenith_angle"],
-            output_grid=grid,
+            output_grid=self.grid,
             nodata=METEOFRANCE_ARCHIVE_CLASSES["nodata"][0],
             resampling_method=Resampling.nearest,
         )
@@ -169,14 +168,14 @@ class MeteoFranceMultiplatformRegrid(RegridBase):
 
         meteofrance_view_angle = reproject_using_grid(
             dataset=daily_temporal_composite.data_vars["sensor_zenith_angle"],
-            output_grid=grid,
+            output_grid=self.grid,
             nodata=METEOFRANCE_ARCHIVE_CLASSES["nodata"][0],
             resampling_method=Resampling.nearest,
         )
 
         meteofrance_platform = reproject_using_grid(
             dataset=daily_temporal_composite.data_vars["platform"],
-            output_grid=grid,
+            output_grid=self.grid,
             nodata=METEOFRANCE_ARCHIVE_CLASSES["nodata"][0],
             resampling_method=Resampling.nearest,
         )
@@ -194,19 +193,3 @@ class MeteoFranceMultiplatformRegrid(RegridBase):
         )
 
         return out_dataset
-
-
-if __name__ == "__main__":
-    year = WinterYear(2023, 2024)
-
-    suffixes = ["no_forest_red_band_screen"]
-    massifs_shapefile = "/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/vectorial/massifs/massifs.shp"
-    meteofrance_cms_folder = "/home/imperatoren/work/VIIRS_S2_comparison/data/CMS_rejeu/"
-    grid = UTM375mGrid()
-
-    logger.info("Méteo-France multiplatform processing")
-    MeteoFranceMultiplatformRegrid(
-        output_grid=grid,
-        data_folder=meteofrance_cms_folder,
-        output_folder="./output_folder",
-    ).create_time_series(winter_year=year, roi_shapefile=massifs_shapefile)

@@ -10,8 +10,7 @@ from geospatial_grid.georeferencing import georef_netcdf_rioxarray
 from geospatial_grid.gsgrid import GSGrid
 
 from logger_setup import default_logger as logger
-from products.classes import METEOFRANCE_ARCHIVE_CLASSES, NASA_CLASSES
-from products.filenames import get_datetime_from_viirs_nasa_filepath
+from products.classes import METEOFRANCE_ARCHIVE_CLASSES
 
 
 def match_daily_snow_cover_and_geometry_meteofrance(daily_snow_cover_files: List[str], daily_geometry_files: List[str]):

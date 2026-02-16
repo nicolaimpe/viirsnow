@@ -5,10 +5,10 @@ import xarray as xr
 from xarray.groupers import BinGrouper
 
 from logger_setup import default_logger as logger
-from reductions.statistics_base import EvaluationConfig, EvaluationVsHighResBase
+from reductions.statistics_base import EvaluationVsHighResBase
 
 
-class Scatter(EvaluationVsHighResBase):
+class ScatterAnalysis(EvaluationVsHighResBase):
     def eval_bins(self):
         """eval data have to be normalized between 1 and 100 for snow cover."""
         return BinGrouper(

@@ -1,27 +1,19 @@
-from typing import Dict, List
+from typing import List
 
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
-import seaborn as sns
 import xarray as xr
 from matplotlib import pyplot as plt
 from matplotlib.axes import Axes
+from matplotlib.colors import LinearSegmentedColormap
 from matplotlib.legend_handler import HandlerBase
 from matplotlib.lines import Line2D
 from pandas.io.formats.style import Styler
 from xarray.groupers import BinGrouper
 
-from postprocess.general_purpose import (
-    AnalysisContainer,
-    fancy_table,
-    open_reduced_dataset,
-    open_reduced_dataset_for_plot,
-    sel_evaluation_domain,
-)
+from postprocess.general_purpose import AnalysisContainer, fancy_table, open_reduced_dataset_for_plot
 from products.snow_cover_product import SnowCoverProduct
-from reductions.statistics_base import EvaluationVsHighResBase
-from winter_year import WinterYear
 
 
 def histograms_to_biais_rmse(metrics_dataset: xr.Dataset) -> xr.Dataset:
@@ -49,83 +41,6 @@ def postprocess_uncertainty_analysis(
     return concatenated
 
 
-def barplots(snow_cover_products: List[SnowCoverProduct], postprocessed_data_array: xr.DataArray, title: str, ax: Axes):
-    plot_dataframe_dict = {}
-    colors = []
-    legend = []
-    for product in snow_cover_products:
-        plot_dataframe_dict.update({product: postprocessed_data_array.sel(product=product.name).to_pandas()})
-        colors.append(product.plot_color)
-        legend.append(product.plot_name)
-    plot_dataframe = pd.DataFrame(plot_dataframe_dict)
-    if "month" in title:
-        plot_dataframe.index = plot_dataframe.index.strftime("%B")
-    if "aspect" in title:
-        # That's because to_pandas() reorders the aspect labels alphabetically
-        plot_dataframe = plot_dataframe.reindex(index=EvaluationVsHighResBase.aspect_bins().labels)
-
-    plot_dataframe.plot.bar(figsize=(12, 3), color=colors, width=0.6, title=title, ax=ax)
-    ax.legend(legend)
-
-
-def biais_barplots(
-    snow_cover_products: List[SnowCoverProduct],
-    postprocessed_dataset: xr.Dataset,
-    analysis_var_plot_name: str,
-    title_complement: str,
-):
-    _, ax = plt.subplots()
-    ax.set_ylim(-10, 10)
-    ax.set_ylabel("biais [%]")
-    ax.set_xlabel(analysis_var_plot_name)
-    barplots(
-        snow_cover_products=snow_cover_products,
-        postprocessed_data_array=postprocessed_dataset.data_vars["biais"],
-        title=f"Biais vs {analysis_var_plot_name} - {title_complement}",
-        ax=ax,
-    )
-    ax.grid(True, axis="y")
-
-
-def rmse_barplots(
-    snow_cover_products: List[SnowCoverProduct],
-    postprocessed_dataset: xr.Dataset,
-    analysis_var_plot_name: str,
-    title_complement: str,
-):
-    _, ax = plt.subplots()
-    ax.set_ylim(0, 30)
-    ax.set_ylabel("rmse [%]")
-    ax.set_xlabel(analysis_var_plot_name)
-    barplots(
-        snow_cover_products=snow_cover_products,
-        postprocessed_data_array=postprocessed_dataset.data_vars["rmse"],
-        title=f"RMSE vs {analysis_var_plot_name} - {title_complement}",
-        ax=ax,
-    )
-    ax.grid(True, axis="y")
-    ax.set_ylabel("RMSE [%]")
-
-
-def unbiaised_rmse_barplots(
-    snow_cover_products: List[SnowCoverProduct],
-    postprocessed_dataset: xr.Dataset,
-    analysis_var_plot_name: str,
-    title_complement: str,
-):
-    _, ax = plt.subplots()
-    ax.set_ylim(0, 30)
-    ax.set_ylabel("unbiaised_rmse [%]")
-    ax.set_xlabel(analysis_var_plot_name)
-    barplots(
-        snow_cover_products=snow_cover_products,
-        postprocessed_data_array=postprocessed_dataset.data_vars["unbiaised_rmse"],
-        title=f"Unbiaised RMSE vs {analysis_var_plot_name} - {title_complement}",
-        ax=ax,
-    )
-    ax.grid(True, axis="y")
-
-
 def histograms_to_distribution(metrics_ds) -> npt.NDArray:
     all_dims = list(metrics_ds.sizes.keys())
     all_dims.remove("biais_bins")
@@ -134,142 +49,46 @@ def histograms_to_distribution(metrics_ds) -> npt.NDArray:
     return distribution
 
 
-def semidistributed_geometry_plot(
-    snow_cover_products: List[SnowCoverProduct],
-    analysis_folder: str,
-    variable_to_plot: str,
-    title_complement: str | None = None,
-    altitude_ticks: npt.NDArray | None = None,
-):
-    slope_titles = ["< 10", "10-30", "30-50"]
-    if altitude_ticks is None:
-        sample_dataset = open_reduced_dataset(
-            product=snow_cover_products[0], analysis_folder=analysis_folder, analysis_type="uncertainty"
-        )
-        altitude_ticks = np.array(
-            [
-                0,
-                *sample_dataset.coords["altitude_bins"].values,
-            ]
-        )
-    for product in snow_cover_products:
-        dataset = open_reduced_dataset(product=product, analysis_folder=analysis_folder, analysis_type="uncertainty")
-        fig, ax = plt.subplots(1, 3, figsize=(12, 5), subplot_kw=dict(projection="polar"))
-        dataset_reduced = (
-            dataset.groupby(["slope_bins", "aspect_bins", "altitude_bins"]).map(histograms_to_biais_rmse).reindex_like(dataset)
-        )
-        for i, slope in enumerate(dataset_reduced.coords["slope_bins"].values[:3]):
-            ax[i].set_theta_direction(-1)
-            ax[i].set_theta_zero_location("N")
-            ax[i].set_xticks(np.deg2rad(EvaluationVsHighResBase.aspect_bins().bins[1:] - 22.5))
-            ax[i].set_xticklabels(dataset.coords["aspect_bins"].values)
-            ax[i].set_rticks(altitude_ticks)
-            ax[i].set_rlim(altitude_ticks[-1], altitude_ticks[0])
-            ax[i].set_title("Slope : " + slope_titles[i] + "°")
-            ax[0].set_ylabel(variable_to_plot, labelpad=15, fontsize=12)
+def fancy_table_tot(dataframe_to_print: pd.DataFrame) -> Styler:
+    # Get the built-in RdYlGn colormap
+    base_cmap = plt.get_cmap("RdYlGn")
 
-            im = ax[i].pcolor(
-                np.deg2rad(EvaluationVsHighResBase.aspect_bins().bins),
-                altitude_ticks,
-                dataset_reduced.data_vars[variable_to_plot].sel(slope_bins=slope).transpose().values,
-                cmap="coolwarm" if variable_to_plot == "biais" else "Reds",
-                vmin=-15 if variable_to_plot == "biais" else 0,
-                vmax=15 if variable_to_plot == "biais" else 25,
-            )
+    # Sample the three anchor colors from RdYlGn:
+    red = base_cmap(0.0)  # left end
+    yellow = base_cmap(0.5)  # center (yellow in RdYlGn)
+    green = base_cmap(1.0)  # right end
+    colors_biais = [red, yellow, green, yellow, red]
 
-            fig.colorbar(im, ax=ax[i], orientation="horizontal", label=variable_to_plot, fraction=0.05, pad=0.1)
-            fig.suptitle(f"{product.name} - {title_complement}")
-
-
-def raw_error_boxplots(snow_cover_products: List[SnowCoverProduct], analysis_folder: str, analysis_var: str, ax: Axes):
-    sample_dataset = open_reduced_dataset(product=snow_cover_products[0])
-    ticks = np.arange(len(list(sample_dataset.coords[analysis_var].values)))
-    for product in snow_cover_products:
-        metrics_dataset = open_reduced_dataset(product=product, analysis_folder=analysis_folder, analysis_type="uncertainty")
-        error_distributions = []
-
-        for value in metrics_dataset.coords[analysis_var].values:
-            prod_selected_metrics = metrics_dataset.sel({analysis_var: value})
-            error_distributions.append(histograms_to_distribution(prod_selected_metrics))
-
-        product_boxplot = ax.boxplot(
-            error_distributions,
-            positions=ticks,
-            widths=0.2,
-            showfliers=False,
-            patch_artist=True,
-            label=product.plot_name,
-        )
-
-        for patch in product_boxplot["boxes"]:
-            patch.set_facecolor(product.plot_color)
-        ticks = ticks + 0.2
-
-    ticks = np.arange(len(metrics_dataset.coords[analysis_var].values))
-    ax.set_xticks(ticks + (len(snow_cover_products) - 1) * 0.2 / 2)
-    ax.grid(True, axis="y")
-    ax.legend()
-
-
-def fancy_table_error_distribution(dataframe_to_print: pd.DataFrame) -> Styler:
+    cmap_biais = LinearSegmentedColormap.from_list("green_center", colors_biais, N=256)
     color_maps = {
-        "biais": "RdYlGn_r",
-        "rmse": "RdYlGn_r",
-        "unbiaised_rmse": "RdYlGn_r",
+        "Accuracy": "RdYlGn",
+        "F1-score": "RdYlGn",
+        "Commission Error": "RdYlGn_r",  # Lower is better
+        "Omission Error": "RdYlGn_r",
+        "Bias [%]": cmap_biais,
+        "RMSE [%]": "RdYlGn_r",
     }
     vmins = {
-        "biais": 0,
-        "rmse": 8,
-        "unbiaised_rmse": 8,
+        "Accuracy": 0.6,  # Higher is better
+        "F1-score": 0.6,
+        "Commission Error": 0,  # Lower is better (reversed Reds)
+        "Omission Error": 0,
+        "Bias [%]": -5,
+        "RMSE [%]": 5,
     }
     vmaxs = {
-        "biais": 10,
-        "rmse": 25,
-        "unbiaised_rmse": 25,
+        "Accuracy": 1,  # Higher is better
+        "F1-score": 1,
+        "Commission Error": 0.3,  # Lower is better
+        "Omission Error": 0.3,
+        "Bias [%]": 5,
+        "RMSE [%]": 30,
     }
+
+    # Build the colormap
 
     # Apply gradient coloring
     return fancy_table(dataframe_to_print=dataframe_to_print, color_maps=color_maps, vmins=vmins, vmaxs=vmaxs)
-
-
-def double_variable_barplots(
-    snow_cover_products: List[SnowCoverProduct], analysis_folder: str, var1: str, var2: str, title_complement: str = ""
-):
-    metrics_datasets = [
-        open_reduced_dataset(product=prod, analysis_folder=analysis_folder, analysis_type="uncertainty")
-        for prod in snow_cover_products
-    ]
-    reduced_ds = postprocess_uncertainty_analysis(
-        snow_cover_products=snow_cover_products, metrics_datasets=metrics_datasets, analysis_var=[var1, var2]
-    )
-    reduced_df = reduced_ds.to_dataframe()
-    sns.set_style("whitegrid")
-    plot_biais = sns.catplot(
-        reduced_df,
-        x="biais",
-        y=var2,
-        hue="product",
-        col=var1,
-        kind="bar",
-        col_wrap=2,
-        orient="h",
-        palette=[product.plot_color for product in snow_cover_products],
-    )
-    plot_rmse = sns.catplot(
-        reduced_df,
-        x="rmse",
-        y=var2,
-        hue="product",
-        col=var1,
-        kind="bar",
-        col_wrap=2,
-        orient="h",
-        palette=[product.plot_color for product in snow_cover_products],
-    )
-    plot_biais.figure.suptitle(f"Bias vs aspect - {title_complement}", fontsize=11, fontweight="bold")
-    plot_biais.figure.subplots_adjust(top=0.85)
-    plot_rmse.figure.suptitle(f"RMSE vs aspect - {title_complement}", fontsize=11, fontweight="bold")
-    plot_rmse.figure.subplots_adjust(top=0.85)
 
 
 def scatter_to_biais(dataset: xr.Dataset) -> xr.DataArray:
@@ -281,10 +100,6 @@ def scatter_to_biais(dataset: xr.Dataset) -> xr.DataArray:
         occurrences_per_biais_bins[i] = np.trace(data_array.values, offset=b + data_array.ref_bins.values[0])
     out_data_array = xr.DataArray(data=occurrences_per_biais_bins, coords={"biais_bins": biais_bins})
     return xr.Dataset({"n_occurrences": out_data_array})
-
-
-def smooth_data_np_convolve(arr, span):
-    return np.convolve(arr, np.ones(span * 2 + 1) / (span * 2 + 1), mode="same")
 
 
 def plot_error_bars(analysis: AnalysisContainer, analysis_var: str, ax: plt.Axes):
@@ -424,114 +239,3 @@ def compute_uncertainty_results_df(snow_cover_products: List[SnowCoverProduct], 
     )
     reduced_df = concatenated.to_dataframe().reset_index("product")
     return reduced_df
-
-
-# if __name__ == "__main__":
-#     wy = WinterYear(2023, 2024)
-#     analysis_type = "uncertainty"
-#     analysis_folder = (
-#         f"/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_6_modis/analyses/{analysis_type}"
-#     )
-#     analyses_dict = {k: xr.open_dataset(v, decode_cf=True) for k, v in path_dict.items()}
-#     evaluation_domain = "general"
-#     selection_dict, title = sel_evaluation_domain(analyses_dict=analyses_dict, evaluation_domain=evaluation_domain)
-
-#     ############## Launch analysis
-
-#     # Temporal analysis
-#     biais_barplots(
-#         postprocess_uncertainty_analysis(selection_dict, analysis_var={"time": EvaluationVsHighResBase.month_bins(wy)}),
-#         analysis_var_plot_name="time (month)",
-#         title_complement=f"Biais temporal distribution - {title} - {str(wy)}",
-#     )
-# unbiaised_rmse_barplots(
-#     postprocess_uncertainty_analysis(selection_dict, analysis_var={"time": EvaluationVsHighResBase.month_bins(wy)}),
-#     analysis_var_plot_name="time (month)",
-#     title_complement=f"Unbiaised RMSE temporal distribution - {title} - {str(wy)}",
-# # )
-# rmse_barplots(
-#     postprocess_uncertainty_analysis(selection_dict, analysis_var={"time": EvaluationVsHighResBase.month_bins(wy)}),
-#     analysis_var_plot_name="time (month)",
-#     title_complement=f"RMSE temporal distribution - {title} - {str(wy)}",
-# )
-
-# # rmse_barplots(
-# #     postprocess_uncertainty_analysis(selection_dict, analysis_var={"time": EvaluationVsHighResBase.month_bins(wy)}),
-# #     analysis_var_plot_name="time (month)",
-# #     title_complement=f"FSC 1-99% - no forest - {str(wy)}",
-# # )
-# # SAFRAN geometry
-# semidistributed_geometry_plot(
-#     selection_dict, "biais", title_complement=f"Semidistributed geometry biais distribution- {title}"
-# )
-# semidistributed_geometry_plot(
-#     selection_dict, "unbiaised_rmse", title_complement=f"Semidistributed geometry unbiaised RMSE distribution - {title}"
-# )
-
-# # Barplots aspect
-# double_variable_barplots(selection_dict, "forest_mask_bins", "aspect_bins")
-
-# # Boxplots vza
-# # fig, ax = plt.subplots(figsize=(10, 4))
-# # fig.suptitle(f"Error distribution vs VZA - {title} - {str(wy)}")
-# # ax.set_xticklabels(["0-15", "15-30", "30-45", "45-60", ">60"])
-# # ax.set_xlabel("Sensor zenith angle [°]")
-# # ax.set_ylabel("FSC [%]")
-# # ax.set_ylim(-60, 60)
-
-# # sel_vza = selection_dict.copy()
-# # if "nasa_l3_snpp" in selection_dict:
-# #     sel_vza.pop("nasa_l3_snpp")
-# # if "nasa_l3_jpss1" in selection_dict:
-# #     sel_vza.pop("nasa_l3_jpss1")
-# # if "nasa_l3_multiplatform" in selection_dict:
-# #     sel_vza.pop("nasa_l3_multiplatform")
-# # sel_vza = {k: v.sel(sensor_zenith_bins=slice(0, 75)) for k, v in sel_vza.items()}
-
-# # raw_error_boxplots(metrics_dict=sel_vza, analysis_var="sensor_zenith_bins", ax=ax)
-
-# # # Boxplots slope
-# fig, ax = plt.subplots(figsize=(10, 4))
-# fig.suptitle(f"Error distribution vs slope - {title} - {str(wy)}")
-# ax.set_xticklabels(["0-10", "10-30", "30-50"])
-# ax.set_xlabel("Slope [°]")
-# ax.set_ylabel("FSC [%]")
-# ax.set_ylim(-60, 60)
-# ax.plot()
-# selection_slope_dict = {k: v.sel(slope_bins=slice(0, 60)) for k, v in selection_dict.items()}
-# raw_error_boxplots(metrics_dict=selection_slope_dict, analysis_var="slope_bins", ax=ax)
-
-# # Boxplots ref FSC
-
-# fig, ax = plt.subplots(figsize=(10, 4))
-# fig.suptitle("Error distribution vs Fractional Snow Cover")
-# ax.set_xlabel("Ref FSC bin [%]")
-# ax.set_ylabel("FSC error [%]")
-# ax.set_ylim(-80, 80)
-# ax.set_yticks(np.arange(-80, 81, 10))
-# ax.set_xticklabels(
-#     [
-#         "[1-10]",
-#         "[11-20]",
-#         "[21-30]",
-#         "[31-40]",
-#         "[41-50]",
-#         "[51-60]",
-#         "[61-70]",
-#         "[71-80]",
-#         "[81-90]",
-#         "[91-99]",
-#     ]
-# )
-# selection_ref_fsc_dict = {k: v.sel(ref_bins=slice(1, 99)) for k, v in selection_dict.items()}
-# raw_error_boxplots(metrics_dict=selection_ref_fsc_dict, analysis_var="ref_bins", ax=ax)
-
-# # Print resume table
-# reduced_datasets = []
-# for dataset in selection_dict.values():
-#     reduced_datasets.append(histograms_to_biais_rmse(dataset))
-# concatenated = xr.concat(reduced_datasets, pd.Index(list(selection_dict.keys()), name="product"), coords="minimal")
-# reduced_df = concatenated.to_dataframe().reset_index("product")
-# print(reduced_df.round(decimals=2))
-
-# plt.show()

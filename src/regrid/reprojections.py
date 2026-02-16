@@ -1,4 +1,3 @@
-import numpy as np
 import xarray as xr
 from geospatial_grid.gsgrid import GSGrid
 from geospatial_grid.reprojections import reproject_using_grid
