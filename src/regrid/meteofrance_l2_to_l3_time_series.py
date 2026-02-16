@@ -1,43 +1,81 @@
 from datetime import datetime
+from glob import glob
 from pathlib import Path
 from typing import List
 
+import rasterio
 import xarray as xr
+from geospatial_grid.grid_database import UTM375mGrid
+from geospatial_grid.gsgrid import GSGrid
+from geospatial_grid.reprojections import reproject_using_grid
+from ndsi_fsc_calibration.regrid import RegridBase
 from rasterio.enums import Resampling
 
-from geotools import GeoGrid, reproject_using_grid
-from grids import UTM375mGrid
 from logger_setup import default_logger as logger
 from products.classes import METEOFRANCE_ARCHIVE_CLASSES
-from products.filenames import get_all_meteofrance_archive_sat_angle_filenames, get_all_meteofrance_archive_type_filenames
 from products.snow_cover_product import MeteoFranceArchive, MeteoFranceComposite, MeteoFrancePrototypeSNPP, SnowCoverProduct
 from regrid.daily_composites import (
     create_temporal_composite_meteofrance_multiplatform,
     create_temporal_composite_meteofrance_single_platform,
 )
-from regrid.regrid_base import RegridBase, check_input_daily_tif_files
 from regrid.reprojections import reprojection_l3_meteofrance_to_grid
 from winter_year import WinterYear
 
 
+def get_daily_meteofrance_filenames(day: datetime, data_folder: str) -> List[str] | None:
+    return glob(f"{data_folder}/VIIRS{day.year}/*EOFR62_SNPP*{day.strftime('%Y%m%d')}*.LT")
+
+
+def get_all_meteofrance_archive_type_filenames(
+    data_folder: str, winter_year: WinterYear, platform: str, suffix: str
+) -> List[str] | None:
+    # Rejeu CMS
+    platform_dict = {"npp": "SNPP", "noaa20": "JPSS1", "noaa21": "JPSS2"}
+    meteofrance_files = glob(
+        f"{data_folder}/{platform_dict[platform]}/{suffix}/{winter_year.from_year}/1[0-2]/*{platform}*{suffix}.tif"
+    )
+    meteofrance_files.extend(
+        glob(f"{data_folder}/{platform_dict[platform]}/{suffix}/{winter_year.to_year}/[0-9]*/*{platform}*{suffix}.tif")
+    )
+    return sorted(meteofrance_files)
+
+
+def get_all_meteofrance_archive_sat_angle_filenames(
+    data_folder: str, winter_year: WinterYear, suffix: str, platform: str
+) -> List[str] | None:
+    # Rejeu CMS
+    platform_dict = {"npp": "SNPP", "noaa20": "JPSS1", "noaa21": "JPSS2"}
+    meteofrance_files = glob(
+        f"{data_folder}/{platform_dict[platform]}/{suffix}/{winter_year.from_year}/1[0-2]*/*{platform}*SatelliteZenithAngleMod.tif"
+    )
+    meteofrance_files.extend(
+        glob(
+            f"{data_folder}/{platform_dict[platform]}/{suffix}/{winter_year.to_year}/[0-9]*/*{platform}*SatelliteZenithAngleMod.tif"
+        )
+    )
+    return sorted(meteofrance_files)
+
+
 class MeteoFranceArchiveRegrid(RegridBase):
-    def __init__(self, product: SnowCoverProduct, output_grid: GeoGrid, data_folder: str, output_folder: str, suffix: str):
-        super().__init__(product, output_grid, data_folder, output_folder)
+    def __init__(self, output_grid: GSGrid, data_folder: str, output_folder: str, suffix: str):
+        super().__init__(
+            output_grid=output_grid,
+            data_folder=data_folder,
+            output_folder=output_folder,
+            product_classes=METEOFRANCE_ARCHIVE_CLASSES,
+        )
         self.suffix = suffix
 
     def get_daily_files(self, all_winter_year_files: List[str], day: datetime) -> List[str]:
         return [file for file in all_winter_year_files if day.strftime("%Y%m%d") in file]
 
-    def check_daily_files(self, day_files: List[str]) -> List[str]:
-        return check_input_daily_tif_files(input_tif_files=day_files)
-
     def get_all_files_of_winter_year(self, winter_year: WinterYear) -> List[str]:
         snow_cover_and_sat_angle_file_list = get_all_meteofrance_archive_type_filenames(
-            data_folder=self.data_folder, winter_year=winter_year, suffix=self.suffix, platform=self.product.platform
+            data_folder=self.data_folder, winter_year=winter_year, suffix=self.suffix, platform="npp"
         )
         snow_cover_and_sat_angle_file_list.extend(
             get_all_meteofrance_archive_sat_angle_filenames(
-                data_folder=self.data_folder, winter_year=winter_year, suffix=suffix, platform=self.product.platform
+                data_folder=self.data_folder, winter_year=winter_year, suffix=self.suffix, platform="npp"
             )
         )
 
@@ -74,7 +112,7 @@ class MeteoFranceArchiveRegrid(RegridBase):
 
 
 class MeteoFranceMultiplatformRegrid(RegridBase):
-    def __init__(self, output_grid: GeoGrid, data_folder: str, output_folder: str, suffix: str):
+    def __init__(self, output_grid: GSGrid, data_folder: str, output_folder: str, suffix: str):
         super().__init__(
             product=MeteoFranceComposite(),
             output_grid=output_grid,
@@ -86,8 +124,15 @@ class MeteoFranceMultiplatformRegrid(RegridBase):
     def get_daily_files(self, all_winter_year_files: List[str], day: datetime) -> List[str]:
         return [file for file in all_winter_year_files if day.strftime("%Y%m%d") in file]
 
-    def check_daily_files(self, day_files: List[str]) -> List[str]:
-        return check_input_daily_tif_files(input_tif_files=day_files)
+    def check_date_files(date_files: List[str]) -> List[str]:
+        for day_file in date_files:
+            try:
+                xr.open_dataset(day_file).data_vars["band_data"].values
+            except (OSError, rasterio.errors.RasterioIOError, rasterio._err.CPLE_AppDefinedError):
+                logger.info(f"Could not open file {day_file}. Removing it from processing")
+                date_files.remove(day_file)
+                continue
+        return date_files
 
     def get_all_files_of_winter_year(self, winter_year: WinterYear) -> List[str]:
         snow_cover_and_sat_angle_file_list = []
@@ -158,22 +203,10 @@ if __name__ == "__main__":
     massifs_shapefile = "/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/vectorial/massifs/massifs.shp"
     meteofrance_cms_folder = "/home/imperatoren/work/VIIRS_S2_comparison/data/CMS_rejeu/"
     grid = UTM375mGrid()
-    for suffix in suffixes:
-        output_folder = "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_10/time_series/"
 
-        logger.info(f"Méteo-France {suffix} processing")
-        MeteoFranceArchiveRegrid(
-            product=MeteoFrancePrototypeSNPP(),
-            output_grid=grid,
-            data_folder=meteofrance_cms_folder,
-            output_folder=output_folder,
-            suffix=suffix,
-        ).create_time_series(winter_year=year, roi_shapefile=massifs_shapefile)
-
-        # logger.info("Méteo-France multiplatform processing")
-        # MeteoFranceMultiplatformRegrid(
-        #     output_grid=grid,
-        #     data_folder=meteofrance_cms_folder,
-        #     output_folder=output_folder,
-        #     suffix=suffix,
-        # ).create_time_series(winter_year=year, roi_shapefile=massifs_shapefile)
+    logger.info("Méteo-France multiplatform processing")
+    MeteoFranceMultiplatformRegrid(
+        output_grid=grid,
+        data_folder=meteofrance_cms_folder,
+        output_folder="./output_folder",
+    ).create_time_series(winter_year=year, roi_shapefile=massifs_shapefile)

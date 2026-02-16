@@ -1,15 +1,12 @@
 import numpy as np
 import numpy.ma as ma
 import numpy.typing as npt
+from ndsi_fsc_calibration.visualization import salomonson_appel
 
 
 def gascoin(ndsi, f_veg):
     f_snow_toc = 0.5 * np.tanh(2.65 * ndsi - 1.42) + 0.5
     return np.minimum(1, f_snow_toc / (1 - f_veg))
-
-
-def salomonson_appel(ndsi):
-    return 1.45 * ndsi - 0.01
 
 
 def salomonson_appel_regression(ndsi: npt.NDArray) -> npt.NDArray:

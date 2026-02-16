@@ -1,33 +1,35 @@
 from datetime import datetime
+from glob import glob
 from typing import List
 
 import xarray as xr
+from geospatial_grid.grid_database import UTM375mGrid
+from geospatial_grid.gsgrid import GSGrid
+from geospatial_grid.reprojections import reproject_using_grid
+from ndsi_fsc_calibration.regrid import RegridBase
 from rasterio.enums import Resampling
 
-from geotools import reproject_using_grid
-from grids import GeoGrid, LatLon375mGrid, UTM375mGrid
 from logger_setup import default_logger as logger
 from products.classes import METEOFRANCE_COMPOSITE_CLASSES
-from products.filenames import get_all_meteofrance_composite_filenames
-from products.snow_cover_product import (
-    MeteoFranceComposite,
-    MeteoFranceEvalJPSS1,
-    MeteoFranceEvalJPSS2,
-    MeteoFranceEvalSNPP,
-    SnowCoverProduct,
-)
-from regrid.regrid_base import RegridBase
 from regrid.reprojections import reprojection_composite_meteofrance_to_grid
 from winter_year import WinterYear
 
 
+def get_all_meteofrance_composite_filenames(data_folder: str, winter_year: WinterYear, platform: str) -> List[str] | None:
+    # Rejeu CMS
+    meteofrance_files = glob(f"{data_folder}/{winter_year.from_year}1[0-2]/1[0-2]/*{platform}*.nc")
+    meteofrance_files.extend(glob(f"{data_folder}/{winter_year.to_year}0[1-9]/0[1-9]/*{platform}*.nc"))
+    return sorted(meteofrance_files)
+
+
 class MeteoFranceCompositeRegrid(RegridBase):
-    def __init__(self, product: SnowCoverProduct, output_grid: GeoGrid, data_folder: str, output_folder: str):
-        super().__init__(product, output_grid, data_folder, output_folder)
+    def __init__(self, platform: str, output_grid: GSGrid, data_folder: str, output_folder: str):
+        super().__init__(output_grid=output_grid, data_folder=data_folder, output_folder=output_folder)
+        self.platform = platform
 
     def get_all_files_of_winter_year(self, winter_year: WinterYear) -> List[str]:
         return get_all_meteofrance_composite_filenames(
-            data_folder=self.data_folder, winter_year=winter_year, platform=self.product.platform
+            data_folder=self.data_folder, winter_year=winter_year, platform=self.platform
         )
 
     def get_daily_files(self, all_winter_year_files: List[str], day: datetime) -> List[str]:
@@ -56,7 +58,7 @@ class MeteoFranceCompositeRegrid(RegridBase):
             resampling_method=Resampling.nearest,
         )
 
-        if self.product.platform == "all":
+        if self.platform == "all":
             meteofrance_platform = reproject_using_grid(
                 dataset=daily_temporal_composite.data_vars["platform"],
                 output_grid=grid,
@@ -89,19 +91,11 @@ if __name__ == "__main__":
     grid = UTM375mGrid()
     output_folder = "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_10/time_series/"
 
-    for product in [MeteoFranceEvalSNPP()]:
-        logger.info(f"{product.plot_name} processing")
+    for platform in ("SNPP", "JPSS2", "JPSS1", "all"):
+        logger.info(f"{platform} processing")
         MeteoFranceCompositeRegrid(
-            product=product,
+            product=platform,
             output_grid=grid,
             data_folder=meteofrance_cms_folder,
-            output_folder=output_folder,
+            output_folder=f"{output_folder}/{platform}",
         ).create_time_series(winter_year=year, roi_shapefile=massifs_shapefile)
-
-    # logger.info("Méteo-France multiplatform processing")
-    # MeteoFranceMultiplatformRegrid(
-    #     output_grid=grid,
-    #     data_folder=meteofrance_cms_folder,
-    #     output_folder=output_folder,
-    #     suffix=suffix,
-    # ).create_time_series(winter_year=year, roi_shapefile=massifs_shapefile)
