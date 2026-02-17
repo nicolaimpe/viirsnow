@@ -14,7 +14,7 @@ from regrid.daily_composites import create_temporal_composite_meteofrance_single
 from regrid.reprojections import reprojection_l3_meteofrance_to_grid
 from winter_year import WinterYear
 
-platform_dict = {"SNPP": "npp", "JPSS1": "noaa20", "JPSS2": "noaa21"}
+platform_dict = {"SNPP": "npp", "JPSS1": "noaa20", "JPSS2": "noaa21", "all": "all"}
 
 
 def get_all_meteofrance_prototype_type_filenames(data_folder: str, platform: str, suffix: str) -> List[str] | None:
