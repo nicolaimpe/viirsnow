@@ -15,7 +15,7 @@ if __name__ == "__main__":
     massifs_shapefile = "/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/vectorial/massifs/massifs.shp"
     meteofrance_cms_folder = "/home/imperatoren/work/VIIRS_S2_comparison/data/CMS_rejeu/"
     grid = UTM375mGrid()
-    output_folder = "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_11/time_series/wy_2023_2024"
+    output_folder = "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_11/wy_2023_2024"
 
     ### Evaluation of V[NP|J1|J2]10A1 and MF-FSC-L3-SNPP on winter year 2023/2024
     logger.info("Météo-France prototype regridding")
@@ -23,7 +23,7 @@ if __name__ == "__main__":
     MeteoFrancePrototypeRegrid(
         output_grid=grid,
         data_folder=meteofrance_cms_folder,
-        output_folder=f"{output_folder}/meteofrance_snpp_{grid.name.lower()}",
+        output_folder=f"{output_folder}/meteofrance_snpp_l3_{grid.name.lower()}",
         suffix="no_forest_red_band_screen",
         platform=platform,
     ).create_time_series(start_date=start, end_date=end, roi_shapefile=massifs_shapefile)
@@ -73,12 +73,12 @@ if __name__ == "__main__":
     meteofrance_composite_folder = (
         "/home/imperatoren/work/VIIRS_S2_comparison/data/CMS_composite_multiplatform/rejeu_2024_2025"
     )
-    output_folder = "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_11/time_series/wy_2024_2025"
+    output_folder = "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_11/wy_2024_2025"
     for platform in ("SNPP", "JPSS1", "JPSS2", "all"):
         MeteoFranceCompositeRegrid(
             output_grid=grid,
             data_folder=meteofrance_composite_folder,
-            output_folder=f"{output_folder}/meteofrance_{platform.lower()}_{grid.name.lower()}",
+            output_folder=f"{output_folder}/meteofrance_{platform.lower()}_l3_{grid.name.lower()}",
             platform=platform,
         ).create_time_series(start_date=start, end_date=end, roi_shapefile=massifs_shapefile)
 

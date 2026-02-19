@@ -23,31 +23,6 @@ class EvaluationConfig(MountainBinnerConfig):
     sensor_zenith_analysis: bool = True
 
 
-def generate_evaluation_io(
-    analysis_type: str,
-    working_folder: str,
-    year: WinterYear,
-    ref_product_name: str,
-    eval_product_name: str,
-    grid: GSGrid | None = UTM375mGrid(),
-    period: slice | None = None,
-) -> Tuple[xr.Dataset, xr.Dataset, str]:
-    output_folder = f"{working_folder}/analyses/{analysis_type}"
-    ref_time_series_name = f"WY_{year.from_year}_{year.to_year}_{ref_product_name}_{grid.name.lower()}.nc"
-    eval_time_series_name = f"WY_{year.from_year}_{year.to_year}_{eval_product_name}_{grid.name.lower()}.nc"
-
-    output_filename = f"{output_folder}/{analysis_type}_WY_{year.from_year}_{year.to_year}_{eval_product_name}_vs_{ref_product_name}_{grid.name.lower()}.nc"
-
-    eval_time_series = xr.open_dataset(f"{working_folder}/time_series/{eval_time_series_name}", mask_and_scale=False)
-    ref_time_series = xr.open_dataset(f"{working_folder}/time_series/{ref_time_series_name}", mask_and_scale=False)
-
-    if period is not None:
-        eval_time_series = eval_time_series.sel(time=period)
-        ref_time_series = ref_time_series.sel(time=period)
-
-    return ref_time_series, eval_time_series, output_filename
-
-
 class EvaluationVsHighResBase(MountainBinner):
     def __init__(
         self,
@@ -62,43 +37,31 @@ class EvaluationVsHighResBase(MountainBinner):
         self.ref_analyzer = reference_analyzer
         self.eval_analyzer = eval_analyzer
 
-    @staticmethod
-    def sensor_zenith_bins(sensor_zenith_step: int = 15) -> BinGrouper:
+    def sensor_zenith_bins(self, sensor_zenith_step: int = 15) -> BinGrouper:
         # degrees
         # 255 is there to account for empty bins...otherwise the code breaks
-        return BinGrouper(
-            np.array([*np.arange(0, 90, sensor_zenith_step), 255]),
-            labels=np.array([*np.arange(sensor_zenith_step, 90, sensor_zenith_step), 255]),
-            include_lowest=True,
-        )
+        bin_edges = np.array([*np.arange(0, 90, sensor_zenith_step), 255])
+        return BinGrouper(bin_edges, labels=self.create_labels_from_bin_edges(bin_edges), include_lowest=True, right=False)
 
     def ref_fsc_bins(self, ref_fsc_step: int = 25) -> BinGrouper:
         # 255 is there to account for empty/invalid bins...otherwise the code breaks
+
+        bin_edges = np.array(
+            [
+                *np.arange(0, self.ref_analyzer.max_fsc + 1, ref_fsc_step),
+                self.ref_analyzer.max_fsc + 1,
+                self.ref_analyzer.max_value,
+            ]
+        )
         return BinGrouper(
-            np.array(
-                [
-                    -1,
-                    *np.arange(0, self.ref_analyzer.max_fsc - 1, ref_fsc_step),
-                    self.ref_analyzer.max_fsc - 1,
-                    self.ref_analyzer.max_fsc,
-                    self.ref_analyzer.max_value,
-                ]
-            ),
-            labels=np.array(
-                [
-                    *np.arange(0, self.ref_analyzer.max_fsc - 1, ref_fsc_step),
-                    self.ref_analyzer.max_fsc - 1,
-                    self.ref_analyzer.max_fsc,
-                    self.ref_analyzer.max_value,
-                ]
-            ),
+            bin_edges, labels=MountainBinner.create_labels_from_bin_edges(bin_edges), include_lowest=True, right=False
         )
 
     @abc.abstractmethod
-    def time_step_analysis(self):
+    def time_step_analysis(self, dataset: xr.Dataset, bins_dict: Dict[str, xr.groupers.Grouper]):
         pass
 
-    def prepare(self, distributed_data: xr.Dataset, bin_dict: Dict[str, BinGrouper]):
+    def prepare(self, distributed_data: xr.Dataset):
         """Use groupby to prepare binning.
 
         The resulting dataset is ready to apply a custom reduction using the map function. Example:
@@ -112,24 +75,25 @@ class EvaluationVsHighResBase(MountainBinner):
         """
         common_days = np.intersect1d(distributed_data["ref"]["time"], distributed_data["eval"]["time"])
         variable_and_auxiliary = self.stack_auxiliary_data(distributed_data=distributed_data)
-        if self.config.sensor_zenith_analysis is not None:
+        if self.config.sensor_zenith_analysis:
             variable_and_auxiliary = variable_and_auxiliary.assign(
-                sensor_zenith=distributed_data["eval"].data_vars["sensor_zenith_angle"].sel(time=common_days)
+                sensor_zenith=distributed_data.data_vars["sensor_zenith_angle"].sel(time=common_days)
             )
-        return variable_and_auxiliary.groupby(bin_dict)
+        return variable_and_auxiliary
 
     def index_and_rename_sza_coords(self, binned_data: xr.Dataset) -> xr.Dataset:
         bd = binned_data
         bd = bd.assign_coords(sensor_zenith_min=("sensor_zenith_bins", self.bins_min(bd, "sensor_zenith_bins")))
-        bd = bd.assign_coords(sensor_zenith_max_max=("sensor_zenith_bins", self.bins_max(bd, "sensor_zenith_bins")))
+        bd = bd.assign_coords(sensor_zenith_max=("sensor_zenith_bins", self.bins_max(bd, "sensor_zenith_bins")))
         bd = bd.set_xindex("sensor_zenith_min")
         bd = bd.set_xindex("sensor_zenith_max")
         return bd
 
     def index_and_rename_ref_fsc_coords(self, binned_data: xr.Dataset) -> xr.Dataset:
         bd = binned_data
+        bd = bd.rename({"ref_bins": "ref_fsc_bins"})
         bd = bd.assign_coords(ref_fsc_min=("ref_fsc_bins", self.bins_min(bd, "ref_fsc_bins")))
-        bd = bd.assign_coords(ref_fsc_max_max=("ref_fsc_bins", self.bins_max(bd, "ref_fsc_bins")))
+        bd = bd.assign_coords(ref_fsc_max=("ref_fsc_bins", self.bins_max(bd, "ref_fsc_bins")))
         bd = bd.set_xindex("ref_fsc_min")
         bd = bd.set_xindex("ref_fsc_max")
         return bd
@@ -144,15 +108,17 @@ class EvaluationVsHighResBase(MountainBinner):
                 "eval": eval_time_series.data_vars[self.config.eval_var_name[0]].sel(time=common_days),
             },
         )
-        data_bins = self.create_default_bin_dict(altitude_step=300)
+        data_bins = self.create_default_bin_dict(altitude_step=900)
         if self.config.sensor_zenith_analysis:
+            combined_dataset = combined_dataset.assign({"sensor_zenith_angle": eval_time_series["sensor_zenith_angle"]})
             data_bins.update(sensor_zenith=self.sensor_zenith_bins())
-        data_bins.update(ref_fsc=self.ref_fsc_bins())
+        data_bins.update(ref=self.ref_fsc_bins())
+        combined_dataset_and_auxiliary = self.prepare(distributed_data=combined_dataset)
+        transformed = combined_dataset_and_auxiliary.groupby("time").map(self.time_step_analysis, bins_dict=data_bins)
 
-        transformed = combined_dataset.groupby("time").map(
-            self.transform(distributed_data=combined_dataset, bin_dict=data_bins, function=self.time_step_analysis())
-        )
-        transformed = self.index_and_rename_ref_fsc_coords()
+        transformed = self.rename_coords(binned_data=transformed)
+        transformed = self.index_and_rename_ref_fsc_coords(binned_data=transformed)
+
         if self.config.sensor_zenith_analysis:
             transformed = self.index_and_rename_sza_coords(binned_data=transformed)
         if netcdf_export_path:

@@ -57,7 +57,6 @@ class ConfusionTable(EvaluationVsHighResBase):
         dataset = dataset.assign({"true_negative": no_snow_eval & no_snow_ref})
         dataset = dataset.assign({"false_positive": snow_eval & no_snow_ref})
         dataset = dataset.assign({"false_negative": no_snow_eval & snow_ref})
-
         out_dataset = dataset.groupby(bins_dict).map(self.sum_masks)
         return out_dataset
 
