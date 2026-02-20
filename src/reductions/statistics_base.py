@@ -20,7 +20,7 @@ from winter_year import WinterYear
 class EvaluationConfig(MountainBinnerConfig):
     ref_var_name: str = ("snow_cover_fraction",)
     eval_var_name: str = ("snow_cover_fraction",)
-    ref_fsc_step: int = (25,)
+    ref_fsc_step: int = 25
     sensor_zenith_analysis: bool = True
 
 
@@ -118,7 +118,7 @@ class EvaluationVsHighResBase(MountainBinner):
         if self.config.sensor_zenith_analysis:
             combined_dataset = combined_dataset.assign({"sensor_zenith_angle": eval_time_series["sensor_zenith_angle"]})
             data_bins.update(sensor_zenith=self.sensor_zenith_bins())
-        data_bins.update(ref=self.ref_fsc_bins())
+        data_bins.update(ref=self.ref_fsc_bins(ref_fsc_step=self.config.ref_fsc_step))
         combined_dataset_and_auxiliary = self.prepare(distributed_data=combined_dataset)
         transformed = combined_dataset_and_auxiliary.groupby("time").map(self.time_step_analysis, bins_dict=data_bins)
 

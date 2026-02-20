@@ -7,7 +7,7 @@ from matplotlib import ticker
 from matplotlib.axes import Axes
 
 from postprocess.error_distribution import postprocess_uncertainty_analysis
-from postprocess.general_purpose import AnalysisContainer, open_reduced_dataset, open_reduced_dataset_completeness
+from postprocess.general_purpose import AnalysisContainer, open_reduced_dataset
 from products.plot_settings import MF_ORIG_VAR_NAME, MF_SYNOPSIS_VAR_NAME
 
 
@@ -67,31 +67,37 @@ def plot_annual_daily_cross_sce(area_stats: xr.Dataset, ax: Axes, mode: str = "b
 def plot_annual_area_lines(analysis: AnalysisContainer, classes: List[str], axes: List[Axes]):
     class_titles = {"snow_cover": "Snow cover", "clouds": "Clouds"}
 
-    metrics_dataset_completeness_0 = open_reduced_dataset_completeness(
+    metrics_dataset_completeness_0 = open_reduced_dataset(
         product=analysis.products[0],
         analysis_folder=analysis.analysis_folder,
+        analysis_type="completeness",
         winter_year=analysis.winter_year,
         grid=analysis.grid,
     )
     common_days = metrics_dataset_completeness_0.coords["time"]
 
     for prod in analysis.products[1:]:
-        metrics_dataset_completeness = open_reduced_dataset_completeness(
-            product=prod, analysis_folder=analysis.analysis_folder, winter_year=analysis.winter_year, grid=analysis.grid
+        metrics_dataset_completeness = open_reduced_dataset(
+            product=prod,
+            analysis_folder=analysis.analysis_folder,
+            analysis_type="completeness",
+            winter_year=analysis.winter_year,
+            grid=analysis.grid,
         )
         common_days = np.intersect1d(common_days, metrics_dataset_completeness.coords["time"])
     # class_ylim_top={'snow_cover': 2e4, 'clouds': 6e4}
     for product in analysis.products:
-        metrics_dataset_completeness = (
-            open_reduced_dataset_completeness(
-                product=product, analysis_folder=analysis.analysis_folder, winter_year=analysis.winter_year, grid=analysis.grid
-            )
-            .sel(
-                time=slice(f"{analysis.winter_year.from_year}-11", f"{analysis.winter_year.to_year}-06"),
-                altitude_bins=slice(900, None),
-            )
-            .sel(time=common_days)
+        metrics_dataset_completeness = open_reduced_dataset(
+            product=product,
+            analysis_folder=analysis.analysis_folder,
+            analysis_type="completeness",
+            winter_year=analysis.winter_year,
+            grid=analysis.grid,
         )
+        metrics_dataset_completeness = metrics_dataset_completeness.set_xindex("altitude_min")
+
+        metrics_dataset_completeness.sel(time=common_days, altitude_min=slice(900, None))
+
         product_monthly_averages = (
             metrics_dataset_completeness.resample({"time": "1ME"}).mean(dim="time").data_vars["surface"] * 1e-6
         )
@@ -142,8 +148,9 @@ def plot_annual_uncertainty_score_lines(analysis: AnalysisContainer, scores: Lis
             winter_year=analysis.winter_year,
             grid=analysis.grid,
         )
+        metrics_dataset_uncertainty = metrics_dataset_uncertainty.set_xindex("altitude_min")
         metrics_dataset_uncertainty = (
-            metrics_dataset_uncertainty.sel(time=common_days, altitude_bins=slice(900, None)).resample({"time": "1ME"}).sum()
+            metrics_dataset_uncertainty.sel(time=common_days, altitude_min=slice(900, None)).resample({"time": "1ME"}).sum()
         )
 
         metrics_dataset_uncertainty = postprocess_uncertainty_analysis(

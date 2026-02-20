@@ -12,7 +12,6 @@ from rasterio.enums import Resampling
 from products.classes import METEOFRANCE_COMPOSITE_CLASSES
 from regrid.daily_composites import create_temporal_composite_meteofrance_single_platform
 from regrid.reprojections import reprojection_l3_meteofrance_to_grid
-from winter_year import WinterYear
 
 platform_dict = {"SNPP": "npp", "JPSS1": "noaa20", "JPSS2": "noaa21", "all": "all"}
 

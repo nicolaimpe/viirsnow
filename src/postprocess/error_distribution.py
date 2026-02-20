@@ -16,11 +16,11 @@ from postprocess.general_purpose import AnalysisContainer, fancy_table, open_red
 from products.snow_cover_product import SnowCoverProduct
 
 
-def histograms_to_biais_rmse(metrics_dataset: xr.Dataset) -> xr.Dataset:
+def histograms_to_bias_rmse(metrics_dataset: xr.Dataset) -> xr.Dataset:
     # From a histogram of differences (bias), compute uncertainty figures
     tot_occurrences = metrics_dataset.data_vars["n_occurrences"].sum()
     n_occur = metrics_dataset.data_vars["n_occurrences"]
-    residual_bins = metrics_dataset.coords["biais_bins"]
+    residual_bins = metrics_dataset.coords["residual_bins"]
     bias = (n_occur * residual_bins).sum() / tot_occurrences
     rmse = np.sqrt((n_occur * residual_bins**2).sum() / tot_occurrences)
     unbiaised_rmse = np.sqrt((n_occur * (residual_bins - bias) ** 2).sum() / tot_occurrences)
@@ -34,7 +34,7 @@ def postprocess_uncertainty_analysis(
 ) -> xr.Dataset:
     reduced_datasets = []
     for product, metrics in zip(snow_cover_products, metrics_datasets):
-        reduced_datasets.append(metrics.groupby(analysis_var).map(histograms_to_biais_rmse))
+        reduced_datasets.append(metrics.groupby(analysis_var).map(histograms_to_bias_rmse))
     concatenated = xr.concat(
         reduced_datasets, pd.Index([product.name for product in snow_cover_products], name="product"), coords="minimal"
     )
@@ -43,9 +43,11 @@ def postprocess_uncertainty_analysis(
 
 def histograms_to_distribution(metrics_ds) -> npt.NDArray:
     all_dims = list(metrics_ds.sizes.keys())
-    all_dims.remove("biais_bins")
+    all_dims.remove("residual_bins")
     metrics_squeezed = metrics_ds.sum(dim=all_dims)
-    distribution = np.repeat(metrics_ds.coords["biais_bins"].values, metrics_squeezed["n_occurrences"].values.astype(np.int64))
+    distribution = np.repeat(
+        metrics_ds.coords["residual_bins"].values, metrics_squeezed["n_occurrences"].values.astype(np.int64)
+    )
     return distribution
 
 
@@ -93,12 +95,12 @@ def fancy_table_tot(dataframe_to_print: pd.DataFrame) -> Styler:
 
 def scatter_to_biais(dataset: xr.Dataset) -> xr.DataArray:
     data_array = dataset.data_vars["n_occurrences"].sum(dim=("forest_mask_bins", "sub_roi_bins", "aspect_bins", "time"))
-    biais_bins = np.arange(-100, 101)
+    residual_bins = np.arange(-100, 101)
 
-    occurrences_per_biais_bins = np.zeros_like(biais_bins)
-    for i, b in enumerate(biais_bins):
-        occurrences_per_biais_bins[i] = np.trace(data_array.values, offset=b + data_array.ref_bins.values[0])
-    out_data_array = xr.DataArray(data=occurrences_per_biais_bins, coords={"biais_bins": biais_bins})
+    occurrences_per_residual_bins = np.zeros_like(residual_bins)
+    for i, b in enumerate(residual_bins):
+        occurrences_per_residual_bins[i] = np.trace(data_array.values, offset=b + data_array.ref_bins.values[0])
+    out_data_array = xr.DataArray(data=occurrences_per_residual_bins, coords={"residual_bins": residual_bins})
     return xr.Dataset({"n_occurrences": out_data_array})
 
 
@@ -126,16 +128,16 @@ def plot_error_bars(analysis: AnalysisContainer, analysis_var: str, ax: plt.Axes
         box_width_data = 0.2 / len(x_positions)
         for idx, value in enumerate(analysis_coords):
             x_pos = x_positions[idx]
-            product_analysis_var_dataset = metrics_dataset.sel({analysis_var: value})  # .drop_sel(biais_bins=0)
-            reduced = product_analysis_var_dataset.groupby("biais_bins").sum(list(product_analysis_var_dataset.sizes.keys()))
-            biais_rmse = histograms_to_biais_rmse(reduced)
+            product_analysis_var_dataset = metrics_dataset.sel({analysis_var: value})  # .drop_sel(residual_bins=0)
+            reduced = product_analysis_var_dataset.groupby("residual_bins").sum(
+                list(product_analysis_var_dataset.sizes.keys())
+            )
+            biais_rmse = histograms_to_bias_rmse(reduced)
             distr = histograms_to_distribution(reduced)
             ax.scatter(x_pos, biais_rmse.data_vars["bias"], marker="o", color=product.plot_color, s=35, zorder=3)
             whiskers_min = np.percentile(distr, percentile_min)
             whiskers_max = np.percentile(distr, percentile_max)
-            ax.vlines(
-                x_pos, whiskers_min, whiskers_max, color=product.plot_color, linestyle="-", lw=3, label=product.plot_name
-            )
+            ax.vlines(x_pos, whiskers_min, whiskers_max, color=product.plot_color, linestyle="-", lw=3, label=product.prod_id)
 
             ax.hlines(whiskers_min, x_pos - box_width_data / 2, x_pos + box_width_data / 2, color=product.plot_color, lw=3)
             ax.hlines(whiskers_max, x_pos - box_width_data / 2, x_pos + box_width_data / 2, color=product.plot_color, lw=3)
@@ -233,9 +235,9 @@ def line_plot_rmse(analysis: AnalysisContainer, analysis_var: str, ax: Axes):
 def compute_uncertainty_results_df(snow_cover_products: List[SnowCoverProduct], metric_datasets: List[xr.Dataset]):
     reduced_datasets = []
     for dataset in metric_datasets:
-        reduced_datasets.append(histograms_to_biais_rmse(dataset.groupby("time.month").sum()))
+        reduced_datasets.append(histograms_to_bias_rmse(dataset.groupby("time.month").sum()))
     concatenated = xr.concat(
-        reduced_datasets, pd.Index([prod.plot_name for prod in snow_cover_products], name="product"), coords="minimal"
+        reduced_datasets, pd.Index([prod.prod_id for prod in snow_cover_products], name="product"), coords="minimal"
     )
     reduced_df = concatenated.to_dataframe().reset_index("product")
     return reduced_df

@@ -160,7 +160,7 @@ class SnowCoverProductCompleteness:
             snow_cover_product_time_series = snow_cover_product_time_series.sel(time=period)
         if config is not None:
             mountain_binner = MountainBinner(config)
-            data_bins = mountain_binner.create_default_bin_dict_from_config(altitude_step=300)
+            data_bins = mountain_binner.create_default_bin_dict_from_config(altitude_step=900)
             combined_dataset_and_auxiliary = mountain_binner.stack_auxiliary_data(
                 distributed_data=snow_cover_product_time_series
             )
@@ -172,6 +172,7 @@ class SnowCoverProductCompleteness:
                 self.day_statistics_without_params, exclude_nodata=exclude_nodata
             )
 
+        year_results_dataset = mountain_binner.rename_coords(binned_data=year_results_dataset)
         if netcdf_export_path is not None:
             year_results_dataset.to_netcdf(Path(netcdf_export_path))
 
