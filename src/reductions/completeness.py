@@ -160,8 +160,11 @@ class SnowCoverProductCompleteness:
             snow_cover_product_time_series = snow_cover_product_time_series.sel(time=period)
         if config is not None:
             mountain_binner = MountainBinner(config)
-            data_bins = mountain_binner.create_default_bin_dict(altitude_step=300)
-            year_results_dataset = snow_cover_product_time_series.groupby("time").map(
+            data_bins = mountain_binner.create_default_bin_dict_from_config(altitude_step=300)
+            combined_dataset_and_auxiliary = mountain_binner.stack_auxiliary_data(
+                distributed_data=snow_cover_product_time_series
+            )
+            year_results_dataset = combined_dataset_and_auxiliary.groupby("time").map(
                 self.day_statistics_with_params, analysis_bin_dict=data_bins, exclude_nodata=exclude_nodata
             )
         else:
@@ -173,7 +176,7 @@ class SnowCoverProductCompleteness:
             year_results_dataset.to_netcdf(Path(netcdf_export_path))
 
 
-class MeteoFranceArchiveSnowCoverProductCompleteness(SnowCoverProductCompleteness):
+class MeteoFranceArchiveCompleteness(SnowCoverProductCompleteness):
     def __init__(self) -> None:
         super().__init__(classes=METEOFRANCE_ARCHIVE_CLASSES, nodata_mapping=None)
 
@@ -190,7 +193,7 @@ class MeteoFranceArchiveSnowCoverProductCompleteness(SnowCoverProductCompletenes
         return no_snow_meteofrance
 
 
-class MeteoFranceCompositeSnowCoverProductCompleteness(SnowCoverProductCompleteness):
+class MeteoFranceCompositeCompleteness(SnowCoverProductCompleteness):
     def __init__(self) -> None:
         super().__init__(classes=METEOFRANCE_COMPOSITE_CLASSES, nodata_mapping=None)
 
@@ -203,7 +206,7 @@ class MeteoFranceCompositeSnowCoverProductCompleteness(SnowCoverProductCompleten
         return no_snow_meteofrance
 
 
-class NASASnowCoverProductCompleteness(SnowCoverProductCompleteness):
+class NASACompleteness(SnowCoverProductCompleteness):
     def __init__(self) -> None:
         super().__init__(classes=NASA_CLASSES, nodata_mapping=NODATA_NASA_CLASSES)
 
@@ -216,7 +219,7 @@ class NASASnowCoverProductCompleteness(SnowCoverProductCompleteness):
         return no_snow_nasa
 
 
-class S2SnowCoverProductCompleteness(SnowCoverProductCompleteness):
+class S2Completeness(SnowCoverProductCompleteness):
     def __init__(self) -> None:
         super().__init__(classes=S2_CLASSES)
 

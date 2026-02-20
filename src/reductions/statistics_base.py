@@ -1,4 +1,5 @@
 import abc
+import os
 from dataclasses import dataclass
 from typing import Dict, Tuple
 
@@ -48,7 +49,10 @@ class EvaluationVsHighResBase(MountainBinner):
 
         bin_edges = np.array(
             [
-                *np.arange(0, self.ref_analyzer.max_fsc + 1, ref_fsc_step),
+                0,
+                1,
+                *np.arange(ref_fsc_step + 1, self.ref_analyzer.max_fsc, ref_fsc_step),
+                self.ref_analyzer.max_fsc,
                 self.ref_analyzer.max_fsc + 1,
                 self.ref_analyzer.max_value,
             ]
@@ -108,7 +112,9 @@ class EvaluationVsHighResBase(MountainBinner):
                 "eval": eval_time_series.data_vars[self.config.eval_var_name[0]].sel(time=common_days),
             },
         )
-        data_bins = self.create_default_bin_dict(altitude_step=900)
+
+        data_bins = self.create_default_bin_dict_from_config(altitude_step=900)
+
         if self.config.sensor_zenith_analysis:
             combined_dataset = combined_dataset.assign({"sensor_zenith_angle": eval_time_series["sensor_zenith_angle"]})
             data_bins.update(sensor_zenith=self.sensor_zenith_bins())
@@ -122,6 +128,8 @@ class EvaluationVsHighResBase(MountainBinner):
         if self.config.sensor_zenith_analysis:
             transformed = self.index_and_rename_sza_coords(binned_data=transformed)
         if netcdf_export_path:
+            if not os.path.exists(os.path.dirname(netcdf_export_path)):
+                os.makedirs(os.path.dirname(netcdf_export_path))
             logger.info(f"Exporting to {netcdf_export_path}")
             transformed.to_netcdf(netcdf_export_path, encoding=generate_xarray_compression_encodings(transformed))
         return transformed

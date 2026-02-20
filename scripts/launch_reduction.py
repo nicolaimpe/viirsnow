@@ -3,6 +3,7 @@ from typing import Dict, List
 
 import xarray as xr
 from geospatial_grid.grid_database import UTM375mGrid
+from mountain_data_binner.mountain_binner import MountainBinnerConfig
 
 from logger_setup import default_logger as logger
 from products.snow_cover_product import (
@@ -17,6 +18,7 @@ from products.snow_cover_product import (
     Sentinel2Theia,
     SnowCoverProduct,
 )
+from reductions.completeness import NASACompleteness, SnowCoverProductCompleteness
 from reductions.confusion_table import ConfusionTable
 from reductions.correlation import ScatterAnalysis
 from reductions.statistics_base import EvaluationConfig, EvaluationVsHighResBase
@@ -24,30 +26,29 @@ from reductions.uncertainty import Uncertainty
 from regrid.modis_l3_to_time_series import UTM500mGrid
 from winter_year import WinterYear
 
-config_base = EvaluationConfig(
-    forest_mask_path="/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/forest_mask/corine_2018/corine_2018_forest_mask_utm_375m.tif",
-    slope_map_path="/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/dem/SLP_MSF_UTM31_375m_lanczos.tif",
-    aspect_map_path="/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/dem/ASP_MSF_UTM31_375m_lanczos.tif",
-    dem_path="/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/dem/DEM_MSF_UTM31_375m_lanczos.tif",
-    sensor_zenith_analysis=False,
-)
-
-
 if __name__ == "__main__":
+    ### Detailed analysis of VIIRS products on winter year 2023/2024
     s2_analyzer = Sentinel2Theia().analyzer
 
-    wy = WinterYear(2023, 2024)
+    config_base = EvaluationConfig(
+        forest_mask_path="/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/forest_mask/corine_2018/corine_2018_forest_mask_utm_375m.tif",
+        slope_map_path="/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/dem/SLP_MSF_UTM31_375m_lanczos.tif",
+        aspect_map_path="/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/dem/ASP_MSF_UTM31_375m_lanczos.tif",
+        dem_path="/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/dem/DEM_MSF_UTM31_375m_lanczos.tif",
+        sensor_zenith_analysis=False,
+    )
+
     output_folder = "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_11/wy_2023_2024"
     grid = UTM375mGrid()
-    period = slice(f"{wy.from_year}-11-01", f"{wy.from_year}-11-05")
-    products: List[SnowCoverProduct] = [MeteoFranceEvalSNPP()]
+
+    products: List[SnowCoverProduct] = [VNP10A1(), VJ110A1(), VJ210A1(), MeteoFranceEvalSNPP()]
     reductions = ["confusion_table", "uncertainty"]
     config_sza = deepcopy(config_base)
     config_sza.sensor_zenith_analysis = True
 
     config_scatter = deepcopy(config_base)
     config_scatter.slope_map_path = None
-    config_scatter.eval_var_name = "NDSI_Snow_Cover"
+    config_scatter.eval_var_name = ("NDSI_Snow_Cover",)
 
     reduction_dict: Dict[str, EvaluationVsHighResBase] = {
         "confusion_table": ConfusionTable,
@@ -72,10 +73,10 @@ if __name__ == "__main__":
             )
             metrics_calculator.launch_analysis(
                 eval_time_series=xr.open_dataset(
-                    f"{output_folder}/{product.prod_id.lower()}_{grid.name.lower()}/regridded.nc"
+                    f"{output_folder}/{product.prod_id.lower()}_{grid.name.lower()}/time_series/regridded.nc"
                 ),
-                ref_time_series=xr.open_dataset(f"{output_folder}/s2_{grid.name.lower()}/regridded.nc"),
-                netcdf_export_path=f"{output_folder}/{product.prod_id.lower()}_{grid.name.lower()}/{reduction}.nc",
+                ref_time_series=xr.open_dataset(f"{output_folder}/s2_{grid.name.lower()}/time_series/regridded.nc"),
+                netcdf_export_path=f"{output_folder}/{product.prod_id.lower()}_{grid.name.lower()}/analyses/{reduction}.nc",
             )
     logger.info("Evaluation scatter for product VNP10A1")
     metrics_calculator = ScatterAnalysis(
@@ -84,68 +85,118 @@ if __name__ == "__main__":
         reference_analyzer=s2_analyzer,
     )
     metrics_calculator.launch_analysis(
-        eval_time_series=xr.open_dataset(f"{output_folder}/{VNP10A1().prod_id.lower()}_{grid.name.lower()}/regridded.nc"),
-        ref_time_series=xr.open_dataset(f"{output_folder}/s2_{grid.name.lower()}/regridded.nc"),
-        netcdf_export_path=f"{output_folder}/{VNP10A1().prod_id.lower()}_{grid.name.lower()}/scatter.nc",
+        eval_time_series=xr.open_dataset(
+            f"{output_folder}/{VNP10A1().prod_id.lower()}_{grid.name.lower()}/time_series/regridded.nc"
+        ),
+        ref_time_series=xr.open_dataset(f"{output_folder}/s2_{grid.name.lower()}/time_series/regridded.nc"),
+        netcdf_export_path=f"{output_folder}/{VNP10A1().prod_id.lower()}_{grid.name.lower()}/analyses/scatter.nc",
     )
-    # if reduction_type == "uncertainty":
-    #     logger.info("Uncertainty analysis")
 
-    #     ref_time_series, test_time_series, output_filename = generate_evaluation_io(
-    #         analysis_type="uncertainty",
-    #         working_folder=working_folder,
-    #         year=wy,
-    #         test_product_name=product.name,
-    #         ref_product_name="S2_theia",
-    #         grid=grid,
-    #         period=period,
-    #     )
-    #     metrics_calcuator = Uncertainty(reference_analyzer=Sentinel2Theia().analyzer, test_analyzer=product.analyzer)
+    ### MODIS vs VIIRS rough analysis winter year 2023/2024
 
-    # if reduction_type == "confusion_table":
-    #     logger.info("Contingency analysis")
+    wy = WinterYear(2023, 2024)
+    output_folder = "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_11/wy_2023_2024"
+    grid = UTM500mGrid()
+    period = slice(f"{wy.from_year}-11-01", f"{wy.from_year}-11-05")
+    products: List[SnowCoverProduct] = [VNP10A1(), MOD10A1()]
 
-    #     ref_time_series, test_time_series, output_filename = generate_evaluation_io(
-    #         analysis_type="confusion_table",
-    #         working_folder=working_folder,
-    #         year=wy,
-    #         grid=grid,
-    #         test_product_name=product.name,
-    #         ref_product_name="S2_theia",
-    #         period=period,
-    #     )
+    config_base = EvaluationConfig(
+        forest_mask_path="/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/forest_mask/corine_2018/corine_2018_forest_mask_utm_500m.tif",
+        slope_map_path="/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/dem/SLP_MSF_UTM31_500m_lanczos.tif",
+        aspect_map_path="/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/dem/ASP_MSF_UTM31_500m_lanczos.tif",
+        dem_path="/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/dem/DEM_MSF_UTM31_500m_lanczos.tif",
+        sensor_zenith_analysis=False,
+    )
 
-    #     metrics_calcuator = ConfusionTable(
-    #         reference_analyzer=Sentinel2Theia().analyzer,
-    #         test_analyzer=product.analyzer,
-    #         test_fsc_threshold=50,
-    #         ref_fsc_threshold=50,
-    #     )
+    eval_config_dict: Dict[str, Dict[str, EvaluationConfig]] = {
+        "uncertainty": {
+            "VNP10A1": config_base,
+            "MOD10A1": config_base,
+        },
+    }
+    config_completeness = MountainBinnerConfig(
+        forest_mask_path="/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/forest_mask/corine_2018/corine_2018_forest_mask_utm_500m.tif",
+    )
 
-    # if reduction_type == "scatter":
-    #     logger.info("Scatter analysis")
+    for product in products:
+        logger.info(f"Evaluation uncertainty for product {product}")
+        metrics_calculator = Uncertainty(
+            evaluation_config=eval_config_dict["uncertainty"][product.prod_id],
+            eval_analyzer=product.analyzer,
+            reference_analyzer=s2_analyzer,
+        )
+        prod_time_series = xr.open_dataset(
+            f"{output_folder}/{product.prod_id.lower()}_{grid.name.lower()}/time_series/regridded.nc"
+        )
+        metrics_calculator.launch_analysis(
+            eval_time_series=prod_time_series,
+            ref_time_series=xr.open_dataset(f"{output_folder}/s2_{grid.name.lower()}/time_series/regridded.nc"),
+            netcdf_export_path=f"{output_folder}/{product.prod_id.lower()}_{grid.name.lower()}/analyses/uncertainty.nc",
+        )
 
-    #     ref_time_series, test_time_series, output_filename = generate_evaluation_io(
-    #         analysis_type="scatter",
-    #         working_folder=working_folder,
-    #         year=wy,
-    #         grid=grid,
-    #         period=period,
-    #         test_product_name=product.name,
-    #         ref_product_name="S2_theia",
-    #     )
+        logger.info(f"Evaluation completeness for product {product}")
+        area_calculator = NASACompleteness()
+        area_calculator.year_temporal_analysis(
+            snow_cover_product_time_series=prod_time_series,
+            netcdf_export_path=f"{output_folder}/{product.prod_id.lower()}_{grid.name.lower()}/analyses/completeness.nc",
+            period=period,
+            config=config_completeness,
+        )
 
-    #     metrics_calcuator = Scatter(
-    #         reference_analyzer=Sentinel2Theia().analyzer,
-    #         test_analyzer=product.analyzer,
-    #     )
+    ### Météo-France 3 platforms + composite winter year 2024/2025
 
-    #     config.test_var_name = ("NDSI_Snow_Cover",)
-    #     config.ref_fsc_step = 1
+    wy = WinterYear(2024, 2025)
+    output_folder = "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_11/wy_2024_2025"
+    grid = UTM375mGrid()
+    period = slice(f"{wy.from_year}-11-01", f"{wy.from_year}-11-05")
+    products: List[SnowCoverProduct] = [
+        MeteoFranceEvalSNPP(),
+        MeteoFranceEvalJPSS1(),
+        MeteoFranceEvalJPSS2(),
+        MeteoFranceComposite(),
+    ]
 
-    # metrics_calcuator.launch_analysis(
-    #     test_time_series=test_time_series,
-    #     ref_time_series=ref_time_series,
-    #     config=config,
-    #     netcdf_export_path=output_filename,
-    # )
+    config_base = EvaluationConfig(
+        forest_mask_path="/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/forest_mask/corine_2018/corine_2018_forest_mask_utm_375m.tif",
+        slope_map_path=None,
+        aspect_map_path=None,
+        dem_path="/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/dem/DEM_MSF_UTM31_375m_lanczos.tif",
+        sensor_zenith_analysis=False,
+    )
+
+    eval_config_dict: Dict[str, Dict[str, EvaluationConfig]] = {
+        "uncertainty": {
+            "MF-FSC-VNP-L3": config_base,
+            "MF-FSC-VJ1-L3": config_base,
+            "MF-FSC-VJ2-L3": config_base,
+            "MF-FSC-VMP-L3": config_base,
+        },
+    }
+    config_completeness = MountainBinnerConfig(
+        forest_mask_path="/home/imperatoren/work/VIIRS_S2_comparison/data/auxiliary/forest_mask/corine_2018/corine_2018_forest_mask_utm_375m.tif",
+    )
+
+    for product in products:
+        logger.info(f"Evaluation uncertainty for product {product}")
+        metrics_calculator = Uncertainty(
+            evaluation_config=eval_config_dict["uncertainty"][product.prod_id],
+            eval_analyzer=product.analyzer,
+            reference_analyzer=s2_analyzer,
+        )
+        prod_time_series = xr.open_dataset(
+            f"{output_folder}/{product.prod_id.lower()}_{grid.name.lower()}/time_series/regridded.nc"
+        )
+        metrics_calculator.launch_analysis(
+            eval_time_series=prod_time_series,
+            ref_time_series=xr.open_dataset(f"{output_folder}/s2_{grid.name.lower()}/time_series/regridded.nc"),
+            netcdf_export_path=f"{output_folder}/{product.prod_id.lower()}_{grid.name.lower()}/analyses/uncertainty.nc",
+        )
+
+        logger.info(f"Evaluation completeness for product {product}")
+        area_calculator = NASACompleteness()
+        area_calculator.year_temporal_analysis(
+            snow_cover_product_time_series=prod_time_series,
+            netcdf_export_path=f"{output_folder}/{product.prod_id.lower()}_{grid.name.lower()}/analyses/completeness.nc",
+            period=period,
+            config=config_completeness,
+        )

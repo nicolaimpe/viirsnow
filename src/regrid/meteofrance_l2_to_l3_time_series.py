@@ -19,7 +19,6 @@ platform_dict = {"SNPP": "npp", "JPSS1": "noaa20", "JPSS2": "noaa21", "all": "al
 
 def get_all_meteofrance_prototype_type_filenames(data_folder: str, platform: str, suffix: str) -> List[str] | None:
     # Rejeu CMS
-    print(f"{data_folder}/{platform}/{suffix}/*/*/*{platform_dict[platform]}*{suffix}.tif")
     meteofrance_files = glob(f"{data_folder}/{platform}/{suffix}/*/*/*{platform_dict[platform]}*{suffix}.tif")
     return sorted(meteofrance_files)
 

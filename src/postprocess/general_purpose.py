@@ -65,15 +65,7 @@ def open_reduced_dataset(
     product: SnowCoverProduct, analysis_folder: str, analysis_type: str, winter_year: WinterYear, grid: GSGrid
 ) -> xr.Dataset:
     return xr.open_dataset(
-        f"{analysis_folder}/analyses/{analysis_type}/{analysis_type}_{winter_year.to_filename_format()}_{product.name}_vs_S2_theia_{grid.name.lower()}.nc"
-    )
-
-
-def open_reduced_dataset_completeness(
-    product: SnowCoverProduct, analysis_folder: str, winter_year: WinterYear, grid: GSGrid
-) -> xr.Dataset:
-    return xr.open_dataset(
-        f"{analysis_folder}/analyses/completeness/completeness_{winter_year.to_filename_format()}_{product.name}_{grid.name.lower()}.nc"
+        f"{analysis_folder}/wy_{winter_year.from_year}_{winter_year.to_year}/{product.prod_id.lower()}_{grid.name.lower()}/analyses/{analysis_type}.nc"
     )
 
 
@@ -88,20 +80,12 @@ def open_reduced_dataset_for_plot(
     coord_dict = {}
     rename_dict = {}
 
-    if "aspect_bins" in dataset.coords:
-        coord_dict.update(
-            {
-                "aspect_bins": pd.CategoricalIndex(
-                    data=EvaluationVsHighResBase.aspect_bins().labels,
-                    categories=EvaluationVsHighResBase.aspect_bins().labels,
-                    ordered=True,
-                )
-            },
-        )
-        rename_dict.update({"aspect_bins": "Aspect"})
+    if "aspect" in dataset.coords:
+        rename_dict.update({"aspect": "Aspect"})
 
     if "slope_bins" in dataset.coords:
-        selection_dict.update(slope_bins=slice(None, 60))
+        dataset = dataset.set_xindex("slope_max")
+        selection_dict.update(slope_max=slice(None, 60))
         coord_dict.update(
             {
                 "slope_bins": pd.CategoricalIndex(
@@ -111,16 +95,12 @@ def open_reduced_dataset_for_plot(
         )
         rename_dict.update({"slope_bins": "Slope [°]"})
 
-    if "forest_mask_bins" in dataset.coords:
-        coord_dict.update(
-            {
-                "forest_mask_bins": ["Open", "Forest"],
-            },
-        )
-        rename_dict.update({"forest_mask_bins": "Landcover"})
+    if "landcover" in dataset.coords:
+        rename_dict.update({"landcover": "Landcover"})
 
     if "sensor_zenith_bins" in dataset.coords:
-        selection_dict.update(sensor_zenith_bins=slice(None, 75))
+        dataset = dataset.set_xindex("sensor_zenith_max")
+        selection_dict.update(sensor_zenith_max=slice(None, 75))
         coord_dict.update(
             {
                 "sensor_zenith_bins": pd.CategoricalIndex(
@@ -132,23 +112,23 @@ def open_reduced_dataset_for_plot(
         )
         rename_dict.update({"sensor_zenith_bins": "View Zenith Angle [°]"})
 
-    if "ref_bins" in dataset.coords:
-        selection_dict.update(ref_bins=slice(None, 100))
-
-        if dataset.sizes["ref_bins"] == 7:
+    if "ref_fsc_bins" in dataset.coords:
+        dataset = dataset.set_xindex("ref_fsc_max")
+        selection_dict.update(ref_fsc_max=slice(None, 101))
+        if dataset.sizes["ref_fsc_bins"] == 7:
             coord_dict.update(
                 {
-                    "ref_bins": pd.CategoricalIndex(
-                        data=["0", "[1-25]", "[26-50]", "[51-75]", "[75-99]", "100"],
-                        categories=["0", "[1-25]", "[26-50]", "[51-75]", "[75-99]", "100"],
+                    "ref_fsc_bins": pd.CategoricalIndex(
+                        data=["0", "[1-25]", "[26-50]", "[51-75]", "[76-99]", "100"],
+                        categories=["0", "[1-25]", "[26-50]", "[51-75]", "[76-99]", "100"],
                         ordered=True,
                     ),
                 },
             )
-        elif dataset.sizes["ref_bins"] == 4:
+        elif dataset.sizes["ref_fsc_bins"] == 4:
             coord_dict.update(
                 {
-                    "ref_bins": pd.CategoricalIndex(
+                    "ref_fsc_bins": pd.CategoricalIndex(
                         data=["0%", "[1-99]%", "100%"],
                         categories=["0%", "[1-99]%", "100%"],
                         ordered=True,
@@ -158,13 +138,15 @@ def open_reduced_dataset_for_plot(
 
         else:
             raise NotImplementedError("reference bins range not known")
-        rename_dict.update({"ref_bins": "Ref FSC [%]"})
+        rename_dict.update({"ref_fsc_bins": "Ref FSC [%]"})
 
+    dataset = dataset.set_xindex("altitude_min")
     dataset = dataset.sel(
         time=slice(f"{winter_year.from_year}-11", f"{winter_year.to_year}-06"),
-        altitude_bins=slice(900, None),
+        altitude_min=slice(900, None),
         **selection_dict,
     )
+
     dataset = dataset.assign_coords(coord_dict)
 
     dataset = dataset.rename(rename_dict)

@@ -29,6 +29,10 @@ class Uncertainty(EvaluationVsHighResBase):
             dummy_dict = {k + "_bins": v.labels for k, v in bins_dict.items()}
             dummy_dict.update({"residual_bins": [0]})
             return xr.DataArray(name="n_occurrences", data=np.nan, coords=xr.Coordinates(dummy_dict))
+        if 'spatial_ref' in dataset.coords:
+            dataset = dataset.drop_vars('spatial_ref') 
+        if 'Projection' in dataset.coords:
+            dataset = dataset.drop_vars('Projection')
         histograms = dataset.groupby(bins_dict).map(self.compute_residual_histogram)
         return histograms
 
@@ -39,6 +43,7 @@ class Uncertainty(EvaluationVsHighResBase):
             )
         else:
             out_dataset = dataset.groupby(residual=self.residual_bins()).map(self.count_residual_bin)
+
         return out_dataset
 
     def count_residual_bin(self, dataset: xr.Dataset):

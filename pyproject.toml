@@ -19,6 +19,7 @@ dependencies = [
     "mountain_data_binner @ git+ssh://git@github.com/nicolaimpe/mountain_data_binner@0.1.0",
     "ndsi_fsc_calibration @ git+ssh://git@github.com/nicolaimpe/ndsi_fsc_calibration@0.1.0",
     "seaborn>=0.13.2",
+    "jinja2>=3.1.6",
 ]
 
 requires-python = ">=3.12"

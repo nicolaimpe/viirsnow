@@ -2,10 +2,11 @@ from typing import Dict
 
 from products.classes import METEOFRANCE_ARCHIVE_CLASSES, METEOFRANCE_COMPOSITE_CLASSES, NASA_CLASSES, S2_CLASSES
 from reductions.completeness import (
-    MeteoFranceArchiveSnowCoverProductCompleteness,
-    MeteoFranceCompositeSnowCoverProductCompleteness,
-    NASASnowCoverProductCompleteness,
-    S2SnowCoverProductCompleteness,
+    MeteoFranceArchiveCompleteness,
+    MeteoFranceCompositeCompleteness,
+    NASACompleteness,
+    S2Completeness,
+    SnowCoverProductCompleteness,
 )
 
 
@@ -16,7 +17,7 @@ class SnowCoverProduct:
         prod_id: str,
         classes: Dict[str, int | range],
         plot_color: str,
-        analyzer: S2SnowCoverProductCompleteness,
+        analyzer: SnowCoverProductCompleteness,
         platform: str | None = None,
     ):
         self.name = name
@@ -38,7 +39,7 @@ class MeteoFranceArchive(SnowCoverProduct):
             plot_color="tab:blue",
             platform="snpp",
             prod_id="MF-ARCHIVE",
-            analyzer=MeteoFranceArchiveSnowCoverProductCompleteness(),
+            analyzer=MeteoFranceArchiveCompleteness(),
         )
 
 
@@ -50,7 +51,7 @@ class MeteoFranceEvalSNPP(SnowCoverProduct):
             plot_color="orange",
             prod_id="MF-FSC-VNP-L3",
             platform="npp",
-            analyzer=MeteoFranceCompositeSnowCoverProductCompleteness(),
+            analyzer=MeteoFranceCompositeCompleteness(),
         )
 
 
@@ -62,7 +63,7 @@ class MeteoFranceEvalJPSS1(SnowCoverProduct):
             plot_color="darkgoldenrod",
             prod_id="MF-FSC-VJ1-L3",
             platform="noaa20",
-            analyzer=MeteoFranceCompositeSnowCoverProductCompleteness(),
+            analyzer=MeteoFranceCompositeCompleteness(),
         )
 
 
@@ -74,7 +75,7 @@ class MeteoFranceEvalJPSS2(SnowCoverProduct):
             plot_color="sienna",
             prod_id="MF-FSC-VJ2-L3",
             platform="noaa21",
-            analyzer=MeteoFranceCompositeSnowCoverProductCompleteness(),
+            analyzer=MeteoFranceCompositeCompleteness(),
         )
 
 
@@ -86,7 +87,7 @@ class MeteoFranceComposite(SnowCoverProduct):
             plot_color="lightcoral",
             prod_id="MF-FSC-VMP-L3",
             platform="all",
-            analyzer=MeteoFranceCompositeSnowCoverProductCompleteness(),
+            analyzer=MeteoFranceCompositeCompleteness(),
         )
 
 
@@ -97,7 +98,7 @@ class NASASnowCoverProduct(SnowCoverProduct):
             classes=NASA_CLASSES,
             plot_color=plot_color,
             prod_id=prod_id,
-            analyzer=NASASnowCoverProductCompleteness(),
+            analyzer=NASACompleteness(),
             platform=None,
         )
 
@@ -130,5 +131,5 @@ class Sentinel2Theia(SnowCoverProduct):
             classes=S2_CLASSES,
             plot_color="black",
             prod_id="Sentinel-2 Theia",
-            analyzer=S2SnowCoverProductCompleteness(),
+            analyzer=S2Completeness(),
         )

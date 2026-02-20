@@ -35,6 +35,10 @@ class ScatterAnalysis(EvaluationVsHighResBase):
         dataset.data_vars["eval"].values = (
             dataset.data_vars["eval"].where(quantitative_mask_union) * 100 / self.eval_analyzer.max_fsc
         )
+        if "spatial_ref" in dataset.coords:
+            dataset = dataset.drop_vars("spatial_ref")
+        if "Projection" in dataset.coords:
+            dataset = dataset.drop_vars("Projection")
         scatter = dataset.groupby(bins_dict).map(self.compute_scatter_plot)
 
         return scatter
