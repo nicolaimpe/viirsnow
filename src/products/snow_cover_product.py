@@ -1,27 +1,34 @@
-from dataclasses import dataclass
 from typing import Dict
 
 from products.classes import METEOFRANCE_ARCHIVE_CLASSES, METEOFRANCE_COMPOSITE_CLASSES, NASA_CLASSES, S2_CLASSES
 from reductions.completeness import (
-    MeteoFranceArchiveSnowCoverProductCompleteness,
-    MeteoFranceCompositeSnowCoverProductCompleteness,
-    NASASnowCoverProductCompleteness,
-    S2SnowCoverProductCompleteness,
+    MeteoFranceArchiveCompleteness,
+    MeteoFranceCompositeCompleteness,
+    NASACompleteness,
+    S2Completeness,
+    SnowCoverProductCompleteness,
 )
 
 
 class SnowCoverProduct:
     def __init__(
-        self, name: str, classes: Dict[str, int | range], plot_color: str, plot_name: str, platform: str | None = None
+        self,
+        name: str,
+        prod_id: str,
+        classes: Dict[str, int | range],
+        plot_color: str,
+        analyzer: SnowCoverProductCompleteness,
+        platform: str | None = None,
     ):
         self.name = name
         self.classes = classes
         self.plot_color = plot_color
-        self.plot_name = plot_name
+        self.prod_id = prod_id
         self.platform = platform
+        self.analyzer = analyzer
 
     def __repr__(self):
-        return self.plot_name
+        return self.prod_id
 
 
 class MeteoFranceArchive(SnowCoverProduct):
@@ -30,22 +37,10 @@ class MeteoFranceArchive(SnowCoverProduct):
             name="meteofrance_archive",
             classes=METEOFRANCE_ARCHIVE_CLASSES,
             plot_color="tab:blue",
-            plot_name="Météo-France archive",
             platform="snpp",
+            prod_id="MF-ARCHIVE",
+            analyzer=MeteoFranceArchiveCompleteness(),
         )
-        self.analyzer = MeteoFranceArchiveSnowCoverProductCompleteness()
-
-
-class MeteoFrancePrototypeSNPP(SnowCoverProduct):
-    def __init__(self):
-        super().__init__(
-            name="meteofrance_snpp_l3",
-            classes=METEOFRANCE_ARCHIVE_CLASSES,
-            plot_color="orange",
-            plot_name="MF-FSC-VNP-L3",
-            platform="npp",
-        )
-        self.analyzer = MeteoFranceArchiveSnowCoverProductCompleteness()
 
 
 class MeteoFranceEvalSNPP(SnowCoverProduct):
@@ -54,10 +49,10 @@ class MeteoFranceEvalSNPP(SnowCoverProduct):
             name="meteofrance_snpp_l3",
             classes=METEOFRANCE_COMPOSITE_CLASSES,
             plot_color="orange",
-            plot_name="MF-FSC-VNP-L3",
+            prod_id="MF-FSC-VNP-L3",
             platform="npp",
+            analyzer=MeteoFranceCompositeCompleteness(),
         )
-        self.analyzer = MeteoFranceCompositeSnowCoverProductCompleteness()
 
 
 class MeteoFranceEvalJPSS1(SnowCoverProduct):
@@ -66,10 +61,10 @@ class MeteoFranceEvalJPSS1(SnowCoverProduct):
             name="meteofrance_jpss1_l3",
             classes=METEOFRANCE_COMPOSITE_CLASSES,
             plot_color="darkgoldenrod",
-            plot_name="MF-FSC-VJ1-L3",
+            prod_id="MF-FSC-VJ1-L3",
             platform="noaa20",
+            analyzer=MeteoFranceCompositeCompleteness(),
         )
-        self.analyzer = MeteoFranceCompositeSnowCoverProductCompleteness()
 
 
 class MeteoFranceEvalJPSS2(SnowCoverProduct):
@@ -78,10 +73,10 @@ class MeteoFranceEvalJPSS2(SnowCoverProduct):
             name="meteofrance_jpss2_l3",
             classes=METEOFRANCE_COMPOSITE_CLASSES,
             plot_color="sienna",
-            plot_name="MF-FSC-VJ2-L3",
+            prod_id="MF-FSC-VJ2-L3",
             platform="noaa21",
+            analyzer=MeteoFranceCompositeCompleteness(),
         )
-        self.analyzer = MeteoFranceCompositeSnowCoverProductCompleteness()
 
 
 class MeteoFranceComposite(SnowCoverProduct):
@@ -90,44 +85,51 @@ class MeteoFranceComposite(SnowCoverProduct):
             name="meteofrance_multiplatform_l3",
             classes=METEOFRANCE_COMPOSITE_CLASSES,
             plot_color="lightcoral",
-            plot_name="MF-FSC-VMP-L3",
+            prod_id="MF-FSC-VMP-L3",
             platform="all",
+            analyzer=MeteoFranceCompositeCompleteness(),
         )
-        self.analyzer = MeteoFranceCompositeSnowCoverProductCompleteness()
 
 
 class NASASnowCoverProduct(SnowCoverProduct):
-    def __init__(self, name, classes, plot_color, plot_name, platform=None):
-        super().__init__(name, classes, plot_color, plot_name, platform)
-        self.analyzer = NASASnowCoverProductCompleteness()
+    def __init__(self, name, plot_color, prod_id):
+        super().__init__(
+            name,
+            classes=NASA_CLASSES,
+            plot_color=plot_color,
+            prod_id=prod_id,
+            analyzer=NASACompleteness(),
+            platform=None,
+        )
 
 
 class VNP10A1(NASASnowCoverProduct):
     def __init__(self):
-        self.product_id = "VNP10A1"
-        super().__init__(name="nasa_l3_snpp", classes=NASA_CLASSES, plot_color="darkturquoise", plot_name="VNP10A1")
+        super().__init__(name="nasa_l3_snpp", plot_color="darkturquoise", prod_id="VNP10A1")
 
 
 class VJ110A1(NASASnowCoverProduct):
     def __init__(self):
-        self.product_id = "VJ110A1"
-        super().__init__(name="nasa_l3_jpss1", classes=NASA_CLASSES, plot_color="midnightblue", plot_name="VJ110A1")
+        super().__init__(name="nasa_l3_jpss1", plot_color="midnightblue", prod_id="VJ110A1")
 
 
-class V10A1Multiplatform(NASASnowCoverProduct):
+class VJ210A1(NASASnowCoverProduct):
     def __init__(self):
-        super().__init__(
-            name="nasa_l3_multiplatform", classes=NASA_CLASSES, plot_color="lightskyblue", plot_name="NASA SNPP+JPSS1"
-        )
+        super().__init__(name="nasa_l3_jpss2", plot_color="lightsteelblue", prod_id="VJ210A1")
 
 
 class MOD10A1(NASASnowCoverProduct):
     def __init__(self):
         self.product_id = "MOD10A1"
-        super().__init__(name="nasa_l3_terra", classes=NASA_CLASSES, plot_color="lightcoral", plot_name="MOD10A1")
+        super().__init__(name="nasa_l3_terra", plot_color="lightcoral", prod_id="MOD10A1")
 
 
-class Sentinel2Theia(NASASnowCoverProduct):
+class Sentinel2Theia(SnowCoverProduct):
     def __init__(self):
-        super().__init__(name="S2_theia", classes=S2_CLASSES, plot_color="black", plot_name="Sentinel-2 Theia")
-        self.analyzer = S2SnowCoverProductCompleteness()
+        super().__init__(
+            name="S2_theia",
+            classes=S2_CLASSES,
+            plot_color="black",
+            prod_id="Sentinel-2 Theia",
+            analyzer=S2Completeness(),
+        )

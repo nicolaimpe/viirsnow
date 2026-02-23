@@ -40,3 +40,9 @@ data
 
 # Drafts
 notebooks/drafts.ipynb
+
+# Side experiences
+notebooks/calibrate_s2_ref_ndsi_threshold_exp.ipynb
+notebooks/correct_mf_rejeu_sza_exp.ipynb
+notebooks/dem_resampling_exp.ipynb
+

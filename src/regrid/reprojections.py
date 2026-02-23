@@ -1,48 +1,12 @@
-import numpy as np
 import xarray as xr
+from geospatial_grid.gsgrid import GSGrid
+from geospatial_grid.reprojections import reproject_using_grid
 from rasterio.enums import Resampling
 
-from compression import generate_xarray_compression_encodings
-from geotools import reproject_dataset, reproject_using_grid
-from grids import GeoGrid, georef_netcdf_rioxarray
-from products.classes import METEOFRANCE_ARCHIVE_CLASSES, METEOFRANCE_COMPOSITE_CLASSES, NASA_CLASSES, S2_CLASSES
+from products.classes import METEOFRANCE_ARCHIVE_CLASSES, METEOFRANCE_COMPOSITE_CLASSES
 
 
-def reprojection_l3_nasa_to_grid(nasa_snow_cover: xr.DataArray, output_grid: GeoGrid) -> xr.DataArray:
-    # Validity "zombie mask": wherever there is at least one non valid pixel, the output grid pixel is set as invalid (<-> cloud)
-    # nasa_dataset = nasa_dataset.where(nasa_dataset <= NASA_CLASSES["snow_cover"][-1], NASA_CLASSES["fill"][0])
-
-    resampled_max = reproject_using_grid(
-        nasa_snow_cover,
-        output_grid=output_grid,
-        resampling_method=Resampling.max,
-        nodata=NASA_CLASSES["fill"][0],
-    )
-
-    resampled_average = reproject_using_grid(
-        nasa_snow_cover,
-        output_grid=output_grid,
-        resampling_method=Resampling.average,
-    )
-
-    resampled_nearest = reproject_using_grid(
-        nasa_snow_cover,
-        output_grid=output_grid,
-        resampling_method=Resampling.nearest,
-    )
-
-    invalid_mask = resampled_max > NASA_CLASSES["snow_cover"][-1]
-    water_mask = resampled_nearest == NASA_CLASSES["water"][0] | NASA_CLASSES["water"][1]
-    valid_qualitative_mask = water_mask
-
-    out_snow_cover = resampled_average.where(invalid_mask == False, resampled_max)
-    # We readd water resempled with nearest
-    out_snow_cover = out_snow_cover.where(valid_qualitative_mask == False, resampled_nearest)
-
-    return out_snow_cover.astype("u1")
-
-
-def reprojection_l3_meteofrance_to_grid(meteofrance_snow_cover: xr.DataArray, output_grid: GeoGrid) -> xr.DataArray:
+def reprojection_l3_meteofrance_to_grid(meteofrance_snow_cover: xr.DataArray, output_grid: GSGrid) -> xr.DataArray:
     # Validity "zombie mask": wherever there is at least one non valid pixel, the output grid pixel is set as invalid (<-> cloud)
     # nasa_dataset = nasa_dataset.where(nasa_dataset <= NASA_CLASSES["snow_cover"][-1], NASA_CLASSES["fill"][0])
 
@@ -88,7 +52,7 @@ def reprojection_l3_meteofrance_to_grid(meteofrance_snow_cover: xr.DataArray, ou
     return out_snow_cover.astype("u1")
 
 
-def reprojection_composite_meteofrance_to_grid(meteofrance_snow_cover: xr.DataArray, output_grid: GeoGrid) -> xr.DataArray:
+def reprojection_composite_meteofrance_to_grid(meteofrance_snow_cover: xr.DataArray, output_grid: GSGrid) -> xr.DataArray:
     # Validity "zombie mask": wherever there is at least one non valid pixel, the output grid pixel is set as invalid (<-> cloud)
     # nasa_dataset = nasa_dataset.where(nasa_dataset <= NASA_CLASSES["snow_cover"][-1], NASA_CLASSES["fill"][0])
 
@@ -123,33 +87,3 @@ def reprojection_composite_meteofrance_to_grid(meteofrance_snow_cover: xr.DataAr
     out_snow_cover = resampled_average.where(valid_qualitative_mask == False, resampled_nearest)
     out_snow_cover = out_snow_cover.where(invalid_mask == False, resampled_max)
     return out_snow_cover.astype("u1")
-
-
-def resample_s2_to_grid(s2_dataset: xr.Dataset, output_grid: GeoGrid) -> xr.DataArray:
-    # 250m resolution FSC from FSCOG S2 product with a "zombie" nodata mask
-
-    # Validity "zombie mask": wherever there is at least one non valid pixel, the output grid pixel is set as invalid (<-> cloud)
-    s2_validity_mask = reproject_dataset(
-        s2_dataset,
-        new_crs=output_grid.crs,
-        resampling=Resampling.max,
-        nodata=S2_CLASSES["nodata"][0],
-        transform=output_grid.affine,
-        shape=output_grid.shape,
-    )
-
-    # Aggregate the dataset at 250 m
-    s2_aggregated = reproject_dataset(
-        s2_dataset.astype(np.float32),
-        new_crs=output_grid.crs,
-        resampling=Resampling.average,
-        nodata=S2_CLASSES["nodata"][0],
-        transform=output_grid.affine,
-        shape=output_grid.shape,
-    )
-
-    # Compose the mask
-    s2_out_image = xr.where(s2_validity_mask <= S2_CLASSES["snow_cover"][-1], s2_aggregated.astype("u1"), s2_validity_mask)
-    s2_out_image.rio.write_nodata(S2_CLASSES["fill"][0], inplace=True)
-
-    return s2_out_image

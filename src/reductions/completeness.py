@@ -6,8 +6,12 @@ from typing import Dict, Tuple
 
 import numpy as np
 import xarray as xr
+from mountain_data_binner.mountain_binner import MountainBinner, MountainBinnerConfig
 from pyproj import Geod, Transformer
+from rasterio.features import shapes
 from shapely import unary_union
+from shapely.geometry import shape
+from shapely.ops import transform as shapely_transform
 
 from logger_setup import default_logger as logger
 from products.classes import (
@@ -17,7 +21,6 @@ from products.classes import (
     NODATA_NASA_CLASSES,
     S2_CLASSES,
 )
-from reductions.semidistributed import MountainParametrization, MountainParams
 
 
 def mask_of_pixels_of(value: int, data_array: xr.DataArray) -> xr.DataArray:
@@ -35,34 +38,6 @@ def compute_percentage_of_mask(mask: xr.DataArray, n_pixels_tot: int) -> float:
 def compute_area_of_class_mask(mask: xr.DataArray) -> float:
     gsd = mask.rio.resolution()
     return mask.sum().values * np.abs(math.prod(gsd))
-
-
-# def compute_area_of_class_precise(input_data_array: xr.DataArray, class_name: str='clouds'):
-
-#     class_mask = analyzer.mask_of_class(class_name, input_data_array)
-
-#     polygons = []
-#     for geom, val in shapes(class_mask.astype('u1').values, transform=input_data_array.rio.transform()):
-#         if val:                                  # only take mask pixels (val == 1)
-#             polygons.append(shape(geom))
-
-#     # merge into one geometry if many (optional)
-
-#     union_geom = unary_union(polygons)           # geometry in UTM coords
-
-
-#     # transform to lon/lat (EPSG:4326)
-#     transformer = Transformer.from_crs(input_data_array.rio.crs, "EPSG:4326", always_xy=True)
-#     def proj_to_lonlat(x, y, z=None):
-#         return transformer.transform(x, y)
-
-#     lonlat_geom = shapely_transform(proj_to_lonlat, union_geom)
-
-#     # compute ellipsoidal area (pyproj.Geod)
-#     geod = Geod(ellps='WGS84')
-#     # pyproj.Geod.geometry_area_perimeter returns (area, perimeter) for shapely geometries
-#     area, _ = geod.geometry_area_perimeter(lonlat_geom)
-#     return xr.DataArray(abs(area))
 
 
 class SnowCoverProductCompleteness:
@@ -179,27 +154,30 @@ class SnowCoverProductCompleteness:
         exclude_nodata: bool = False,
         netcdf_export_path: str | None = None,
         period: slice | None = None,
-        config: MountainParams | None = None,
+        config: MountainBinnerConfig | None = None,
     ):
         if period is not None:
             snow_cover_product_time_series = snow_cover_product_time_series.sel(time=period)
         if config is not None:
-            snow_cover_product_time_series, analysis_bin_dict = MountainParametrization().semidistributed_parametrization(
-                dataset=snow_cover_product_time_series, config=config
+            mountain_binner = MountainBinner(config)
+            data_bins = mountain_binner.create_default_bin_dict_from_config(altitude_step=900)
+            combined_dataset_and_auxiliary = mountain_binner.stack_auxiliary_data(
+                distributed_data=snow_cover_product_time_series
             )
-            year_results_dataset = snow_cover_product_time_series.groupby("time").map(
-                self.day_statistics_with_params, analysis_bin_dict=analysis_bin_dict, exclude_nodata=exclude_nodata
+            year_results_dataset = combined_dataset_and_auxiliary.groupby("time").map(
+                self.day_statistics_with_params, analysis_bin_dict=data_bins, exclude_nodata=exclude_nodata
             )
         else:
             year_results_dataset = snow_cover_product_time_series.groupby("time").map(
                 self.day_statistics_without_params, exclude_nodata=exclude_nodata
             )
 
+        year_results_dataset = mountain_binner.rename_coords(binned_data=year_results_dataset)
         if netcdf_export_path is not None:
             year_results_dataset.to_netcdf(Path(netcdf_export_path))
 
 
-class MeteoFranceArchiveSnowCoverProductCompleteness(SnowCoverProductCompleteness):
+class MeteoFranceArchiveCompleteness(SnowCoverProductCompleteness):
     def __init__(self) -> None:
         super().__init__(classes=METEOFRANCE_ARCHIVE_CLASSES, nodata_mapping=None)
 
@@ -216,7 +194,7 @@ class MeteoFranceArchiveSnowCoverProductCompleteness(SnowCoverProductCompletenes
         return no_snow_meteofrance
 
 
-class MeteoFranceCompositeSnowCoverProductCompleteness(SnowCoverProductCompleteness):
+class MeteoFranceCompositeCompleteness(SnowCoverProductCompleteness):
     def __init__(self) -> None:
         super().__init__(classes=METEOFRANCE_COMPOSITE_CLASSES, nodata_mapping=None)
 
@@ -229,7 +207,7 @@ class MeteoFranceCompositeSnowCoverProductCompleteness(SnowCoverProductCompleten
         return no_snow_meteofrance
 
 
-class NASASnowCoverProductCompleteness(SnowCoverProductCompleteness):
+class NASACompleteness(SnowCoverProductCompleteness):
     def __init__(self) -> None:
         super().__init__(classes=NASA_CLASSES, nodata_mapping=NODATA_NASA_CLASSES)
 
@@ -242,7 +220,7 @@ class NASASnowCoverProductCompleteness(SnowCoverProductCompleteness):
         return no_snow_nasa
 
 
-class S2SnowCoverProductCompleteness(SnowCoverProductCompleteness):
+class S2Completeness(SnowCoverProductCompleteness):
     def __init__(self) -> None:
         super().__init__(classes=S2_CLASSES)
 
@@ -253,3 +231,33 @@ class S2SnowCoverProductCompleteness(SnowCoverProductCompleteness):
     def total_no_snow_mask(self, data_array: xr.DataArray) -> xr.DataArray:
         no_snow_s2 = self.mask_of_class("no_snow", data_array)
         return no_snow_s2
+
+
+def compute_area_of_class_precise(
+    analyzer: SnowCoverProductCompleteness, input_data_array: xr.DataArray, class_name: str = "clouds"
+):
+
+    class_mask = analyzer.mask_of_class(class_name, input_data_array)
+
+    polygons = []
+    for geom, val in shapes(class_mask.astype("u1").values, transform=input_data_array.rio.transform()):
+        if val:  # only take mask pixels (val == 1)
+            polygons.append(shape(geom))
+
+    # merge into one geometry if many (optional)
+
+    union_geom = unary_union(polygons)  # geometry in UTM coords
+
+    # transform to lon/lat (EPSG:4326)
+    transformer = Transformer.from_crs(input_data_array.rio.crs, "EPSG:4326", always_xy=True)
+
+    def proj_to_lonlat(x, y, z=None):
+        return transformer.transform(x, y)
+
+    lonlat_geom = shapely_transform(proj_to_lonlat, union_geom)
+
+    # compute ellipsoidal area (pyproj.Geod)
+    geod = Geod(ellps="WGS84")
+    # pyproj.Geod.geometry_area_perimeter returns (area, perimeter) for shapely geometries
+    area, _ = geod.geometry_area_perimeter(lonlat_geom)
+    return xr.DataArray(abs(area))

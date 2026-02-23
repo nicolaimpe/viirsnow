@@ -1,34 +1,14 @@
-from typing import Dict, List
+from typing import List
 
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import seaborn as sns
 import xarray as xr
-from matplotlib import font_manager, patches, ticker
+from matplotlib import ticker
 from matplotlib.axes import Axes
 
-from products.plot_settings import (
-    MF_NO_FOREST_RED_BAND_SCREEEN_VAR_NAME,
-    MF_NO_FOREST_VAR_NAME,
-    MF_ORIG_VAR_NAME,
-    MF_SYNOPSIS_VAR_NAME,
-    NASA_L3_JPSS1_VAR_NAME,
-    NASA_L3_MULTIPLATFORM_VAR_NAME,
-    NASA_L3_SNPP_VAR_NAME,
-    PRODUCT_PLOT_COLORS,
-    PRODUCT_PLOT_NAMES,
-)
-from winter_year import WinterYear
-
-
-def print_table(year_stats_data_array: xr.DataArray, classes_to_print: List[str] | str = "all"):
-    year_data_frame = year_stats_data_array.to_pandas()
-    pd.options.display.float_format = "{:.3f}".format
-    pd.options.display.precision = 3
-    if classes_to_print == "all":
-        classes_to_print = year_stats_data_array.coords["class_name"].values
-    print(year_data_frame)
+from postprocess.error_distribution import postprocess_uncertainty_analysis
+from postprocess.general_purpose import AnalysisContainer, open_reduced_dataset
+from products.plot_settings import MF_ORIG_VAR_NAME, MF_SYNOPSIS_VAR_NAME
 
 
 def classes_bar_distribution(
@@ -84,198 +64,120 @@ def plot_annual_daily_cross_sce(area_stats: xr.Dataset, ax: Axes, mode: str = "b
     ax.plot()
 
 
-def annual_area_fancy_plot(
-    metrics_dict_completeness: Dict[str, xr.Dataset],
-    metrics_dict_uncertainty: Dict[str, xr.Dataset],
-    axs: List[Axes] | None = None,
-):
-    if len(metrics_dict_completeness) > 1:
-        common_days = np.intersect1d(*[v.coords["time"] for v in metrics_dict_completeness.values()][:2])
+def plot_annual_area_lines(analysis: AnalysisContainer, classes: List[str], axes: List[Axes]):
+    class_titles = {"snow_cover": "Snow cover", "clouds": "Clouds"}
 
-    if len(metrics_dict_completeness) > 2:
-        for v in metrics_dict_completeness.values():
-            common_days = np.intersect1d(common_days, v.coords["time"])
-    if axs is None:
-        _, axs = plt.subplots(4, 1, figsize=(10, 6), sharex=True, layout="constrained")
+    metrics_dataset_completeness_0 = open_reduced_dataset(
+        product=analysis.products[0],
+        analysis_folder=analysis.analysis_folder,
+        analysis_type="completeness",
+        winter_year=analysis.winter_year,
+        grid=analysis.grid,
+    )
+    common_days = metrics_dataset_completeness_0.coords["time"]
 
-    [ax.set_ylabel("Surface [km²]", fontproperties=font_manager.FontProperties(size=10)) for ax in axs[:3]]
-    axs[3].set_ylabel("RMSE [\% FSC]", fontproperties=font_manager.FontProperties(size=10))
-    custom_leg = [
-        patches.Patch(color=PRODUCT_PLOT_COLORS[product_name], label=PRODUCT_PLOT_NAMES[product_name])
-        for product_name in metrics_dict_completeness
-    ]
-    product_legend = axs[0].legend(handles=custom_leg, loc=[0.8, 0.45])
-    axs[0].add_artist(product_legend)
-    old_snow_cover, old_no_snow, old_clouds = 0, 0, 0
-    for product in metrics_dict_completeness:
-        metrics_dict_completeness[product] = metrics_dict_completeness[product].sel(time=common_days)
+    for prod in analysis.products[1:]:
+        metrics_dataset_completeness = open_reduced_dataset(
+            product=prod,
+            analysis_folder=analysis.analysis_folder,
+            analysis_type="completeness",
+            winter_year=analysis.winter_year,
+            grid=analysis.grid,
+        )
+        common_days = np.intersect1d(common_days, metrics_dataset_completeness.coords["time"])
+    # class_ylim_top={'snow_cover': 2e4, 'clouds': 6e4}
+    for product in analysis.products:
+        metrics_dataset_completeness = open_reduced_dataset(
+            product=product,
+            analysis_folder=analysis.analysis_folder,
+            analysis_type="completeness",
+            winter_year=analysis.winter_year,
+            grid=analysis.grid,
+        )
+        metrics_dataset_completeness = metrics_dataset_completeness.set_xindex("altitude_min")
+
+        metrics_dataset_completeness.sel(time=common_days, altitude_min=slice(900, None))
+
         product_monthly_averages = (
-            metrics_dict_completeness[product].resample({"time": "1ME"}).mean(dim="time").data_vars["surface"] * 1e-6
+            metrics_dataset_completeness.resample({"time": "1ME"}).mean(dim="time").data_vars["surface"] * 1e-6
+        )
+        product_monthly_averages = product_monthly_averages.sum(
+            dim=[d for d in product_monthly_averages.dims if d != "time" and d != "class_name"]
         )
 
-        snow_cover = product_monthly_averages.sel(class_name="snow_cover")
-        axs[0].fill_between(
-            np.arange(product_monthly_averages.sizes["time"]),
-            snow_cover,
-            old_snow_cover,
-            alpha=0.5,
-            color=PRODUCT_PLOT_COLORS[product],
-        )
-        old_snow_cover = snow_cover
-        no_snow = product_monthly_averages.sel(class_name="no_snow")
-        axs[1].fill_between(
-            np.arange(product_monthly_averages.sizes["time"]),
-            no_snow,
-            old_no_snow,
-            alpha=0.5,
-            color=PRODUCT_PLOT_COLORS[product],
-        )
-        old_no_snow = no_snow
+        time_ax = np.arange(product_monthly_averages.sizes["time"])
 
-        axs[3].plot(
-            np.arange(product_monthly_averages.sizes["time"]),
-            metrics_dict_uncertainty[product].rmse,
-            color=PRODUCT_PLOT_COLORS[product],
-            lw=2,
-        )
-    axs[0].yaxis.set_major_formatter(ticker.StrMethodFormatter("{x:.0e}"))
-    axs[1].yaxis.set_major_formatter(ticker.StrMethodFormatter("{x:.0e}"))
-    axs[2].yaxis.set_major_formatter(ticker.StrMethodFormatter("{x:.0e}"))
-    axs[3].set_ylim(0, 20)
-    for product in [NASA_L3_MULTIPLATFORM_VAR_NAME, NASA_L3_JPSS1_VAR_NAME, NASA_L3_SNPP_VAR_NAME]:
-        product_monthly_averages = (
-            metrics_dict_completeness[product].resample({"time": "1ME"}).mean(dim="time").data_vars["surface"] * 1e-6
-        )
-        clouds = product_monthly_averages.sel(class_name="clouds")
-        axs[2].fill_between(
-            np.arange(product_monthly_averages.sizes["time"]),
-            clouds,
-            old_clouds,
-            alpha=0.5,
-            color=PRODUCT_PLOT_COLORS[product],
-        )
-        old_clouds = clouds
-    axs[2].set_xticks(np.arange(product_monthly_averages.sizes["time"]))
-    axs[2].set_xticklabels(product_monthly_averages.coords["time"].to_dataframe().index.strftime("%B"))
-    axs[0].set_title("Snow cover")
-    axs[1].set_title("No snow")
-    axs[2].set_title("Clouds")
-    axs[3].set_title("RMSE")
+        for i, area_class in enumerate(classes):
+            annual_surface = product_monthly_averages.sel(class_name=area_class)
+            axes[i].plot(time_ax, annual_surface, ".-", color=product.plot_color, lw=2)
+            axes[i].set_ylabel("Area [km²]")
+            axes[i].yaxis.set_major_formatter(ticker.StrMethodFormatter("{x:.1e}"))
+            axes[i].set_title(class_titles[area_class])
 
-    return
+    [ax.set_ylim(bottom=0) for ax in axes]
+
+
+def plot_annual_uncertainty_score_lines(analysis: AnalysisContainer, scores: List[str], axes: List[Axes]):
+    score_labels = {"bias": "Bias [% FSC]", "rmse": "RMSE [% FSC]", "unbiased_rmse": "unbiased RMSE [% FSC]"}
+    score_titles = {"bias": "Bias", "rmse": "RMSE", "unbiased_rmse": "unbiased RMSE [% FSC]"}
+    score_ylims = {"bias": (-6, 6), "rmse": (0, 25), "unbiased_rmse": (0, 25)}
+
+    metrics_dataset_uncertainty_0 = open_reduced_dataset(
+        product=analysis.products[0],
+        analysis_folder=analysis.analysis_folder,
+        analysis_type="uncertainty",
+        winter_year=analysis.winter_year,
+        grid=analysis.grid,
+    )
+    common_days = metrics_dataset_uncertainty_0.coords["time"]
+    for prod in analysis.products[1:]:
+        metrics_dataset_uncertainty = open_reduced_dataset(
+            product=prod,
+            analysis_folder=analysis.analysis_folder,
+            analysis_type="uncertainty",
+            winter_year=analysis.winter_year,
+            grid=analysis.grid,
+        )
+        common_days = np.intersect1d(common_days, metrics_dataset_uncertainty.coords["time"])
+
+    for product in analysis.products:
+        metrics_dataset_uncertainty = open_reduced_dataset(
+            product=product,
+            analysis_folder=analysis.analysis_folder,
+            analysis_type="uncertainty",
+            winter_year=analysis.winter_year,
+            grid=analysis.grid,
+        )
+        metrics_dataset_uncertainty = metrics_dataset_uncertainty.set_xindex("altitude_min")
+        metrics_dataset_uncertainty = (
+            metrics_dataset_uncertainty.sel(time=common_days, altitude_min=slice(900, None)).resample({"time": "1ME"}).sum()
+        )
+
+        metrics_dataset_uncertainty = postprocess_uncertainty_analysis(
+            snow_cover_products=[product], metrics_datasets=[metrics_dataset_uncertainty], analysis_var="time"
+        )
+        time_ax = np.arange(metrics_dataset_uncertainty.sizes["time"])
+        for i, score in enumerate(scores):
+            axes[i].plot(
+                time_ax,
+                metrics_dataset_uncertainty.sel(product=product.name).data_vars[score],
+                "^-",
+                color=product.plot_color,
+                lw=2,
+            )
+            axes[i].set_ylabel(score_labels[score])
+            axes[i].set_ylim(score_ylims[score][0], score_ylims[score][1])
+            axes[i].set_title(score_titles[score])
+            axes[i].set_xticks(np.arange(metrics_dataset_uncertainty.sizes["time"]))
+            axes[i].set_xticklabels(metrics_dataset_uncertainty.coords["time"].to_dataframe().index.strftime("%B"))
+
+
+def annual_area_fancy_plot(analysis: AnalysisContainer, classes: List[str], scores: List[str], axes: List[Axes]):
+    n_classes = len(classes)
+    [ax.grid() for ax in axes]
+
+    plot_annual_area_lines(analysis=analysis, classes=classes, axes=axes[:n_classes])
+    plot_annual_uncertainty_score_lines(analysis=analysis, scores=scores, axes=axes[n_classes:])
 
 
 FOREST_WITH_SNOW_COLORS = {MF_ORIG_VAR_NAME: "darkgreen", MF_SYNOPSIS_VAR_NAME: "forestgreen"}
-if __name__ == "__main__":
-    wy = WinterYear(2023, 2024)
-    analysis_type = "completeness"
-    analysis_folder = f"/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_6/analyses/{analysis_type}"
-    analyses_dict = {
-        MF_ORIG_VAR_NAME: xr.open_dataset(f"{analysis_folder}/completeness_WY_2023_2024_meteofrance_orig.nc"),
-        MF_SYNOPSIS_VAR_NAME: xr.open_dataset(f"{analysis_folder}/completeness_WY_2023_2024_meteofrance_synopsis.nc"),
-        MF_NO_FOREST_VAR_NAME: xr.open_dataset(f"{analysis_folder}/completeness_WY_2023_2024_meteofrance_no_forest.nc"),
-        MF_NO_FOREST_RED_BAND_SCREEEN_VAR_NAME: xr.open_dataset(
-            f"{analysis_folder}/completeness_WY_2023_2024_meteofrance_no_forest_red_band_screen.nc"
-        ),
-        NASA_L3_SNPP_VAR_NAME: xr.open_dataset(f"{analysis_folder}/completeness_WY_2023_2024_nasa_l3_snpp.nc"),
-        # NASA_L3_JPSS1_VAR_NAME: xr.open_dataset(f"{analysis_folder}/completeness_WY_2023_2024_nasa_l3_jpss1.nc"),
-        NASA_L3_MULTIPLATFORM_VAR_NAME: xr.open_dataset(
-            f"{analysis_folder}/completeness_WY_2023_2024_nasa_l3_multiplatform.nc"
-        ),
-        # NASA_L3_MODIS_TERRA_VAR_NAME: xr.open_dataset(f"{analysis_folder}/completeness_WY_2023_2024_nasa_l3_terra.nc"),
-    }
-
-    if len(analyses_dict) > 1:
-        common_days = np.intersect1d(*[v.coords["time"] for v in analyses_dict.values()][:2])
-
-    if len(analyses_dict) > 2:
-        for v in analyses_dict.values():
-            common_days = np.intersect1d(common_days, v.coords["time"])
-
-    surface_averages = []
-    stacked_list = []
-    label_list = []
-    color_list = []
-    for product in analyses_dict:
-        analyses_dict[product] = analyses_dict[product].sel(time=common_days)
-        product_monthly_averages = analyses_dict[product].resample({"time": "1ME"}).mean(dim="time")
-        print(product)
-        print(product_monthly_averages.sum(dim="time").to_dataframe())
-        surface_averages.append(product_monthly_averages.sel(class_name="snow_cover").data_vars["surface"] * 1e-6)
-
-        stacked_list.append(False)
-        label_list.append(f"{PRODUCT_PLOT_NAMES[product]}")
-        color_list.append(PRODUCT_PLOT_COLORS[product])
-        # if "meteofrance" in product:
-        #     surface_averages.append(product_monthly_averages.sel(class_name="forest_with_snow").data_vars["surface"] * 1e-6)
-        #     stacked_list.append(True)
-        #     label_list.append(f"{PRODUCT_PLOT_NAMES[product]} forest with snow")
-        #     color_list.append(FOREST_WITH_SNOW_COLORS[product])
-
-    fig, ax = plt.subplots(figsize=(14, 4))
-    ax.grid(axis="y", linewidth=0.4)
-    plot_multiple_stacked(
-        surface_averages,
-        stacked=stacked_list,
-        ax=ax,
-        labels=label_list,
-        colors=color_list,
-    )
-    ax.set_title(f"VIIRS snow cover product comparison - Average snow cover surface per observation day - {str(wy)}")
-    ax.set_xlabel("Month")
-    ax.set_ylabel("Surface [km²]")
-    ax.set_xticklabels(product_monthly_averages.coords["time"].to_dataframe().index.strftime("%B"))
-    ax.legend()
-
-    fig, ax = plt.subplots(figsize=(12, 2))
-    for i, product in enumerate(analyses_dict):
-        ax.bar(i + 1, surface_averages[i].sum(dim="time"), width=0.6, label=label_list[i], color=color_list[i])
-        # ax.set_xticks()
-
-    ax.set_ylabel("Surface [km²]")
-    # ax.legend(bbox_to_anchor=(1, 1))
-    ax.grid(True, axis="y")
-    ax.set_xticks(range(1, len(analyses_dict) + 1))
-    ax.set_xticklabels([PRODUCT_PLOT_NAMES[prod] for prod in list(analyses_dict.keys())])
-    ax.set_xlim(0.25, 6.75)
-    ax.set_title(f"Total snow cover surface per product on {str(wy)}", fontsize=11, fontweight="bold")
-    plt.show()
-
-    # Invalid mask union analysis
-
-    # nasa_vs_mf = xr.open_dataset(
-    #     "/home/imperatoren/work/VIIRS_S2_comparison/viirsnow/output_folder/version_6/analyses/confusion_table/confusion_table_WY_2023_2024_nasa_l3_snpp_vs_meteofrance_synopsis.nc"
-    # )
-
-    # # plot_confusion_table(dataset=mf_vs_nasa)
-
-    # def confusion_table_to_surfaces(dataset: xr.Dataset) -> xr.DataArray:
-    #     tp = dataset["true_positive"].sum()
-    #     fp = dataset["false_positive"].sum()
-    #     fn = dataset["false_negative"].sum()
-    #     return xr.DataArray(
-    #         [tp + fp, tp + fn],
-    #         coords={"product": [PRODUCT_PLOT_NAMES[MF_ORIG_VAR_NAME], PRODUCT_PLOT_NAMES[NASA_L3_SNPP_VAR_NAME]]},
-    #         dims=("product"),
-    #         name="n_pixel",
-    #     )
-
-    # reduced = nasa_vs_mf.resample({"time": "1ME"}).map(confusion_table_to_surfaces)
-
-    # sns.catplot(
-    #     kind="bar",
-    #     data=reduced.to_dataframe() * 375**2 * 1e-6,
-    #     x="time",
-    #     y="n_pixel",
-    #     hue="product",
-    #     palette=[PRODUCT_PLOT_COLORS[MF_ORIG_VAR_NAME], PRODUCT_PLOT_COLORS[NASA_L3_SNPP_VAR_NAME]],
-    # )
-    # plt.title("Surface of union of valid observations")
-    # plt.ylabel("Surface [km²]")
-    # plt.xlabel("Month")
-    # plt.xticks(
-    #     ticks=np.arange(len(reduced.coords["time"].to_dataframe().index)),
-    #     labels=reduced.coords["time"].to_dataframe().index.strftime("%B"),
-    # )
-    # plt.grid(axis="y", linewidth=0.4)
-    # plt.show()
