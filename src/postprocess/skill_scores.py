@@ -72,7 +72,7 @@ def plot_multiple_confusion_table(snow_cover_products: List[SnowCoverProduct], a
         metrics_ds = open_reduced_dataset_for_plot(product, analysis_folder=analysis_folder, analysis_type="confusion_table")
         accuracy = compute_score(metrics_ds, "accuracy").values
         plot_confusion_table(metrics_ds, axes=axs[i])
-        axs[i].set_title(f"{product.plot_name} - accuracy = {accuracy:.2f}")
+        axs[i].set_title(f"{product.prod_id} - accuracy = {accuracy:.2f}")
 
 
 def compute_contingency_results_df(
@@ -82,7 +82,7 @@ def compute_contingency_results_df(
     for metrics_ds in metric_datasets:
         results.append(compute_all_scores(metrics_ds))
     results = xr.concat(
-        results, dim=xr.DataArray([prod.plot_name for prod in snow_cover_products], dims="product")
+        results, dim=xr.DataArray([prod.prod_id for prod in snow_cover_products], dims="product")
     ).to_dataframe()
     results = results.reset_index(["product"])
     return pd.DataFrame(results)
@@ -217,7 +217,7 @@ def compute_n_pixels_results_df(
         out_dataset = xr.Dataset({"n_tot_pixels": total_number_of_pixels, "n_snow_pixels": snow_pixels})
         results.append(out_dataset)
     results = xr.concat(
-        results, dim=xr.DataArray([prod.plot_name for prod in snow_cover_products], dims="product")
+        results, dim=xr.DataArray([prod.prod_id for prod in snow_cover_products], dims="product")
     ).to_dataframe()
 
     results = results.reset_index(["product"])
