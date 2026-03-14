@@ -29,6 +29,8 @@ See `article_illustrations.ipynb` for visualization.
 
 ## Code organization
 
+```bash
+$ tree
 ├── notebooks
 │   └── article_illustrations.ipynb : code used for illustration generation for [1]
 ├── output_folder
@@ -44,6 +46,7 @@ See `article_illustrations.ipynb` for visualization.
 │   ├── products                    : gather information about supported snow cover products
 │   ├── reductions                  : reduction block: from two datasets on the same grid, compute differences and correspondences
 │   └── regrid                      : regrid block: mosaic, resample, stack, crop snow cover data into a uniform time series
+```
 
 ## Cite 
 [1] N. Imperatore et al., ‘Assessing VIIRS constellation seasonal snow cover over the French mountains with Sentinel-2’, EGUsphere, pp. 1–27, Mar. 2026, doi: 10.5194/egusphere-2026-1122.
