@@ -46,6 +46,7 @@ class ConfusionTable(EvaluationVsHighResBase):
 
         snow_ref = self.ref_analyzer.total_snow_mask(data_array=dataset["ref"])
         no_snow_ref = self.ref_analyzer.total_no_snow_mask(dataset["ref"])
+
         if self.ref_fsc_threshold > 1:
             low_snow_ref = mask_of_pixels_in_range(
                 range=range(1, self.ref_fsc_threshold * int(self.ref_analyzer.max_fsc / 100)), data_array=dataset["ref"]

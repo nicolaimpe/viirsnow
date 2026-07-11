@@ -124,6 +124,12 @@ class MOD10A1(NASASnowCoverProduct):
         super().__init__(name="nasa_l3_terra", plot_color="lightcoral", prod_id="MOD10A1")
 
 
+class MYD10A1(NASASnowCoverProduct):
+    def __init__(self):
+        self.product_id = "MYD10A1"
+        super().__init__(name="nasa_l3_aqua", plot_color="maroon", prod_id="MYD10A1")
+
+
 class Sentinel2Theia(SnowCoverProduct):
     def __init__(self):
         super().__init__(

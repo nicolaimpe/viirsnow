@@ -203,7 +203,11 @@ class MeteoFranceCompositeCompleteness(SnowCoverProductCompleteness):
         return snow_meteofrance
 
     def total_no_snow_mask(self, data_array: xr.DataArray) -> xr.DataArray:
-        no_snow_meteofrance = self.mask_of_class("no_snow", data_array) | self.mask_of_class("water", data_array)
+        no_snow_meteofrance = (
+            self.mask_of_class("no_snow", data_array)
+            | self.mask_of_class("water", data_array)
+            | self.mask_of_class("forest_without_snow", data_array)
+        )
         return no_snow_meteofrance
 
 
