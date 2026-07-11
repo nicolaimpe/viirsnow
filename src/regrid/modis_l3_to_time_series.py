@@ -1,3 +1,5 @@
+from glob import glob
+from pathlib import Path
 from typing import List
 
 import xarray as xr
@@ -23,7 +25,7 @@ class UTM500mGrid(GSGrid):
         )
 
 
-class MODA1FSCRegrid(MOD10A1Regrid):
+class MOD10A1FSCRegrid(MOD10A1Regrid):
     def __init__(self, output_grid: GSGrid, data_folder: str, output_folder: str):
         super().__init__(output_grid, data_folder, output_folder)
 
@@ -42,9 +44,17 @@ class MODA1FSCRegrid(MOD10A1Regrid):
         daily_spatial_composite = self.create_spatial_l3_nasa_modis_composite(daily_snow_cover_files=date_files)
         nasa_snow_cover = reprojection_l3_nasa_to_grid(nasa_snow_cover=daily_spatial_composite, output_grid=self.grid)
         nasa_fsc = xr.DataArray(
-            ndsi_snow_cover_to_fraction(nasa_snow_cover.values, snow_cover_ndsi_threshold=10, method="salomonson_appel"),
+            ndsi_snow_cover_to_fraction(nasa_snow_cover.values, method="salomonson_appel"),
             coords=nasa_snow_cover.coords,
             dims=nasa_snow_cover.dims,
         )
         out_dataset = xr.Dataset({"NDSI_Snow_Cover": nasa_snow_cover, "snow_cover_fraction": nasa_fsc})
         return out_dataset
+
+
+class MYD10A1FSCRegrid(MOD10A1FSCRegrid):
+    def __init__(self, output_grid: GSGrid, data_folder: str, output_folder: str):
+        super().__init__(output_grid, data_folder, output_folder)
+
+    def get_all_files(self) -> List[str]:
+        return glob(str(Path(self.data_folder).joinpath("MYD10A1*.hdf")))

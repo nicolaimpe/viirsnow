@@ -1,5 +1,6 @@
 from typing import List
 
+import numpy.typing as npt
 import xarray as xr
 from geospatial_grid.gsgrid import GSGrid
 from ndsi_fsc_calibration.regrid import V10A1Regrid, reprojection_l3_nasa_to_grid
@@ -8,8 +9,10 @@ from fractional_snow_cover import ndsi_snow_cover_to_fraction
 
 
 class V10A1FSCRegrid(V10A1Regrid):
-    def __init__(self, output_grid: GSGrid, data_folder: str, output_folder: str):
+    def __init__(self, output_grid: GSGrid, data_folder: str, output_folder: str, forest_mask_path: str | None = None):
         super().__init__(output_grid, data_folder, output_folder)
+        if forest_mask_path is not None:
+            self.forest_mask = xr.open_dataarray(forest_mask_path).sel(band=1)
 
     def create_spatial_composite(self, date_files: List[str]) -> xr.Dataset:
         """Create a reprojected daily VIIRS snow cover composite.
@@ -27,7 +30,7 @@ class V10A1FSCRegrid(V10A1Regrid):
         nasa_snow_cover = reprojection_l3_nasa_to_grid(nasa_snow_cover=daily_spatial_composite, output_grid=self.grid)
         nasa_snow_cover.attrs.pop("valid_range")
         nasa_fsc = xr.DataArray(
-            ndsi_snow_cover_to_fraction(nasa_snow_cover.values, snow_cover_ndsi_threshold=10, method="salomonson_appel"),
+            ndsi_snow_cover_to_fraction(nasa_snow_cover.values, method="salomonson_appel"),
             coords=nasa_snow_cover.coords,
             dims=nasa_snow_cover.dims,
         )
