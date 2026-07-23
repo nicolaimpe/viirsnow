@@ -13,8 +13,8 @@ class ConfusionTable(EvaluationVsHighResBase):
         evaluation_config: EvaluationConfig,
         reference_analyzer: SnowCoverProductCompleteness,
         eval_analyzer: SnowCoverProductCompleteness,
-        eval_fsc_threshold: int = 50,
-        ref_fsc_threshold: int = 50,
+        eval_fsc_threshold: int = 1,
+        ref_fsc_threshold: int = 1,
     ):
         super().__init__(evaluation_config, reference_analyzer, eval_analyzer)
         self.eval_fsc_threshold = eval_fsc_threshold

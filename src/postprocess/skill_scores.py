@@ -161,6 +161,61 @@ def line_plot_accuracy_f1_score(analysis: AnalysisContainer, analysis_var: str, 
     ax.grid(True)
 
 
+def line_plot_f1_score(analysis: AnalysisContainer, analysis_var: str, ax: Axes):
+    metrics_datasets = [
+        open_reduced_dataset_for_plot(
+            product=prod,
+            analysis_folder=analysis.analysis_folder,
+            analysis_type="confusion_table",
+            winter_year=analysis.winter_year,
+            grid=analysis.grid,
+        )
+        for prod in analysis.products
+    ]
+
+    new_metrics_datasets = []
+    if "Ref FSC [%]" in metrics_datasets[0].sizes.keys():
+        for md in metrics_datasets:
+            fractions = (
+                md.sel({"Ref FSC [%]": ["[1-25]", "[26-50]", "[51-75]", "[76-99]"]})
+                .sum(dim="Ref FSC [%]")
+                .assign_coords({"Ref FSC [%]": "[1-99]"})
+            )
+            new_metrics_datasets.append(
+                xr.concat(
+                    [md.sel({"Ref FSC [%]": "0"}), fractions, md.sel({"Ref FSC [%]": "100"})],
+                    dim="Ref FSC [%]",
+                    coords="minimal",
+                    compat="override",
+                )
+            )
+
+    skill_scores = compute_skill_scores_for_parameter(
+        snow_cover_products=analysis.products, metrics_datasets=new_metrics_datasets, variable=analysis_var
+    )
+    skill_scores = skill_scores.where(skill_scores != 0, np.nan)
+    x_coords_conf = new_metrics_datasets[0].coords[analysis_var].values
+    skill_scores = skill_scores.sel({analysis_var: x_coords_conf})
+    for prod in analysis.products:
+        ax.plot(
+            x_coords_conf,
+            skill_scores.sel(product=prod.name).data_vars["f1_score"],
+            "--^",
+            color=prod.plot_color,
+            markersize=6,
+            lw=3,
+        )
+    ax.legend(
+        [Line2D([0], [0], linestyle="-", color="gray"), Line2D([0], [0], linestyle="--", color="gray")],
+        ["F1 score"],
+    )
+    ax.set_ylim(0.75, 1)
+    ax.set_xlim(-0.5, skill_scores.sizes[analysis_var] - 0.5)
+    ax.set_ylabel("Score[-]")
+    # ax.set_xlabel(analysis_var)
+    ax.grid(True)
+
+
 def barplot_total_count(analysis: AnalysisContainer, analysis_var: str, ax: Axes):
     metrics_data_arrays = []
     for prod in analysis.products:

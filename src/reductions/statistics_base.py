@@ -113,7 +113,7 @@ class EvaluationVsHighResBase(MountainBinner):
                 "eval": eval_time_series.data_vars[self.config.eval_var_name[0]].sel(time=common_days),
             },
         )
-        data_bins = self.create_default_bin_dict(altitude_step=900)
+        data_bins = self.create_default_bin_dict_from_config(altitude_step=900)
         if self.config.sensor_zenith_analysis:
             combined_dataset = combined_dataset.assign({"sensor_zenith_angle": eval_time_series["sensor_zenith_angle"]})
             data_bins.update(sensor_zenith=self.sensor_zenith_bins())

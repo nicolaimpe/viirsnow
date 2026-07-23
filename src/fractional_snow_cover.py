@@ -16,9 +16,9 @@ def salomonson_appel_regression(masked_ndsi: npt.NDArray) -> npt.NDArray:
 
 
 def my_regression(masked_ndsi: npt.NDArray, forest_mask: npt.NDArray) -> npt.NDArray:
-    snow_cover_fraction = np.where((forest_mask) * (~np.isnan(masked_ndsi)), 2.11 * masked_ndsi - 0.12, masked_ndsi)
+    snow_cover_fraction = np.where((forest_mask) * (~np.isnan(masked_ndsi)), 2.17 * masked_ndsi - 0.13, masked_ndsi)
     snow_cover_fraction = np.where(
-        (1 - forest_mask) * (~np.isnan(masked_ndsi)), 1.40 * masked_ndsi - 0.04, snow_cover_fraction
+        (1 - forest_mask) * (~np.isnan(masked_ndsi)), 1.43 * masked_ndsi - 0.04, snow_cover_fraction
     )
     snow_cover_fraction = np.clip(snow_cover_fraction, a_max=1, a_min=0)
     return snow_cover_fraction

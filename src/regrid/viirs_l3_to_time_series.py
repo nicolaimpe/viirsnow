@@ -30,7 +30,7 @@ class V10A1FSCRegrid(V10A1Regrid):
         nasa_snow_cover = reprojection_l3_nasa_to_grid(nasa_snow_cover=daily_spatial_composite, output_grid=self.grid)
         nasa_snow_cover.attrs.pop("valid_range")
         nasa_fsc = xr.DataArray(
-            ndsi_snow_cover_to_fraction(nasa_snow_cover.values, method="salomonson_appel"),
+            ndsi_snow_cover_to_fraction(nasa_snow_cover.values, method="mine", forest_mask=self.forest_mask),
             coords=nasa_snow_cover.coords,
             dims=nasa_snow_cover.dims,
         )
