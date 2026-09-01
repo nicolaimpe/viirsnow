@@ -13,8 +13,8 @@ class ConfusionTable(EvaluationVsHighResBase):
         evaluation_config: EvaluationConfig,
         reference_analyzer: SnowCoverProductCompleteness,
         eval_analyzer: SnowCoverProductCompleteness,
-        eval_fsc_threshold: int = 50,
-        ref_fsc_threshold: int = 50,
+        eval_fsc_threshold: int = 1,
+        ref_fsc_threshold: int = 1,
     ):
         super().__init__(evaluation_config, reference_analyzer, eval_analyzer)
         self.eval_fsc_threshold = eval_fsc_threshold
@@ -46,6 +46,7 @@ class ConfusionTable(EvaluationVsHighResBase):
 
         snow_ref = self.ref_analyzer.total_snow_mask(data_array=dataset["ref"])
         no_snow_ref = self.ref_analyzer.total_no_snow_mask(dataset["ref"])
+
         if self.ref_fsc_threshold > 1:
             low_snow_ref = mask_of_pixels_in_range(
                 range=range(1, self.ref_fsc_threshold * int(self.ref_analyzer.max_fsc / 100)), data_array=dataset["ref"]

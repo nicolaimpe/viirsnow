@@ -64,27 +64,33 @@ def plot_annual_daily_cross_sce(area_stats: xr.Dataset, ax: Axes, mode: str = "b
     ax.plot()
 
 
-def plot_annual_area_lines(analysis: AnalysisContainer, classes: List[str], axes: List[Axes]):
-    class_titles = {"snow_cover": "Snow cover", "clouds": "Clouds"}
-
-    metrics_dataset_completeness_0 = open_reduced_dataset(
-        product=analysis.products[0],
-        analysis_folder=analysis.analysis_folder,
-        analysis_type="completeness",
-        winter_year=analysis.winter_year,
-        grid=analysis.grid,
+def find_common_days(analysis_container: AnalysisContainer, analysis_type: str):
+    metrics_dataset_0 = open_reduced_dataset(
+        product=analysis_container.products[0],
+        analysis_folder=analysis_container.analysis_folder,
+        analysis_type=analysis_type,
+        winter_year=analysis_container.winter_year,
+        grid=analysis_container.grid,
     )
-    common_days = metrics_dataset_completeness_0.coords["time"]
-
-    for prod in analysis.products[1:]:
-        metrics_dataset_completeness = open_reduced_dataset(
+    common_days = metrics_dataset_0.coords["time"]
+    for prod in analysis_container.products[1:]:
+        metrics_dataset = open_reduced_dataset(
             product=prod,
-            analysis_folder=analysis.analysis_folder,
-            analysis_type="completeness",
-            winter_year=analysis.winter_year,
-            grid=analysis.grid,
+            analysis_folder=analysis_container.analysis_folder,
+            analysis_type=analysis_type,
+            winter_year=analysis_container.winter_year,
+            grid=analysis_container.grid,
         )
-        common_days = np.intersect1d(common_days, metrics_dataset_completeness.coords["time"])
+        common_days = np.intersect1d(common_days, metrics_dataset.coords["time"])
+    return common_days
+
+
+def plot_annual_area_lines(analysis: AnalysisContainer, classes: List[str], axes: List[Axes]):
+    class_titles = {"snow_cover": "Snow cover", "clouds": "Cloud cover", "no_snow": "Snow free"}
+    common_days = find_common_days(analysis, "completeness")
+    common_days = np.delete(common_days, slice(31, 34))
+    # print(common_days[31])
+    # common_days.pop(31)
     # class_ylim_top={'snow_cover': 2e4, 'clouds': 6e4}
     for product in analysis.products:
         metrics_dataset_completeness = open_reduced_dataset(
@@ -95,8 +101,7 @@ def plot_annual_area_lines(analysis: AnalysisContainer, classes: List[str], axes
             grid=analysis.grid,
         )
         metrics_dataset_completeness = metrics_dataset_completeness.set_xindex("altitude_min")
-
-        metrics_dataset_completeness.sel(time=common_days, altitude_min=slice(900, None))
+        metrics_dataset_completeness = metrics_dataset_completeness.sel(time=common_days, altitude_min=slice(900, None))
 
         product_monthly_averages = (
             metrics_dataset_completeness.resample({"time": "1ME"}).mean(dim="time").data_vars["surface"] * 1e-6
@@ -113,32 +118,17 @@ def plot_annual_area_lines(analysis: AnalysisContainer, classes: List[str], axes
             axes[i].set_ylabel("Area [km²]")
             axes[i].yaxis.set_major_formatter(ticker.StrMethodFormatter("{x:.1e}"))
             axes[i].set_title(class_titles[area_class])
+            axes[i].set_ylim(bottom=annual_surface.min() / 2, top=annual_surface.max() * 6 / 5)
 
-    [ax.set_ylim(bottom=0) for ax in axes]
+    # [ax.set_ylim(bottom=0) for ax in axes]
 
 
 def plot_annual_uncertainty_score_lines(analysis: AnalysisContainer, scores: List[str], axes: List[Axes]):
     score_labels = {"bias": "Bias [% FSC]", "rmse": "RMSE [% FSC]", "unbiased_rmse": "unbiased RMSE [% FSC]"}
     score_titles = {"bias": "Bias", "rmse": "RMSE", "unbiased_rmse": "unbiased RMSE [% FSC]"}
     score_ylims = {"bias": (-6, 6), "rmse": (0, 25), "unbiased_rmse": (0, 25)}
-
-    metrics_dataset_uncertainty_0 = open_reduced_dataset(
-        product=analysis.products[0],
-        analysis_folder=analysis.analysis_folder,
-        analysis_type="uncertainty",
-        winter_year=analysis.winter_year,
-        grid=analysis.grid,
-    )
-    common_days = metrics_dataset_uncertainty_0.coords["time"]
-    for prod in analysis.products[1:]:
-        metrics_dataset_uncertainty = open_reduced_dataset(
-            product=prod,
-            analysis_folder=analysis.analysis_folder,
-            analysis_type="uncertainty",
-            winter_year=analysis.winter_year,
-            grid=analysis.grid,
-        )
-        common_days = np.intersect1d(common_days, metrics_dataset_uncertainty.coords["time"])
+    common_days = find_common_days(analysis, "uncertainty")
+    # print(common_days[6°])
 
     for product in analysis.products:
         metrics_dataset_uncertainty = open_reduced_dataset(
@@ -175,6 +165,16 @@ def plot_annual_uncertainty_score_lines(analysis: AnalysisContainer, scores: Lis
 def annual_area_fancy_plot(analysis: AnalysisContainer, classes: List[str], scores: List[str], axes: List[Axes]):
     n_classes = len(classes)
     [ax.grid() for ax in axes]
+    numbers_alphabet_dict = numbers_alphabet_dict = {0: "(a)", 1: "(b)", 2: "(c)", 3: "(d)", 4: "(e)", 5: "(f)"}
+    for j in range(len(axes)):
+        axes[j].text(
+            0.02,
+            0.98,
+            numbers_alphabet_dict[j],
+            horizontalalignment="left",
+            verticalalignment="top",
+            transform=axes[j].transAxes,
+        )
 
     plot_annual_area_lines(analysis=analysis, classes=classes, axes=axes[:n_classes])
     plot_annual_uncertainty_score_lines(analysis=analysis, scores=scores, axes=axes[n_classes:])

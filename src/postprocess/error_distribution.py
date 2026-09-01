@@ -14,6 +14,7 @@ from xarray.groupers import BinGrouper
 
 from postprocess.general_purpose import AnalysisContainer, fancy_table, open_reduced_dataset_for_plot
 from products.snow_cover_product import SnowCoverProduct
+from reductions.statistics_base import EvaluationVsHighResBase
 
 
 def histograms_to_bias_rmse(metrics_dataset: xr.Dataset) -> xr.Dataset:
@@ -34,10 +35,13 @@ def postprocess_uncertainty_analysis(
 ) -> xr.Dataset:
     reduced_datasets = []
     for product, metrics in zip(snow_cover_products, metrics_datasets):
-        reduced_datasets.append(metrics.groupby(analysis_var).map(histograms_to_bias_rmse))
+        bias_rmse = metrics.groupby(analysis_var).map(histograms_to_bias_rmse)
+        reduced_datasets.append(bias_rmse)
     concatenated = xr.concat(
         reduced_datasets, pd.Index([product.name for product in snow_cover_products], name="product"), coords="minimal"
     )
+    concatenated = concatenated.reindex({"Aspect": EvaluationVsHighResBase.regular_8_aspect_bins().labels})
+
     return concatenated
 
 

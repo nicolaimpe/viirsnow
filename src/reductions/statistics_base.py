@@ -105,6 +105,7 @@ class EvaluationVsHighResBase(MountainBinner):
     def launch_analysis(
         self, eval_time_series: xr.Dataset, ref_time_series: xr.Dataset, netcdf_export_path: str | None = None
     ):
+
         common_days = np.intersect1d(ref_time_series["time"], eval_time_series["time"])
         combined_dataset = xr.Dataset(
             {
@@ -112,9 +113,7 @@ class EvaluationVsHighResBase(MountainBinner):
                 "eval": eval_time_series.data_vars[self.config.eval_var_name[0]].sel(time=common_days),
             },
         )
-
         data_bins = self.create_default_bin_dict_from_config(altitude_step=900)
-
         if self.config.sensor_zenith_analysis:
             combined_dataset = combined_dataset.assign({"sensor_zenith_angle": eval_time_series["sensor_zenith_angle"]})
             data_bins.update(sensor_zenith=self.sensor_zenith_bins())
@@ -130,6 +129,8 @@ class EvaluationVsHighResBase(MountainBinner):
         if netcdf_export_path:
             if not os.path.exists(os.path.dirname(netcdf_export_path)):
                 os.makedirs(os.path.dirname(netcdf_export_path))
+            if os.path.exists(netcdf_export_path):
+                os.remove(netcdf_export_path)
             logger.info(f"Exporting to {netcdf_export_path}")
             transformed.to_netcdf(netcdf_export_path, encoding=generate_xarray_compression_encodings(transformed))
         return transformed
